@@ -1,7 +1,7 @@
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
@@ -82,12 +82,16 @@ fn render_metrics_with_sparklines(f: &mut Frame, app: &mut App, area: Rect) {
 
     let metrics_list = List::new(items)
         .block(Block::default().borders(Borders::ALL).title("Available Metrics"))
-        .highlight_style(Style::default().bg(Color::Blue).fg(Color::White))
+        .highlight_style(
+            Style::default()
+                .bg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        )
         .highlight_symbol("► ");
 
     // Create a temporary list state for this render
     let mut list_state = ratatui::widgets::ListState::default();
-    list_state.select(Some(app.scroll_offset));
+    list_state.select(Some(app.get_current_scroll_position()));
 
     // Render the stateful list widget
     f.render_stateful_widget(metrics_list, area, &mut list_state);

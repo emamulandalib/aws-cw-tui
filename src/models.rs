@@ -252,4 +252,5 @@ pub struct App {
     pub auto_refresh_enabled: bool,
     pub scroll_offset: usize,
     pub metrics_per_screen: usize,
+    pub metrics_summary_scroll: usize, // Track metrics summary scroll position separately
 }

@@ -18,6 +18,7 @@ impl App {
             auto_refresh_enabled: true,
             scroll_offset: 0,
             metrics_per_screen: 1, // Show 1 metric per screen for maximum chart size
+            metrics_summary_scroll: 0, // Initialize metrics summary scroll position
         };
         app.list_state.select(Some(0));
         app
@@ -115,30 +116,52 @@ impl App {
         if let Some(i) = self.list_state.selected() {
             self.selected_instance = Some(i);
             self.state = AppState::MetricsSummary;
-            self.reset_scroll();
+            // Initialize scroll positions for metrics summary
+            self.metrics_summary_scroll = 0;
+            self.scroll_offset = 0;
         }
     }
 
     pub fn back_to_metrics_summary(&mut self) {
         self.state = AppState::MetricsSummary;
-        self.reset_scroll();
+        // Restore the metrics summary scroll position
+        self.scroll_offset = self.metrics_summary_scroll;
     }
 
     pub fn enter_instance_details(&mut self) {
         if let Some(i) = self.list_state.selected() {
             self.selected_instance = Some(i);
             self.state = AppState::InstanceDetails;
+            // Save current metrics summary scroll position before transitioning
+            self.metrics_summary_scroll = self.scroll_offset;
+            // Set scroll_offset to the same position for instance details view
+            // This ensures the same metric is shown that was selected in summary
+            self.scroll_offset = self.metrics_summary_scroll;
         }
     }
 
     pub fn back_to_list(&mut self) {
         self.state = AppState::RdsList;
         self.selected_instance = None;
+        // Reset all scroll positions when going back to the main list
+        self.scroll_offset = 0;
+        self.metrics_summary_scroll = 0;
     }
 
     pub fn scroll_up(&mut self) {
-        if self.scroll_offset > 0 {
-            self.scroll_offset -= 1;
+        match self.state {
+            AppState::MetricsSummary => {
+                if self.metrics_summary_scroll > 0 {
+                    self.metrics_summary_scroll -= 1;
+                    // Keep scroll_offset in sync for UI consistency
+                    self.scroll_offset = self.metrics_summary_scroll;
+                }
+            }
+            _ => {
+                if self.scroll_offset > 0 {
+                    self.scroll_offset -= 1;
+                }
+            }
         }
     }
 
@@ -148,8 +171,10 @@ impl App {
                 // For metrics summary, limit to available metrics count
                 let available_metrics_count = self.get_available_metrics_count();
                 let max_offset = available_metrics_count.saturating_sub(1);
-                if self.scroll_offset < max_offset {
-                    self.scroll_offset += 1;
+                if self.metrics_summary_scroll < max_offset {
+                    self.metrics_summary_scroll += 1;
+                    // Keep scroll_offset in sync for UI consistency
+                    self.scroll_offset = self.metrics_summary_scroll;
                 }
             }
             AppState::InstanceDetails => {
@@ -192,7 +217,22 @@ impl App {
         count
     }
 
+    pub fn get_current_scroll_position(&self) -> usize {
+        match self.state {
+            AppState::MetricsSummary => self.metrics_summary_scroll,
+            _ => self.scroll_offset,
+        }
+    }
+
     pub fn reset_scroll(&mut self) {
-        self.scroll_offset = 0;
+        match self.state {
+            AppState::MetricsSummary => {
+                self.metrics_summary_scroll = 0;
+                self.scroll_offset = 0;
+            }
+            _ => {
+                self.scroll_offset = 0;
+            }
+        }
     }
 }

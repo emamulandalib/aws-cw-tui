@@ -82,7 +82,7 @@ async fn handle_instance_details_event(app: &mut App, key_code: KeyCode) -> Resu
         KeyCode::Char('q') => Ok(true), // Signal to quit
         KeyCode::Char('b') | KeyCode::Esc => {
             app.back_to_metrics_summary();
-            app.reset_scroll();
+            // Don't reset scroll - back_to_metrics_summary() already restores the position
             Ok(false)
         }
         KeyCode::Char('r') => {
