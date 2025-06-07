@@ -51,14 +51,16 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
 fn render_metrics_with_sparklines(f: &mut Frame, app: &mut App, area: Rect) {
     let metrics = get_available_metrics_with_history(&app.metrics);
     
-    // Calculate sparkline width based on available area with better padding calculation
-    // Leave room for borders (2 chars) and some padding (4 chars for margin)
-    let sparkline_width = (area.width as usize).saturating_sub(6).max(20); // Minimum 20 chars
+    // Calculate the inner content width of the List widget
+    // List widget with borders consumes 2 chars (left + right border)
+    // The highlight symbol is handled internally by the List widget
+    let inner_width = area.width.saturating_sub(2); // Only subtract border width
+    let sparkline_width = (inner_width as usize).max(10);
     
     let items: Vec<ListItem> = metrics
         .iter()
         .map(|(name, current_value, history, unit)| {
-            // Generate sparkline with dynamic width
+            // Generate sparkline with maximum available width
             let sparkline = generate_sparkline(history, sparkline_width);
             let (value_color, trend_color) = get_metric_colors(*name, *current_value);
             
