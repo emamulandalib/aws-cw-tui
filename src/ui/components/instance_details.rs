@@ -12,7 +12,7 @@ pub fn render_instance_details(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // Header - further reduced height for less padding
+            Constraint::Length(4), // Header - increased height to show the endpoint
             Constraint::Min(0),    // Content (metrics chart will handle its own controls)
         ])
         .split(f.area());

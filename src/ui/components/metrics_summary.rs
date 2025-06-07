@@ -11,7 +11,7 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // Header - further reduced height for less padding
+            Constraint::Length(4), // Header - increased height to show the endpoint
             Constraint::Min(0),    // Content
             Constraint::Length(1), // Controls at bottom
         ])
