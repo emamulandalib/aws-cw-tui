@@ -127,7 +127,7 @@ pub async fn load_metrics(instance_id: &str) -> Result<MetricData> {
     let (
         (cpu, cpu_hist, cpu_timestamps),
         (connections, conn_hist, _),
-        (free_storage, _, _),
+        (free_storage, free_storage_hist, _),
         (read_iops, read_iops_hist, _),
         (write_iops, write_iops_hist, _),
         (read_latency, read_lat_hist, _),
@@ -186,5 +186,6 @@ pub async fn load_metrics(instance_id: &str) -> Result<MetricData> {
         freeable_memory_history: memory_hist,
         swap_usage_history: swap_hist,
         queue_depth_history: queue_depth_hist,
+        free_storage_space_history: free_storage_hist,
     })
 }

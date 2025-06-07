@@ -45,6 +45,7 @@ pub struct MetricData {
     pub freeable_memory_history: Vec<f64>,
     pub swap_usage_history: Vec<f64>,
     pub queue_depth_history: Vec<f64>,
+    pub free_storage_space_history: Vec<f64>,
 }
 
 impl Default for MetricData {
@@ -78,6 +79,7 @@ impl Default for MetricData {
             freeable_memory_history: Vec::new(),
             swap_usage_history: Vec::new(),
             queue_depth_history: Vec::new(),
+            free_storage_space_history: Vec::new(),
         }
     }
 }

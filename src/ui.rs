@@ -4,12 +4,13 @@ use ratatui::{
     text::{Line, Span},
     widgets::{
         Block, Borders, List, ListItem, 
-        Paragraph, Chart, Axis, Dataset
+        Paragraph, Chart, Axis, Dataset, GraphType
     },
     symbols,
     Frame,
 };
 use std::time::SystemTime;
+use chrono::{Local, Duration};
 use crate::models::{App, AppState, MetricData};
 
 pub fn ui(f: &mut Frame, app: &mut App) {
@@ -105,19 +106,12 @@ fn render_instance_details(f: &mut Frame, app: &mut App) {
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([
-            Constraint::Length(3),
             Constraint::Length(5),
             Constraint::Min(0),
         ])
         .split(f.area());
 
     let instance = &app.rds_instances[app.selected_instance.unwrap()];
-
-    // Header
-    let header = Paragraph::new(format!("RDS Instance Details - {}", instance.identifier))
-        .style(Style::default().fg(Color::Cyan))
-        .block(Block::default().borders(Borders::ALL));
-    f.render_widget(header, chunks[0]);
 
     // Instance Info
     let na_string = "N/A".to_string();
@@ -148,18 +142,18 @@ fn render_instance_details(f: &mut Frame, app: &mut App) {
     let info = Paragraph::new(info_text)
         .block(Block::default().borders(Borders::ALL).title("Instance Information"))
         .wrap(ratatui::widgets::Wrap { trim: true });
-    f.render_widget(info, chunks[1]);
+    f.render_widget(info, chunks[0]);
 
     if app.metrics_loading {
         let loading_msg = Paragraph::new("Loading metrics...")
             .style(Style::default().fg(Color::Yellow))
             .block(Block::default().borders(Borders::ALL).title("CloudWatch Metrics"));
-        f.render_widget(loading_msg, chunks[2]);
+        f.render_widget(loading_msg, chunks[1]);
         return;
     }
 
     // Metrics
-    render_metrics(f, chunks[2], &app.metrics, app.scroll_offset, app.metrics_per_screen);
+    render_metrics(f, chunks[1], &app.metrics, app.scroll_offset, app.metrics_per_screen);
 }
 
 fn render_metrics(f: &mut Frame, area: ratatui::layout::Rect, metrics: &MetricData, scroll_offset: usize, metrics_per_screen: usize) {
@@ -173,7 +167,6 @@ fn render_metrics(f: &mut Frame, area: ratatui::layout::Rect, metrics: &MetricDa
         .split(area);
 
     // Define all metric pairs with their data
-    let empty_history = Vec::new(); // Shared empty vector for metrics without history
     let metric_pairs = vec![
         // Core Performance
         (
@@ -208,14 +201,14 @@ fn render_metrics(f: &mut Frame, area: ratatui::layout::Rect, metrics: &MetricDa
         // I/O Queue Metrics
         (
             ("Queue Depth", format!("{:.2}", metrics.queue_depth), &metrics.queue_depth_history, Color::DarkGray, 100.0),
-            ("Free Storage", format!("{:.1} GB", metrics.free_storage_space / 1024.0 / 1024.0 / 1024.0), &empty_history, Color::White, 1000.0) // Use shared empty vector
+            ("Free Storage", format!("{:.1} GB", metrics.free_storage_space / 1024.0 / 1024.0 / 1024.0), &metrics.free_storage_space_history, Color::White, 1000.0)
         ),
     ];
 
     render_scrollable_metrics(f, main_chunks[0], &metrics.timestamps, &metric_pairs, scroll_offset, metrics_per_screen);
 
-    // Enhanced instructions
-    let instructions = Paragraph::new("Navigation: ↑/↓ or k/j to scroll • r to refresh • b to go back • q to quit • Home to reset scroll | High-Resolution CloudWatch RDS Monitoring")
+    // Simplified instructions
+    let instructions = Paragraph::new("↑/↓ scroll • r refresh • b back • q quit")
         .style(Style::default().fg(Color::Gray))
         .block(Block::default().borders(Borders::ALL).title("Controls"));
     f.render_widget(instructions, main_chunks[1]);
@@ -231,7 +224,7 @@ fn render_scrollable_metrics(
     metrics_per_screen: usize
 ) {
     // Calculate how many metric pairs we can show - each pair needs significant height for good charts
-    let min_height_per_pair = 8; // Minimum height for readable charts with Braille
+    let min_height_per_pair = 12; // Increased height for taller charts with better Braille resolution
     let available_height = area.height as usize;
     let max_pairs_visible = (available_height / min_height_per_pair).max(1).min(metrics_per_screen);
     
@@ -308,22 +301,30 @@ fn render_large_metric_chart(
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1),  // Metric title
-            Constraint::Min(5),     // Large chart area for high resolution
+            Constraint::Min(8),     // Larger chart area for better high-resolution display
         ])
         .split(area);
 
-    // Enhanced metric title with current value
+    // Enhanced metric header with value integrated
     let title_widget = Paragraph::new(format!("{}: {}", name, value))
         .style(Style::default().fg(color).add_modifier(Modifier::BOLD))
-        .alignment(ratatui::layout::Alignment::Center);
+        .alignment(ratatui::layout::Alignment::Left);
     f.render_widget(title_widget, widget_chunks[0]);
 
     // Render high-resolution chart if we have data
     if !history.is_empty() && widget_chunks[1].height >= 5 {
         render_high_resolution_chart(f, widget_chunks[1], timestamps, history, color, max_val, name);
     } else {
-        // Show status message
-        let status_msg = if history.is_empty() { "Loading data..." } else { "Area too small for chart" };
+        // Show status message with debug info for connections
+        let status_msg = if history.is_empty() { 
+            if name == "DB Connections" {
+                format!("Loading data... ({})", history.len())
+            } else {
+                "Loading data...".to_string()
+            }
+        } else { 
+            "Area too small for chart".to_string() 
+        };
         let status_widget = Paragraph::new(status_msg)
             .style(Style::default().fg(Color::DarkGray))
             .alignment(ratatui::layout::Alignment::Center)
@@ -339,98 +340,228 @@ fn render_high_resolution_chart(
     timestamps: &Vec<SystemTime>,
     history: &Vec<f64>,
     color: Color,
-    max_val: f64,
+    _max_val: f64,
     metric_name: &str
 ) {
-    // Convert timestamps to relative time in hours (negative values for past)
-    let data_points: Vec<(f64, f64)> = if timestamps.len() == history.len() {
-        // Use actual timestamps for precise time-based plotting
-        timestamps
+    // Create time-based X-axis that matches actual data periods
+    let (time_bounds, data_points) = if !history.is_empty() && !timestamps.is_empty() {
+        use chrono::{DateTime, Utc};
+        
+        // Convert timestamps to minutes since start for proper time scaling
+        let start_time: DateTime<Utc> = timestamps[0].into();
+        
+        // Create data points with all available data for maximum density
+        let mut points: Vec<(f64, f64)> = timestamps
             .iter()
             .zip(history.iter())
             .map(|(timestamp, &value)| {
-                let hours_ago = timestamp.elapsed()
-                    .map(|d| -(d.as_secs() as f64 / 3600.0))
-                    .unwrap_or(-3.0);
-                (hours_ago, value)
+                let dt: DateTime<Utc> = (*timestamp).into();
+                let minutes_since_start = (dt - start_time).num_minutes() as f64;
+                (minutes_since_start, value)
             })
-            .collect()
-    } else {
-        // Fallback to evenly distributed time points
-        history
-            .iter()
-            .enumerate()
-            .map(|(i, &value)| {
-                let hours_ago = if history.len() > 1 {
-                    -3.0 + (i as f64 * 3.0 / (history.len() as f64 - 1.0))
-                } else {
-                    0.0
-                };
-                (hours_ago, value)
-            })
-            .collect()
-    };
-
-    // Calculate intelligent chart bounds
-    let min_val = history.iter().cloned().fold(f64::INFINITY, f64::min);
-    let max_val_from_history = history.iter().cloned().fold(0.0, f64::max);
-    
-    // Use adaptive bounds for better visualization
-    let chart_min = if min_val.is_finite() { 
-        (min_val * 0.95).min(0.0) // Add 5% padding below minimum
-    } else { 
-        0.0 
-    };
-    
-    let chart_max = if max_val > 0.0 { 
-        max_val * 1.1 // Add 10% padding above maximum
-    } else { 
-        if max_val_from_history > chart_min { 
-            max_val_from_history * 1.1 
-        } else { 
-            chart_min + 1.0 
+            .collect();
+        
+        // Add interpolated points for better density if we have sparse data
+        if points.len() >= 2 && points.len() < 20 {
+            let mut interpolated_points = Vec::new();
+            for i in 0..points.len() - 1 {
+                let (x1, y1) = points[i];
+                let (x2, y2) = points[i + 1];
+                interpolated_points.push((x1, y1));
+                
+                // Add intermediate points if the gap is large
+                let time_gap = x2 - x1;
+                if time_gap > 10.0 { // More than 10 minutes gap
+                    let num_intermediate = ((time_gap / 5.0) as usize).min(3); // Max 3 intermediate points
+                    for j in 1..=num_intermediate {
+                        let ratio = j as f64 / (num_intermediate + 1) as f64;
+                        let x_interp = x1 + ratio * (x2 - x1);
+                        let y_interp = y1 + ratio * (y2 - y1); // Linear interpolation
+                        interpolated_points.push((x_interp, y_interp));
+                    }
+                }
+            }
+            interpolated_points.push(points[points.len() - 1]);
+            points = interpolated_points;
         }
+        
+        // Calculate time bounds based on actual data range
+        let max_minutes = if points.len() > 1 {
+            points.last().unwrap().0
+        } else {
+            180.0 // 3 hours fallback
+        };
+        
+        // Ensure we have a reasonable time range even for single data points
+        let time_range = if max_minutes <= 0.0 { 180.0 } else { max_minutes };
+        
+        ((0.0, time_range), points)
+    } else {
+        // Fallback with sample data points for better visualization when no real data
+        let sample_points = (0..=36).map(|i| {
+            let x = (i as f64) * 5.0; // Every 5 minutes over 3 hours
+            let y = 0.0;
+            (x, y)
+        }).collect();
+        ((0.0, 180.0), sample_points)
+    };
+    
+    // Dynamic Y-axis bounds based on actual data values with intelligent scaling
+    let (chart_min, chart_max) = if !history.is_empty() {
+        let min_val = history.iter().cloned().fold(f64::INFINITY, f64::min);
+        let max_val = history.iter().cloned().fold(-f64::INFINITY, f64::max);
+        
+        if min_val.is_finite() && max_val.is_finite() {
+            if min_val == max_val {
+                // Handle constant values by creating a reasonable range around the value
+                let center = min_val;
+                let margin = if center.abs() > 1.0 { center.abs() * 0.1 } else { 1.0 };
+                (center - margin, center + margin)
+            } else {
+                let range = max_val - min_val;
+                let padding = range * 0.1; // 10% padding for better visualization
+                
+                // Ensure we don't go below zero for metrics that shouldn't be negative
+                let chart_min = if min_val >= 0.0 { 
+                    (min_val - padding).max(0.0) 
+                } else { 
+                    min_val - padding 
+                };
+                let chart_max = max_val + padding;
+                
+                (chart_min, chart_max)
+            }
+        } else {
+            (0.0, 1.0)
+        }
+    } else {
+        (0.0, 1.0)
     };
 
-    // Ensure we have valid bounds
+    // Ensure valid bounds
     let final_max = if chart_max <= chart_min { chart_min + 1.0 } else { chart_max };
 
-    // Create high-resolution dataset with Braille markers
+    // Create high-resolution dataset with enhanced markers for better density and visibility  
     let dataset = Dataset::default()
         .name("")  // No legend needed for single metric
-        .marker(symbols::Marker::Braille)  // High-resolution Braille plotting
+        .marker(symbols::Marker::Braille)
+        .graph_type(GraphType::Line)  // Use Block marker for dense, visible data points
         .style(Style::default().fg(color))
         .data(&data_points);
 
-    // Create enhanced chart with CloudWatch-style presentation
+    // Create enhanced chart with dynamic bounds and labels - no duplicate title
     let chart = Chart::new(vec![dataset])
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(format!("3hr • {}", metric_name))
-                .title_style(Style::default().fg(Color::White))
                 .border_style(Style::default().fg(Color::Gray))
         )
         .x_axis(
             Axis::default()
                 .style(Style::default().fg(Color::Gray))
-                .bounds([-3.0, 0.0])  // 3 hours ago to now
-                .labels(vec![
-                    Line::from("-3h"),
-                    Line::from("-2h"),
-                    Line::from("-1h"), 
-                    Line::from("now")
-                ])
+                .bounds([time_bounds.0, time_bounds.1])
+                .labels({
+                    // Time labels that match actual data periods
+                    if true {
+                        use chrono::{DateTime, Utc};
+                        
+                        let start_time: DateTime<Utc> = timestamps[0].into();
+                        let end_time: DateTime<Utc> = timestamps[timestamps.len() - 1].into();
+                        let total_minutes = (end_time - start_time).num_minutes() as f64;
+                        
+                        let num_labels = 5;
+                        let mut labels = Vec::new();
+                        
+                        for i in 0..num_labels {
+                            let minutes_offset = (i as f64 / (num_labels - 1) as f64) * total_minutes;
+                            let label_time = start_time + chrono::Duration::minutes(minutes_offset as i64);
+                            let local_time: DateTime<Local> = label_time.into();
+                            
+                            labels.push(Line::from(Span::styled(
+                                format!("{}", local_time.format("%H:%M")), 
+                                Style::default().fg(Color::DarkGray)
+                            )));
+                        }
+                        labels
+                    } else {
+                        // Fallback with proper time periods
+                        let now = Local::now();
+                        let start_time = now - Duration::hours(3);
+                        
+                        vec![
+                            Line::from(Span::styled(format!("{}", start_time.format("%H:%M")), Style::default().fg(Color::DarkGray))),
+                            Line::from(Span::styled(format!("{}", (start_time + Duration::minutes(45)).format("%H:%M")), Style::default().fg(Color::DarkGray))),
+                            Line::from(Span::styled(format!("{}", (start_time + Duration::minutes(90)).format("%H:%M")), Style::default().fg(Color::DarkGray))),
+                            Line::from(Span::styled(format!("{}", (start_time + Duration::minutes(135)).format("%H:%M")), Style::default().fg(Color::DarkGray))),
+                            Line::from(Span::styled(format!("{}", now.format("%H:%M")), Style::default().fg(Color::DarkGray)))
+                        ]
+                    }
+                })
         )
         .y_axis(
             Axis::default()
                 .style(Style::default().fg(Color::Gray))
                 .bounds([chart_min, final_max])
-                .labels(vec![
-                    Line::from(format!("{:.2}", chart_min)),
-                    Line::from(format!("{:.2}", (chart_min + final_max) / 2.0)),
-                    Line::from(format!("{:.2}", final_max))
-                ])
+                .labels({
+                    // More Y-axis labels that align with data points
+                    let format_value = |v: f64| -> String {
+                        // Special handling for memory metrics (convert bytes to GB) - compact
+                        if metric_name.contains("Memory") || metric_name.contains("Storage") {
+                            let gb_value = v / 1024.0 / 1024.0 / 1024.0;
+                            if gb_value >= 10.0 {
+                                format!("{:.0}G", gb_value)  // No decimal for large values
+                            } else if gb_value >= 1.0 {
+                                format!("{:.1}G", gb_value)
+                            } else {
+                                let mb_value = v / 1024.0 / 1024.0;
+                                format!("{:.0}M", mb_value)
+                            }
+                        } else if metric_name.contains("Swap") {
+                            let mb_value = v / 1024.0 / 1024.0;
+                            if mb_value >= 1000.0 {
+                                format!("{:.0}G", mb_value / 1024.0)
+                            } else {
+                                format!("{:.0}M", mb_value)
+                            }
+                        } else if metric_name.contains("Throughput") || metric_name.contains("Network") {
+                            let mb_value = v / 1024.0 / 1024.0;
+                            if mb_value >= 100.0 {
+                                format!("{:.0}M", mb_value)
+                            } else {
+                                format!("{:.1}M", mb_value)
+                            }
+                        } else if v.abs() >= 1_000_000.0 {
+                            format!("{:.0}M", v / 1_000_000.0)  // No decimal for millions
+                        } else if v.abs() >= 10_000.0 {
+                            format!("{:.0}K", v / 1_000.0)  // No decimal for 10K+
+                        } else if v.abs() >= 1_000.0 {
+                            format!("{:.1}K", v / 1_000.0)
+                        } else if v.abs() >= 100.0 {
+                            format!("{:.0}", v)  // No decimal for 100+
+                        } else if v.abs() >= 1.0 {
+                            format!("{:.1}", v)
+                        } else if v.abs() >= 0.1 {
+                            format!("{:.2}", v)
+                        } else {
+                            format!("{:.3}", v)
+                        }
+                    };
+                    
+                    // Enhanced Y-axis with 5 labels that correspond to data ranges
+                    let range = final_max - chart_min;
+                    let num_y_labels = 5;
+                    let mut y_labels = Vec::new();
+                    
+                    for i in 0..num_y_labels {
+                        let value = chart_min + (i as f64 / (num_y_labels - 1) as f64) * range;
+                        y_labels.push(Line::from(Span::styled(
+                            format_value(value), 
+                            Style::default().fg(Color::DarkGray)
+                        )));
+                    }
+                    
+                    y_labels
+                })
         );
 
     f.render_widget(chart, area);
