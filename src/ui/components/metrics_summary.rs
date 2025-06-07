@@ -11,41 +11,28 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // Header
+            Constraint::Length(3), // Header - further reduced height for less padding
             Constraint::Min(0),    // Content
+            Constraint::Length(1), // Controls at bottom
         ])
         .split(f.area());
 
-    // Header
-    let header = if let Some(selected_idx) = app.selected_instance {
+    // Header - Instance Information
+    if let Some(selected_idx) = app.selected_instance {
         if let Some(instance) = app.rds_instances.get(selected_idx) {
-            format!("Metrics Summary - {}", instance.identifier)
+            render_instance_info(f, chunks[0], instance);
         } else {
-            "Metrics Summary".to_string()
+            render_default_header(f, chunks[0]);
         }
     } else {
-        "Metrics Summary".to_string()
-    };
-
-    let header_block = Paragraph::new(vec![
-        Line::from(header),
-        Line::from(Span::styled(
-            "↑/↓: Navigate • Enter: View Details • b/Esc: Back • q: Quit",
-            Style::default().fg(Color::Gray),
-        )),
-    ])
-        .block(Block::default().borders(Borders::ALL).title("RDS CloudWatch TUI"));
-    f.render_widget(header_block, chunks[0]);
+        render_default_header(f, chunks[0]);
+    }
 
     // Content area
-    let content_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(0), // Metrics list with sparklines
-        ])
-        .split(chunks[1]);
+    render_metrics_with_sparklines(f, app, chunks[1]);
 
-    render_metrics_with_sparklines(f, app, content_chunks[0]);
+    // Controls
+    render_controls(f, chunks[2]);
 }
 
 fn render_metrics_with_sparklines(f: &mut Frame, app: &mut App, area: Rect) {
@@ -81,7 +68,10 @@ fn render_metrics_with_sparklines(f: &mut Frame, app: &mut App, area: Rect) {
         .collect();
 
     let metrics_list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Available Metrics"))
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Available Metrics")
+            .border_style(Style::default().fg(Color::White)))
         .highlight_style(
             Style::default()
                 .bg(Color::DarkGray)
@@ -288,4 +278,51 @@ fn format_bytes(bytes: f64) -> String {
     }
     
     format!("{:.0} B", bytes)
+}
+
+fn render_instance_info(f: &mut Frame, area: ratatui::layout::Rect, instance: &crate::models::RdsInstance) {
+    let na_string = "N/A".to_string();
+    let info_text = vec![
+        Line::from(vec![
+            Span::styled("Engine: ", Style::default().fg(Color::White)),
+            Span::styled(&instance.engine, Style::default().fg(Color::White)),
+            Span::raw("  "),
+            Span::styled("Status: ", Style::default().fg(Color::White)),
+            Span::styled(&instance.status, Style::default().fg(Color::White)),
+            Span::raw("  "),
+            Span::styled("Class: ", Style::default().fg(Color::White)),
+            Span::styled(&instance.instance_class, Style::default().fg(Color::White)),
+        ]),
+        Line::from(vec![
+            Span::styled("Endpoint: ", Style::default().fg(Color::White)),
+            Span::styled(
+                instance.endpoint.as_ref().unwrap_or(&na_string),
+                Style::default().fg(Color::White),
+            ),
+        ]),
+    ];
+
+    let info = Paragraph::new(info_text)
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Instance Information")
+            .border_style(Style::default().fg(Color::Cyan)))
+        .wrap(ratatui::widgets::Wrap { trim: true });
+    f.render_widget(info, area);
+}
+
+fn render_default_header(f: &mut Frame, area: ratatui::layout::Rect) {
+    let header_block = Paragraph::new("Metrics Summary")
+        .style(Style::default().fg(Color::White))
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("RDS CloudWatch TUI")
+            .border_style(Style::default().fg(Color::Cyan)));
+    f.render_widget(header_block, area);
+}
+
+fn render_controls(f: &mut Frame, area: ratatui::layout::Rect) {
+    let controls = Paragraph::new("↑/↓: Navigate • Enter: View Details • b/Esc: Back • q: Quit")
+        .style(Style::default().fg(Color::Gray));
+    f.render_widget(controls, area);
 }
