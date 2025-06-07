@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 use ratatui::widgets::ListState;
 use anyhow::Result;
 use crate::models::{App, AppState, MetricData};
-use crate::aws;
+use crate::aws::{load_rds_instances, load_metrics};
 
 impl App {
     pub fn new() -> App {
@@ -73,7 +73,7 @@ impl App {
     }
 
     pub async fn load_rds_instances(&mut self) -> Result<()> {
-        self.rds_instances = aws::load_rds_instances().await?;
+        self.rds_instances = load_rds_instances().await?;
         self.loading = false;
         self.mark_refreshed();
         
@@ -96,7 +96,7 @@ impl App {
     pub async fn load_metrics(&mut self, instance_id: &str) -> Result<()> {
         self.metrics_loading = true;
         
-        match aws::load_metrics(instance_id).await {
+        match load_metrics(instance_id).await {
             Ok(metrics) => {
                 self.metrics = metrics;
                 self.metrics_loading = false;
