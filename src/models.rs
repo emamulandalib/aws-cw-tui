@@ -236,6 +236,7 @@ impl MetricData {
 #[derive(Debug, PartialEq)]
 pub enum AppState {
     RdsList,
+    MetricsSummary,
     InstanceDetails,
 }
 

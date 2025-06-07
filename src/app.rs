@@ -111,6 +111,19 @@ impl App {
         }
     }
 
+    pub fn enter_metrics_summary(&mut self) {
+        if let Some(i) = self.list_state.selected() {
+            self.selected_instance = Some(i);
+            self.state = AppState::MetricsSummary;
+            self.reset_scroll();
+        }
+    }
+
+    pub fn back_to_metrics_summary(&mut self) {
+        self.state = AppState::MetricsSummary;
+        self.reset_scroll();
+    }
+
     pub fn enter_instance_details(&mut self) {
         if let Some(i) = self.list_state.selected() {
             self.selected_instance = Some(i);
@@ -130,12 +143,53 @@ impl App {
     }
 
     pub fn scroll_down(&mut self) {
-        let total_individual_metrics = self.metrics.count_available_metrics();
-        // Always allow scrolling through all metrics, one at a time
-        let max_offset = total_individual_metrics.saturating_sub(1);
-        if self.scroll_offset < max_offset {
-            self.scroll_offset += 1;
+        match self.state {
+            AppState::MetricsSummary => {
+                // For metrics summary, limit to available metrics count
+                let available_metrics_count = self.get_available_metrics_count();
+                let max_offset = available_metrics_count.saturating_sub(1);
+                if self.scroll_offset < max_offset {
+                    self.scroll_offset += 1;
+                }
+            }
+            AppState::InstanceDetails => {
+                // For instance details, use the original logic
+                let total_individual_metrics = self.metrics.count_available_metrics();
+                let max_offset = total_individual_metrics.saturating_sub(1);
+                if self.scroll_offset < max_offset {
+                    self.scroll_offset += 1;
+                }
+            }
+            _ => {}
         }
+    }
+
+    fn get_available_metrics_count(&self) -> usize {
+        let mut count = 0;
+        
+        // Core metrics
+        if !self.metrics.cpu_history.is_empty() { count += 1; }
+        if !self.metrics.connections_history.is_empty() { count += 1; }
+        if !self.metrics.read_iops_history.is_empty() { count += 1; }
+        if !self.metrics.write_iops_history.is_empty() { count += 1; }
+        if !self.metrics.read_latency_history.is_empty() { count += 1; }
+        if !self.metrics.write_latency_history.is_empty() { count += 1; }
+        if !self.metrics.free_storage_space_history.is_empty() { count += 1; }
+        if !self.metrics.read_throughput_history.is_empty() { count += 1; }
+        if !self.metrics.write_throughput_history.is_empty() { count += 1; }
+        if !self.metrics.network_receive_history.is_empty() { count += 1; }
+        if !self.metrics.network_transmit_history.is_empty() { count += 1; }
+        if !self.metrics.freeable_memory_history.is_empty() { count += 1; }
+        if !self.metrics.swap_usage_history.is_empty() { count += 1; }
+        if !self.metrics.queue_depth_history.is_empty() { count += 1; }
+
+        // Advanced metrics
+        if !self.metrics.burst_balance_history.is_empty() { count += 1; }
+        if !self.metrics.cpu_credit_usage_history.is_empty() { count += 1; }
+        if !self.metrics.cpu_credit_balance_history.is_empty() { count += 1; }
+        if !self.metrics.replica_lag_history.is_empty() { count += 1; }
+        
+        count
     }
 
     pub fn reset_scroll(&mut self) {
