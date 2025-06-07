@@ -100,6 +100,8 @@ async fn fetch_comprehensive_metric(
                     })
                     .collect();
                 
+
+                
                 (latest_value, history, timestamps)
             } else {
                 // No data available - return zero with empty history and timestamps
@@ -156,6 +158,37 @@ pub async fn load_metrics(instance_id: &str) -> Result<MetricData> {
         fetch_comprehensive_metric(&client, "DiskQueueDepth", "AWS/RDS", &instance_id_owned, start_time, end_time, Some("Count")),
     );
 
+    // Fetch additional RDS metrics (13 more) - some may not be available for all instance types
+    let (
+        (burst_balance, burst_balance_hist, _),
+        (cpu_credit_usage, cpu_credit_usage_hist, _),
+        (cpu_credit_balance, cpu_credit_balance_hist, _),
+        (bin_log_disk_usage, bin_log_disk_usage_hist, _),
+        (replica_lag, replica_lag_hist, _),
+        (max_transaction_ids, max_transaction_ids_hist, _),
+        (oldest_replication_slot_lag, oldest_replication_slot_lag_hist, _),
+        (replication_slot_disk_usage, replication_slot_disk_usage_hist, _),
+        (transaction_logs_disk_usage, transaction_logs_disk_usage_hist, _),
+        (transaction_logs_generation, transaction_logs_generation_hist, _),
+        (failed_sql_server_agent_jobs, failed_sql_server_agent_jobs_hist, _),
+        (checkpoint_lag, checkpoint_lag_hist, _),
+        (connection_attempts, connection_attempts_hist, _),
+    ) = tokio::join!(
+        fetch_comprehensive_metric(&client, "BurstBalance", "AWS/RDS", &instance_id_owned, start_time, end_time, Some("Percent")),
+        fetch_comprehensive_metric(&client, "CPUCreditUsage", "AWS/RDS", &instance_id_owned, start_time, end_time, None), // Credits
+        fetch_comprehensive_metric(&client, "CPUCreditBalance", "AWS/RDS", &instance_id_owned, start_time, end_time, None), // Credits
+        fetch_comprehensive_metric(&client, "BinLogDiskUsage", "AWS/RDS", &instance_id_owned, start_time, end_time, Some("Bytes")),
+        fetch_comprehensive_metric(&client, "ReplicaLag", "AWS/RDS", &instance_id_owned, start_time, end_time, Some("Seconds")),
+        fetch_comprehensive_metric(&client, "MaximumUsedTransactionIDs", "AWS/RDS", &instance_id_owned, start_time, end_time, Some("Count")),
+        fetch_comprehensive_metric(&client, "OldestReplicationSlotLag", "AWS/RDS", &instance_id_owned, start_time, end_time, Some("Bytes")),
+        fetch_comprehensive_metric(&client, "ReplicationSlotDiskUsage", "AWS/RDS", &instance_id_owned, start_time, end_time, Some("Bytes")),
+        fetch_comprehensive_metric(&client, "TransactionLogsDiskUsage", "AWS/RDS", &instance_id_owned, start_time, end_time, Some("Bytes")),
+        fetch_comprehensive_metric(&client, "TransactionLogsGeneration", "AWS/RDS", &instance_id_owned, start_time, end_time, Some("Bytes/Second")),
+        fetch_comprehensive_metric(&client, "FailedSQLServerAgentJobsCount", "AWS/RDS", &instance_id_owned, start_time, end_time, Some("Count")),
+        fetch_comprehensive_metric(&client, "CheckpointLag", "AWS/RDS", &instance_id_owned, start_time, end_time, Some("Seconds")),
+        fetch_comprehensive_metric(&client, "ConnectionAttempts", "AWS/RDS", &instance_id_owned, start_time, end_time, Some("Count")),
+    );
+
     Ok(MetricData {
         // Use CPU timestamps as the primary timeline (all metrics should have similar timestamps)
         timestamps: cpu_timestamps,
@@ -173,6 +206,23 @@ pub async fn load_metrics(instance_id: &str) -> Result<MetricData> {
         swap_usage,
         freeable_memory,
         queue_depth,
+        
+        // Additional RDS metrics
+        burst_balance,
+        cpu_credit_usage,
+        cpu_credit_balance,
+        bin_log_disk_usage,
+        replica_lag,
+        maximum_used_transaction_ids: max_transaction_ids,
+        oldest_replication_slot_lag,
+        replication_slot_disk_usage,
+        transaction_logs_disk_usage,
+        transaction_logs_generation,
+        failed_sql_server_agent_jobs_count: failed_sql_server_agent_jobs,
+        checkpoint_lag,
+        connection_attempts,
+        
+        // Historical data
         cpu_history: cpu_hist,
         connections_history: conn_hist,
         read_iops_history: read_iops_hist,
@@ -187,5 +237,20 @@ pub async fn load_metrics(instance_id: &str) -> Result<MetricData> {
         swap_usage_history: swap_hist,
         queue_depth_history: queue_depth_hist,
         free_storage_space_history: free_storage_hist,
+        
+        // Additional metric histories
+        burst_balance_history: burst_balance_hist,
+        cpu_credit_usage_history: cpu_credit_usage_hist,
+        cpu_credit_balance_history: cpu_credit_balance_hist,
+        bin_log_disk_usage_history: bin_log_disk_usage_hist,
+        replica_lag_history: replica_lag_hist,
+        maximum_used_transaction_ids_history: max_transaction_ids_hist,
+        oldest_replication_slot_lag_history: oldest_replication_slot_lag_hist,
+        replication_slot_disk_usage_history: replication_slot_disk_usage_hist,
+        transaction_logs_disk_usage_history: transaction_logs_disk_usage_hist,
+        transaction_logs_generation_history: transaction_logs_generation_hist,
+        failed_sql_server_agent_jobs_count_history: failed_sql_server_agent_jobs_hist,
+        checkpoint_lag_history: checkpoint_lag_hist,
+        connection_attempts_history: connection_attempts_hist,
     })
 }

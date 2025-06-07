@@ -17,7 +17,7 @@ impl App {
             last_refresh: None,
             auto_refresh_enabled: true,
             scroll_offset: 0,
-            metrics_per_screen: 3, // Show 3 metric pairs per screen for better chart visibility
+            metrics_per_screen: 1, // Show 1 metric per screen for maximum chart size
         };
         app.list_state.select(Some(0));
         app
@@ -130,8 +130,9 @@ impl App {
     }
 
     pub fn scroll_down(&mut self) {
-        let total_metric_pairs: usize = 8; // We have 8 metric pairs total
-        let max_offset = total_metric_pairs.saturating_sub(self.metrics_per_screen);
+        let total_individual_metrics = self.metrics.count_available_metrics();
+        // Always allow scrolling through all metrics, one at a time
+        let max_offset = total_individual_metrics.saturating_sub(1);
         if self.scroll_offset < max_offset {
             self.scroll_offset += 1;
         }
