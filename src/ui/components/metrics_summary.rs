@@ -55,12 +55,13 @@ fn render_metrics_with_sparklines(f: &mut Frame, app: &mut App, area: Rect) {
             let formatted_value = format_value(*current_value, unit);
             
             let content = vec![
-                Line::from(Span::styled(*name, Style::default().fg(Color::Cyan))),
+                Line::from(vec![
+                    Span::styled(*name, Style::default().fg(Color::Cyan)),
+                    Span::styled(": ", Style::default().fg(Color::White)),
+                    Span::styled(formatted_value, Style::default().fg(value_color)),
+                ]),
                 Line::from(Span::styled(sparkline, Style::default().fg(trend_color))),
-                Line::from(Span::styled(
-                    format!("Current: {}", formatted_value),
-                    Style::default().fg(value_color)
-                )),
+                Line::from(""), // Empty line for padding between items
             ];
             
             ListItem::new(content)
@@ -297,7 +298,7 @@ fn render_instance_info(f: &mut Frame, area: ratatui::layout::Rect, instance: &c
             Span::styled("Endpoint: ", Style::default().fg(Color::White)),
             Span::styled(
                 instance.endpoint.as_ref().unwrap_or(&na_string),
-                Style::default().fg(Color::White),
+                Style::default().fg(Color::Cyan),
             ),
         ]),
     ];
@@ -307,7 +308,7 @@ fn render_instance_info(f: &mut Frame, area: ratatui::layout::Rect, instance: &c
             .borders(Borders::ALL)
             .title("Instance Information")
             .border_style(Style::default().fg(Color::Cyan)))
-        .wrap(ratatui::widgets::Wrap { trim: true });
+        .wrap(ratatui::widgets::Wrap { trim: false });
     f.render_widget(info, area);
 }
 

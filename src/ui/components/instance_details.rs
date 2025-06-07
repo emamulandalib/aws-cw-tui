@@ -45,7 +45,7 @@ fn render_instance_info(f: &mut Frame, area: ratatui::layout::Rect, instance: &c
             Span::styled("Endpoint: ", Style::default().fg(Color::White)),
             Span::styled(
                 instance.endpoint.as_ref().unwrap_or(&na_string),
-                Style::default().fg(Color::White),
+                Style::default().fg(Color::Cyan),
             ),
         ]),
     ];
@@ -55,7 +55,7 @@ fn render_instance_info(f: &mut Frame, area: ratatui::layout::Rect, instance: &c
             .borders(Borders::ALL)
             .title("Instance Information")
             .border_style(Style::default().fg(Color::Cyan)))
-        .wrap(ratatui::widgets::Wrap { trim: true });
+        .wrap(ratatui::widgets::Wrap { trim: false });
     f.render_widget(info, area);
 }
 
