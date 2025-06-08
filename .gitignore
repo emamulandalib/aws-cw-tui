@@ -1,1 +1,30 @@
+# Rust build
 /target
+Cargo.lock
+
+# OS files
+.DS_Store
+
+# Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.code-workspace
+
+# Logs
+*.log
+
+# By-products
+*.tmp
+*.bak
+*.old
+
+# Test outputs
+/results/
+/coverage/
+
+# Node/npm (if any JS tooling)
+node_modules/
+package-lock.json
+npm-debug.log
