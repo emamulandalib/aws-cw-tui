@@ -242,6 +242,12 @@ pub enum AppState {
     InstanceDetails,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum FocusedPanel {
+    Metrics,
+    TimeRanges,
+}
+
 pub struct App {
     pub rds_instances: Vec<RdsInstance>,
     pub list_state: ListState,
@@ -255,5 +261,7 @@ pub struct App {
     pub scroll_offset: usize,
     pub metrics_per_screen: usize,
     pub metrics_summary_scroll: usize, // Track metrics summary scroll position separately
+    pub time_range_scroll: usize, // Track time range selection scroll position
+    pub focused_panel: FocusedPanel, // Track which panel has focus (metrics or time ranges)
     pub time_range: TimeRange,
 }

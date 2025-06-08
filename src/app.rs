@@ -25,6 +25,8 @@ impl App {
             scroll_offset: 0,
             metrics_per_screen: 1, // Show 1 metric per screen for maximum chart size
             metrics_summary_scroll: 0, // Initialize metrics summary scroll position
+            time_range_scroll: 2, // Initialize to "3 hours" (index 2 in the list)
+            focused_panel: crate::models::FocusedPanel::Metrics, // Start with metrics panel focused
             time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(), // Default: 3 hours with 1-day period
         };
         app.list_state.select(Some(0));
@@ -126,6 +128,7 @@ impl App {
             // Initialize scroll positions for metrics summary
             self.metrics_summary_scroll = 0;
             self.scroll_offset = 0;
+            self.focused_panel = crate::models::FocusedPanel::Metrics; // Start with metrics focused
         }
     }
 
@@ -158,10 +161,17 @@ impl App {
     pub fn scroll_up(&mut self) {
         match self.state {
             AppState::MetricsSummary => {
-                if self.metrics_summary_scroll > 0 {
-                    self.metrics_summary_scroll -= 1;
-                    // Keep scroll_offset in sync for UI consistency
-                    self.scroll_offset = self.metrics_summary_scroll;
+                match self.focused_panel {
+                    crate::models::FocusedPanel::Metrics => {
+                        if self.metrics_summary_scroll > 0 {
+                            self.metrics_summary_scroll -= 1;
+                            // Keep scroll_offset in sync for UI consistency
+                            self.scroll_offset = self.metrics_summary_scroll;
+                        }
+                    },
+                    crate::models::FocusedPanel::TimeRanges => {
+                        self.time_range_scroll_up();
+                    }
                 }
             }
             _ => {
@@ -175,13 +185,20 @@ impl App {
     pub fn scroll_down(&mut self) {
         match self.state {
             AppState::MetricsSummary => {
-                // For metrics summary, limit to available metrics count
-                let available_metrics_count = self.get_available_metrics_count();
-                let max_offset = available_metrics_count.saturating_sub(1);
-                if self.metrics_summary_scroll < max_offset {
-                    self.metrics_summary_scroll += 1;
-                    // Keep scroll_offset in sync for UI consistency
-                    self.scroll_offset = self.metrics_summary_scroll;
+                match self.focused_panel {
+                    crate::models::FocusedPanel::Metrics => {
+                        // For metrics summary, limit to available metrics count
+                        let available_metrics_count = self.get_available_metrics_count();
+                        let max_offset = available_metrics_count.saturating_sub(1);
+                        if self.metrics_summary_scroll < max_offset {
+                            self.metrics_summary_scroll += 1;
+                            // Keep scroll_offset in sync for UI consistency
+                            self.scroll_offset = self.metrics_summary_scroll;
+                        }
+                    },
+                    crate::models::FocusedPanel::TimeRanges => {
+                        self.time_range_scroll_down();
+                    }
                 }
             }
             AppState::InstanceDetails => {
@@ -236,10 +253,66 @@ impl App {
             AppState::MetricsSummary => {
                 self.metrics_summary_scroll = 0;
                 self.scroll_offset = 0;
+                self.focused_panel = crate::models::FocusedPanel::Metrics; // Reset to metrics panel
             }
             _ => {
                 self.scroll_offset = 0;
             }
         }
+    }
+
+    // Time range options similar to AWS CloudWatch web interface
+    pub fn get_time_range_options() -> Vec<(&'static str, u32, TimeUnit, u32)> {
+        vec![
+            ("5 minutes", 5, TimeUnit::Minutes, 1),
+            ("1 hour", 1, TimeUnit::Hours, 1),
+            ("3 hours", 3, TimeUnit::Hours, 1),
+            ("6 hours", 6, TimeUnit::Hours, 1),
+            ("12 hours", 12, TimeUnit::Hours, 1),
+            ("1 day", 1, TimeUnit::Days, 1),
+            ("3 days", 3, TimeUnit::Days, 1),
+            ("1 week", 1, TimeUnit::Weeks, 7),
+            ("2 weeks", 2, TimeUnit::Weeks, 14),
+            ("1 month", 1, TimeUnit::Months, 30),
+        ]
+    }
+
+    pub fn get_current_time_range_index(&self) -> usize {
+        self.time_range_scroll
+    }
+
+    pub fn select_time_range(&mut self, index: usize) -> Result<()> {
+        let options = Self::get_time_range_options();
+        if let Some(&(_, value, unit, period_days)) = options.get(index) {
+            self.time_range_scroll = index;
+            self.time_range = TimeRange::new(value, unit, period_days)?;
+            Ok(())
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn time_range_scroll_up(&mut self) {
+        if self.time_range_scroll > 0 {
+            self.time_range_scroll -= 1;
+        }
+    }
+
+    pub fn time_range_scroll_down(&mut self) {
+        let options = Self::get_time_range_options();
+        if self.time_range_scroll < options.len() - 1 {
+            self.time_range_scroll += 1;
+        }
+    }
+
+    pub fn switch_panel(&mut self) {
+        self.focused_panel = match self.focused_panel {
+            crate::models::FocusedPanel::Metrics => crate::models::FocusedPanel::TimeRanges,
+            crate::models::FocusedPanel::TimeRanges => crate::models::FocusedPanel::Metrics,
+        };
+    }
+
+    pub fn get_focused_panel(&self) -> &crate::models::FocusedPanel {
+        &self.focused_panel
     }
 }

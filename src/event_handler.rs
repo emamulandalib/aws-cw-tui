@@ -47,65 +47,49 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
     match (key.code, key.modifiers) {
         (KeyCode::Char('q'), _) => Ok(true), // Signal to quit
         (KeyCode::Down, _) => {
-            app.next();
+            match app.get_focused_panel() {
+                crate::models::FocusedPanel::Metrics => {
+                    app.scroll_down();
+                },
+                crate::models::FocusedPanel::TimeRanges => {
+                    app.time_range_scroll_down();
+                }
+            }
             Ok(false)
         },
         (KeyCode::Up, _) => {
-            app.previous();
+            match app.get_focused_panel() {
+                crate::models::FocusedPanel::Metrics => {
+                    app.scroll_up();
+                },
+                crate::models::FocusedPanel::TimeRanges => {
+                    app.time_range_scroll_up();
+                }
+            }
+            Ok(false)
+        },
+        (KeyCode::Left, _) | (KeyCode::Right, _) | (KeyCode::Tab, _) => {
+            app.switch_panel();
             Ok(false)
         },
         (KeyCode::Enter, _) => {
-            app.enter_instance_details();
-            Ok(false)
-        },
-        (KeyCode::Char('1'), KeyModifiers::CONTROL) => {
-            app.update_time_range(1, TimeUnit::Hours, 1)?;
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
-                app.load_metrics(&instance_id).await?
+            match app.get_focused_panel() {
+                crate::models::FocusedPanel::Metrics => {
+                    app.enter_instance_details();
+                },
+                crate::models::FocusedPanel::TimeRanges => {
+                    // Apply the selected time range and refresh metrics
+                    let selected_index = app.get_current_time_range_index();
+                    app.select_time_range(selected_index)?;
+                    if let Some(selected) = app.selected_instance {
+                        let instance_id = app.rds_instances[selected].identifier.clone();
+                        app.load_metrics(&instance_id).await?
+                    }
+                }
             }
             Ok(false)
         },
-        (KeyCode::Char('3'), KeyModifiers::CONTROL) => {
-            app.update_time_range(3, TimeUnit::Hours, 1)?;
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
-                app.load_metrics(&instance_id).await?
-            }
-            Ok(false)
-        },
-        (KeyCode::Char('6'), KeyModifiers::CONTROL) => {
-            app.update_time_range(6, TimeUnit::Hours, 1)?;
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
-                app.load_metrics(&instance_id).await?
-            }
-            Ok(false)
-        },
-        (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
-            app.update_time_range(1, TimeUnit::Days, 1)?;
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
-                app.load_metrics(&instance_id).await?
-            }
-            Ok(false)
-        },
-        (KeyCode::Char('w'), KeyModifiers::CONTROL) => {
-            app.update_time_range(1, TimeUnit::Weeks, 7)?;
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
-                app.load_metrics(&instance_id).await?
-            }
-            Ok(false)
-        },
-        (KeyCode::Char('m'), KeyModifiers::CONTROL) => {
-            app.update_time_range(1, TimeUnit::Months, 30)?;
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
-                app.load_metrics(&instance_id).await?
-            }
-            Ok(false)
-        },
+
         (KeyCode::Char('b'), _) | (KeyCode::Esc, _) => {
             app.back_to_list();
             app.reset_scroll();
