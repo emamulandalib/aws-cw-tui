@@ -298,7 +298,19 @@ fn render_compact_time_ranges(f: &mut Frame, app: &mut App, area: Rect) {
     // Determine if this panel is focused
     let is_focused = matches!(app.get_focused_panel(), crate::models::FocusedPanel::TimeRanges);
     let border_color = if is_focused { Color::Green } else { Color::White };
-    let title = if is_focused { "Time [F]" } else { "Time" }; // Compact title
+    
+    // Get the current selected time period for consistent display
+    let time_ranges = crate::models::App::get_time_range_options();
+    let current_time_range_index = app.get_current_time_range_index();
+    let selected_time_period = time_ranges.get(current_time_range_index)
+        .map(|(label, _, _, _)| *label)
+        .unwrap_or("Unknown");
+    
+    let title = if is_focused {
+        format!("Time [F] ({})", get_selected_time_range_display(selected_time_period))
+    } else {
+        format!("Time ({})", get_selected_time_range_display(selected_time_period))
+    };
 
     let time_range_list = List::new(items)
         .block(Block::default()
@@ -371,7 +383,7 @@ fn render_expanded_trend_chart(f: &mut Frame, app: &mut App, area: Rect) {
     render_metric_info_header(f, chart_chunks[0], metric_name, current_value, unit, border_color);
 
     // Render the enhanced trend chart
-    render_enhanced_trend_chart(f, chart_chunks[1], &app.metrics.timestamps, history, metric_name, border_color);
+    render_enhanced_trend_chart(f, app, chart_chunks[1], &app.metrics.timestamps, history, metric_name, border_color);
 }
 
 fn render_metric_info_header(f: &mut Frame, area: Rect, metric_name: &str, current_value: f64, unit: &str, border_color: Color) {
@@ -395,7 +407,7 @@ fn render_metric_info_header(f: &mut Frame, area: Rect, metric_name: &str, curre
     f.render_widget(info_block, area);
 }
 
-fn render_enhanced_trend_chart(f: &mut Frame, area: Rect, timestamps: &Vec<std::time::SystemTime>, history: &Vec<f64>, metric_name: &str, border_color: Color) {
+fn render_enhanced_trend_chart(f: &mut Frame, app: &App, area: Rect, timestamps: &Vec<std::time::SystemTime>, history: &Vec<f64>, metric_name: &str, border_color: Color) {
     use chrono::{DateTime, Utc};
     
     if area.width < 30 || area.height < 8 {
@@ -446,11 +458,18 @@ fn render_enhanced_trend_chart(f: &mut Frame, area: Rect, timestamps: &Vec<std::
     let x_labels = create_chart_x_labels(timestamps, area.width);
     let y_labels = create_chart_y_labels(y_bounds, metric_name, area.height);
 
+    // Get the current selected time period for consistent display
+    let time_ranges = crate::models::App::get_time_range_options();
+    let current_time_range_index = app.get_current_time_range_index();
+    let selected_time_period = time_ranges.get(current_time_range_index)
+        .map(|(label, _, _, _)| *label)
+        .unwrap_or("Unknown");
+    
     let chart = Chart::new(vec![dataset])
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(format!("Trend ({})", get_chart_time_range(timestamps)))
+                .title(format!("Trend ({})", get_selected_time_range_display(selected_time_period)))
                 .border_style(Style::default().fg(border_color))
         )
         .x_axis(
@@ -585,22 +604,20 @@ fn format_chart_y_value(value: f64, metric_name: &str) -> String {
     }
 }
 
-fn get_chart_time_range(timestamps: &Vec<std::time::SystemTime>) -> String {
-    if timestamps.len() < 2 {
-        return "Real-time".to_string();
-    }
-    
-    use chrono::{DateTime, Utc};
-    let start: DateTime<Utc> = timestamps[0].into();
-    let end: DateTime<Utc> = timestamps[timestamps.len() - 1].into();
-    let duration = end.signed_duration_since(start);
-    
-    if duration.num_hours() >= 24 {
-        format!("{}d", duration.num_days())
-    } else if duration.num_hours() >= 1 {
-        format!("{}h", duration.num_hours())
-    } else {
-        format!("{}m", duration.num_minutes())
+fn get_selected_time_range_display(selected_time_period: &str) -> String {
+    match selected_time_period {
+        "5 minutes" => "5m".to_string(),
+        "1 hour" => "1h".to_string(),
+        "3 hours" => "3h".to_string(),
+        "6 hours" => "6h".to_string(),
+        "12 hours" => "12h".to_string(),
+        "1 day" => "1d".to_string(),
+        "3 days" => "3d".to_string(),
+        "1 week" => "1w".to_string(),
+        "2 weeks" => "2w".to_string(),
+        "1 month" => "1m".to_string(),
+        _ => selected_time_period.to_string(), // Fallback to original if no match
     }
 }
+
 
