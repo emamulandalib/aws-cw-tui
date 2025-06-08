@@ -1,15 +1,67 @@
 use anyhow::Result;
 use aws_config::BehaviorVersion;
 use aws_sdk_cloudwatch::Client as CloudWatchClient;
-use std::time::SystemTime;
+use std::time::{SystemTime, Duration};
 use crate::models::MetricData;
 
-pub async fn load_metrics(instance_id: &str) -> Result<MetricData> {
+#[derive(Debug, Clone, Copy)]
+pub enum TimeUnit {
+    Minutes,
+    Hours,
+    Days,
+    Weeks,
+    Months,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TimeRange {
+    pub value: u32,
+    pub unit: TimeUnit,
+    pub period_days: u32,
+}
+
+impl TimeRange {
+    pub fn new(value: u32, unit: TimeUnit, period_days: u32) -> Result<Self> {
+        // Validate input values
+        match unit {
+            TimeUnit::Minutes if value < 1 => {
+                return Err(anyhow::anyhow!("Minutes must be at least 1"));
+            }
+            TimeUnit::Months if value > 15 => {
+                return Err(anyhow::anyhow!("Months must not exceed 15"));
+            }
+            _ => {}
+        }
+
+        if period_days < 1 || period_days > 30 {
+            return Err(anyhow::anyhow!("Period must be between 1 and 30 days"));
+        }
+
+        Ok(Self {
+            value,
+            unit,
+            period_days,
+        })
+    }
+
+    pub fn to_duration(&self) -> Duration {
+        let seconds = match self.unit {
+            TimeUnit::Minutes => self.value as u64 * 60,
+            TimeUnit::Hours => self.value as u64 * 3600,
+            TimeUnit::Days => self.value as u64 * 86400,
+            TimeUnit::Weeks => self.value as u64 * 604800,
+            TimeUnit::Months => self.value as u64 * 2592000, // Approximate: 30 days per month
+        };
+        Duration::from_secs(seconds)
+    }
+}
+
+pub async fn load_metrics(instance_id: &str, time_range: TimeRange) -> Result<MetricData> {
     let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
     let client = CloudWatchClient::new(&config);
 
     let end_time = SystemTime::now();
-    let start_time = end_time - std::time::Duration::from_secs(10800); // 3 hours ago
+    let start_time = end_time - time_range.to_duration();
 
     let instance_id_owned = instance_id.to_string();
     

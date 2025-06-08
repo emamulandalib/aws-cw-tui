@@ -20,7 +20,7 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
     // Header - Instance Information
     if let Some(selected_idx) = app.selected_instance {
         if let Some(instance) = app.rds_instances.get(selected_idx) {
-            render_instance_info(f, chunks[0], instance);
+            render_instance_info(f, chunks[0], app, instance);
         } else {
             render_default_header(f, chunks[0]);
         }
@@ -281,8 +281,19 @@ fn format_bytes(bytes: f64) -> String {
     format!("{:.0} B", bytes)
 }
 
-fn render_instance_info(f: &mut Frame, area: ratatui::layout::Rect, instance: &crate::models::RdsInstance) {
+fn format_time_range(value: u32, unit: &crate::aws::cloudwatch_service::TimeUnit) -> String {
+    match unit {
+        crate::aws::cloudwatch_service::TimeUnit::Minutes => format!("{}m", value),
+        crate::aws::cloudwatch_service::TimeUnit::Hours => format!("{}h", value),
+        crate::aws::cloudwatch_service::TimeUnit::Days => format!("{}d", value),
+        crate::aws::cloudwatch_service::TimeUnit::Weeks => format!("{}w", value),
+        crate::aws::cloudwatch_service::TimeUnit::Months => format!("{}M", value),
+    }
+}
+
+fn render_instance_info(f: &mut Frame, area: ratatui::layout::Rect, app: &crate::models::App, instance: &crate::models::RdsInstance) {
     let na_string = "N/A".to_string();
+    let time_range = format_time_range(app.time_range.value, &app.time_range.unit);
     let info_text = vec![
         Line::from(vec![
             Span::styled("Engine: ", Style::default().fg(Color::White)),
@@ -293,6 +304,9 @@ fn render_instance_info(f: &mut Frame, area: ratatui::layout::Rect, instance: &c
             Span::raw("  "),
             Span::styled("Class: ", Style::default().fg(Color::White)),
             Span::styled(&instance.instance_class, Style::default().fg(Color::White)),
+            Span::raw("  "),
+            Span::styled("Time Range: ", Style::default().fg(Color::White)),
+            Span::styled(&time_range, Style::default().fg(Color::Green)),
         ]),
         Line::from(vec![
             Span::styled("Endpoint: ", Style::default().fg(Color::White)),
@@ -323,7 +337,9 @@ fn render_default_header(f: &mut Frame, area: ratatui::layout::Rect) {
 }
 
 fn render_controls(f: &mut Frame, area: ratatui::layout::Rect) {
-    let controls = Paragraph::new("↑/↓: Navigate • Enter: View Details • b/Esc: Back • q: Quit")
+    let controls = Paragraph::new(
+        "↑/↓: Navigate • Enter: View Details • b/Esc: Back • q: Quit • \
+         Ctrl+[1/3/6]: 1/3/6h • Ctrl+d: 1d • Ctrl+w: 1w • Ctrl+m: 1M")
         .style(Style::default().fg(Color::Gray));
     f.render_widget(controls, area);
 }

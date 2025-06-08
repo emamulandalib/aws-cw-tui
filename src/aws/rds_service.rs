@@ -2,6 +2,7 @@ use anyhow::Result;
 use aws_config::BehaviorVersion;
 use aws_sdk_rds::Client as RdsClient;
 use crate::models::RdsInstance;
+use crate::aws::cloudwatch_service::{TimeRange, TimeUnit};
 
 pub async fn load_rds_instances() -> Result<Vec<RdsInstance>> {
     let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
@@ -19,6 +20,7 @@ pub async fn load_rds_instances() -> Result<Vec<RdsInstance>> {
                 status: instance.db_instance_status.unwrap_or_default(),
                 instance_class: instance.db_instance_class.unwrap_or_default(),
                 endpoint: instance.endpoint.and_then(|e| e.address),
+                time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(),
             };
             instances.push(rds_instance);
         }

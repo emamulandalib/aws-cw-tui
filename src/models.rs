@@ -1,5 +1,6 @@
 use ratatui::widgets::ListState;
 use std::time::{Instant, SystemTime};
+use crate::aws::cloudwatch_service::{TimeRange, TimeUnit};
 
 #[derive(Debug)]
 pub struct RdsInstance {
@@ -8,6 +9,7 @@ pub struct RdsInstance {
     pub status: String,
     pub instance_class: String,
     pub endpoint: Option<String>,
+    pub time_range: TimeRange,
 }
 
 #[derive(Debug)]
@@ -253,4 +255,5 @@ pub struct App {
     pub scroll_offset: usize,
     pub metrics_per_screen: usize,
     pub metrics_summary_scroll: usize, // Track metrics summary scroll position separately
+    pub time_range: TimeRange,
 }

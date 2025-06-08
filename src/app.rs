@@ -3,8 +3,14 @@ use ratatui::widgets::ListState;
 use anyhow::Result;
 use crate::models::{App, AppState, MetricData};
 use crate::aws::{load_rds_instances, load_metrics};
+use crate::aws::cloudwatch_service::{TimeRange, TimeUnit};
 
 impl App {
+    pub fn update_time_range(&mut self, value: u32, unit: TimeUnit, period_days: u32) -> Result<()> {
+        self.time_range = TimeRange::new(value, unit, period_days)?;
+        Ok(())
+    }
+
     pub fn new() -> App {
         let mut app = App {
             rds_instances: Vec::new(),
@@ -19,6 +25,7 @@ impl App {
             scroll_offset: 0,
             metrics_per_screen: 1, // Show 1 metric per screen for maximum chart size
             metrics_summary_scroll: 0, // Initialize metrics summary scroll position
+            time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(), // Default: 3 hours with 1-day period
         };
         app.list_state.select(Some(0));
         app
@@ -97,7 +104,7 @@ impl App {
     pub async fn load_metrics(&mut self, instance_id: &str) -> Result<()> {
         self.metrics_loading = true;
         
-        match load_metrics(instance_id).await {
+        match load_metrics(instance_id, self.time_range).await {
             Ok(metrics) => {
                 self.metrics = metrics;
                 self.metrics_loading = false;
