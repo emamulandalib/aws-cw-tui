@@ -2,6 +2,8 @@
 
 A terminal user interface (TUI) for AWS CloudWatch that provides comprehensive RDS monitoring with advanced data visualization.
 
+<!-- TODO: Add a screenshot or GIF of the TUI in action here -->
+
 ## Features
 
 ### 🚀 Enhanced RDS Monitoring
@@ -142,10 +144,18 @@ cargo run -- --rds
 
 ## Dependencies
 
-- **AWS SDK**: CloudWatch and RDS clients
-- **Ratatui**: Terminal UI framework  
-- **Tokio**: Async runtime
-- **Clap**: Command line parsing
+This project relies on several key crates:
+
+- **`ratatui`**: For building the terminal user interface.
+- **`crossterm`**: For terminal manipulation and event handling.
+- **`tokio`**: Asynchronous runtime for concurrent operations.
+- **`clap`**: For parsing command-line arguments.
+- **AWS SDK for Rust**:
+  - **`aws-config`**: For loading AWS configuration.
+  - **`aws-sdk-rds`**: For interacting with AWS RDS.
+  - **`aws-sdk-cloudwatch`**: For fetching CloudWatch metrics.
+- **`anyhow`**: For flexible error handling.
+- **`chrono`**: For date and time utilities.
 
 ## License
 
