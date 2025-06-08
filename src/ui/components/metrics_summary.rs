@@ -342,7 +342,7 @@ fn render_default_header(f: &mut Frame, area: ratatui::layout::Rect) {
 
 fn render_controls(f: &mut Frame, area: ratatui::layout::Rect) {
     let controls = Paragraph::new(
-        "↑/↓: Navigate Metrics • ←/→: Navigate Time Ranges • Enter: View Details • r: Refresh • b/Esc: Back • q: Quit")
+        "↑/↓: Navigate • Tab/←/→: Switch Panels • Enter: Select/View Details • r: Refresh • b/Esc: Back • q: Quit")
         .style(Style::default().fg(Color::Gray));
     f.render_widget(controls, area);
 }

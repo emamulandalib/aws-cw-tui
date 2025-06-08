@@ -1,6 +1,6 @@
 use ratatui::widgets::ListState;
 use std::time::{Instant, SystemTime};
-use crate::aws::cloudwatch_service::{TimeRange, TimeUnit};
+use crate::aws::cloudwatch_service::{TimeRange};
 
 #[derive(Debug)]
 pub struct RdsInstance {
@@ -9,7 +9,6 @@ pub struct RdsInstance {
     pub status: String,
     pub instance_class: String,
     pub endpoint: Option<String>,
-    pub time_range: TimeRange,
 }
 
 #[derive(Debug)]

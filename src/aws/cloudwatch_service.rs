@@ -65,11 +65,55 @@ pub async fn load_metrics(instance_id: &str, time_range: TimeRange) -> Result<Me
 
     let instance_id_owned = instance_id.to_string();
     
+    // Calculate period based on time range duration and period_days
+    let period_seconds = calculate_period_seconds(&time_range);
+    
     // Fetch core metrics concurrently
-    let core_metrics = fetch_core_metrics(&client, &instance_id_owned, start_time, end_time).await;
-    let advanced_metrics = fetch_advanced_metrics(&client, &instance_id_owned, start_time, end_time).await;
+    let core_metrics = fetch_core_metrics(&client, &instance_id_owned, start_time, end_time, period_seconds).await;
+    let advanced_metrics = fetch_advanced_metrics(&client, &instance_id_owned, start_time, end_time, period_seconds).await;
 
     Ok(build_metric_data(core_metrics, advanced_metrics))
+}
+
+fn calculate_period_seconds(time_range: &TimeRange) -> i32 {
+    // Calculate appropriate period based on time range duration and period_days
+    let duration_seconds = time_range.to_duration().as_secs();
+    
+    // Use period_days to influence the granularity
+    // Shorter period_days means finer granularity, longer means coarser
+    let base_period = match duration_seconds {
+        0..=3600 => 60,        // 1 minute for <= 1 hour
+        3601..=21600 => 300,   // 5 minutes for <= 6 hours
+        21601..=86400 => 900,  // 15 minutes for <= 1 day
+        86401..=604800 => 3600, // 1 hour for <= 1 week
+        _ => {
+            // For longer periods, use period_days to calculate appropriate granularity
+            let target_points = 100; // Target ~100 data points
+            let calculated_period = (duration_seconds / target_points).max(3600) as i32;
+            
+            // Ensure period aligns with CloudWatch supported periods
+            match calculated_period {
+                0..=300 => 300,
+                301..=900 => 900,
+                901..=3600 => 3600,
+                _ => ((calculated_period / 3600) * 3600).min(86400), // Round to hours, max 1 day
+            }
+        }
+    };
+    
+    // Adjust period based on period_days setting
+    // Lower period_days = finer granularity, higher period_days = coarser granularity
+    let period_multiplier = match time_range.period_days {
+        1..=3 => 1,      // Fine granularity for short periods
+        4..=7 => 2,      // Medium granularity
+        8..=14 => 3,     // Coarser granularity for medium periods
+        _ => 4,          // Coarsest granularity for long periods
+    };
+    
+    let adjusted_period = base_period * period_multiplier;
+    
+    // Ensure the period doesn't exceed CloudWatch limits (max 1 day = 86400 seconds)
+    adjusted_period.min(86400)
 }
 
 async fn fetch_core_metrics(
@@ -77,6 +121,7 @@ async fn fetch_core_metrics(
     instance_id: &str,
     start_time: SystemTime,
     end_time: SystemTime,
+    period_seconds: i32,
 ) -> CoreMetrics {
     let (
         (cpu, cpu_hist, cpu_timestamps),
@@ -94,20 +139,20 @@ async fn fetch_core_metrics(
         (freeable_memory, memory_hist, _),
         (queue_depth, queue_depth_hist, _),
     ) = tokio::join!(
-        fetch_comprehensive_metric(client, "CPUUtilization", "AWS/RDS", instance_id, start_time, end_time, Some("Percent")),
-        fetch_comprehensive_metric(client, "DatabaseConnections", "AWS/RDS", instance_id, start_time, end_time, Some("Count")),
-        fetch_comprehensive_metric(client, "FreeStorageSpace", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes")),
-        fetch_comprehensive_metric(client, "ReadIOPS", "AWS/RDS", instance_id, start_time, end_time, Some("Count/Second")),
-        fetch_comprehensive_metric(client, "WriteIOPS", "AWS/RDS", instance_id, start_time, end_time, Some("Count/Second")),
-        fetch_comprehensive_metric(client, "ReadLatency", "AWS/RDS", instance_id, start_time, end_time, Some("Seconds")),
-        fetch_comprehensive_metric(client, "WriteLatency", "AWS/RDS", instance_id, start_time, end_time, Some("Seconds")),
-        fetch_comprehensive_metric(client, "ReadThroughput", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes/Second")),
-        fetch_comprehensive_metric(client, "WriteThroughput", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes/Second")),
-        fetch_comprehensive_metric(client, "NetworkReceiveThroughput", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes/Second")),
-        fetch_comprehensive_metric(client, "NetworkTransmitThroughput", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes/Second")),
-        fetch_comprehensive_metric(client, "SwapUsage", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes")),
-        fetch_comprehensive_metric(client, "FreeableMemory", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes")),
-        fetch_comprehensive_metric(client, "DiskQueueDepth", "AWS/RDS", instance_id, start_time, end_time, Some("Count")),
+        fetch_comprehensive_metric(client, "CPUUtilization", "AWS/RDS", instance_id, start_time, end_time, Some("Percent"), period_seconds),
+        fetch_comprehensive_metric(client, "DatabaseConnections", "AWS/RDS", instance_id, start_time, end_time, Some("Count"), period_seconds),
+        fetch_comprehensive_metric(client, "FreeStorageSpace", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes"), period_seconds),
+        fetch_comprehensive_metric(client, "ReadIOPS", "AWS/RDS", instance_id, start_time, end_time, Some("Count/Second"), period_seconds),
+        fetch_comprehensive_metric(client, "WriteIOPS", "AWS/RDS", instance_id, start_time, end_time, Some("Count/Second"), period_seconds),
+        fetch_comprehensive_metric(client, "ReadLatency", "AWS/RDS", instance_id, start_time, end_time, Some("Seconds"), period_seconds),
+        fetch_comprehensive_metric(client, "WriteLatency", "AWS/RDS", instance_id, start_time, end_time, Some("Seconds"), period_seconds),
+        fetch_comprehensive_metric(client, "ReadThroughput", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes/Second"), period_seconds),
+        fetch_comprehensive_metric(client, "WriteThroughput", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes/Second"), period_seconds),
+        fetch_comprehensive_metric(client, "NetworkReceiveThroughput", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes/Second"), period_seconds),
+        fetch_comprehensive_metric(client, "NetworkTransmitThroughput", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes/Second"), period_seconds),
+        fetch_comprehensive_metric(client, "SwapUsage", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes"), period_seconds),
+        fetch_comprehensive_metric(client, "FreeableMemory", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes"), period_seconds),
+        fetch_comprehensive_metric(client, "DiskQueueDepth", "AWS/RDS", instance_id, start_time, end_time, Some("Count"), period_seconds),
     );
 
     CoreMetrics {
@@ -148,6 +193,7 @@ async fn fetch_advanced_metrics(
     instance_id: &str,
     start_time: SystemTime,
     end_time: SystemTime,
+    period_seconds: i32,
 ) -> AdvancedMetrics {
     let (
         (burst_balance, burst_balance_hist, _),
@@ -164,19 +210,19 @@ async fn fetch_advanced_metrics(
         (checkpoint_lag, checkpoint_lag_hist, _),
         (connection_attempts, connection_attempts_hist, _),
     ) = tokio::join!(
-        fetch_comprehensive_metric(client, "BurstBalance", "AWS/RDS", instance_id, start_time, end_time, Some("Percent")),
-        fetch_comprehensive_metric(client, "CPUCreditUsage", "AWS/RDS", instance_id, start_time, end_time, None),
-        fetch_comprehensive_metric(client, "CPUCreditBalance", "AWS/RDS", instance_id, start_time, end_time, None),
-        fetch_comprehensive_metric(client, "BinLogDiskUsage", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes")),
-        fetch_comprehensive_metric(client, "ReplicaLag", "AWS/RDS", instance_id, start_time, end_time, Some("Seconds")),
-        fetch_comprehensive_metric(client, "MaximumUsedTransactionIDs", "AWS/RDS", instance_id, start_time, end_time, Some("Count")),
-        fetch_comprehensive_metric(client, "OldestReplicationSlotLag", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes")),
-        fetch_comprehensive_metric(client, "ReplicationSlotDiskUsage", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes")),
-        fetch_comprehensive_metric(client, "TransactionLogsDiskUsage", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes")),
-        fetch_comprehensive_metric(client, "TransactionLogsGeneration", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes/Second")),
-        fetch_comprehensive_metric(client, "FailedSQLServerAgentJobsCount", "AWS/RDS", instance_id, start_time, end_time, Some("Count")),
-        fetch_comprehensive_metric(client, "CheckpointLag", "AWS/RDS", instance_id, start_time, end_time, Some("Seconds")),
-        fetch_comprehensive_metric(client, "ConnectionAttempts", "AWS/RDS", instance_id, start_time, end_time, Some("Count")),
+        fetch_comprehensive_metric(client, "BurstBalance", "AWS/RDS", instance_id, start_time, end_time, Some("Percent"), period_seconds),
+        fetch_comprehensive_metric(client, "CPUCreditUsage", "AWS/RDS", instance_id, start_time, end_time, None, period_seconds),
+        fetch_comprehensive_metric(client, "CPUCreditBalance", "AWS/RDS", instance_id, start_time, end_time, None, period_seconds),
+        fetch_comprehensive_metric(client, "BinLogDiskUsage", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes"), period_seconds),
+        fetch_comprehensive_metric(client, "ReplicaLag", "AWS/RDS", instance_id, start_time, end_time, Some("Seconds"), period_seconds),
+        fetch_comprehensive_metric(client, "MaximumUsedTransactionIDs", "AWS/RDS", instance_id, start_time, end_time, Some("Count"), period_seconds),
+        fetch_comprehensive_metric(client, "OldestReplicationSlotLag", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes"), period_seconds),
+        fetch_comprehensive_metric(client, "ReplicationSlotDiskUsage", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes"), period_seconds),
+        fetch_comprehensive_metric(client, "TransactionLogsDiskUsage", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes"), period_seconds),
+        fetch_comprehensive_metric(client, "TransactionLogsGeneration", "AWS/RDS", instance_id, start_time, end_time, Some("Bytes/Second"), period_seconds),
+        fetch_comprehensive_metric(client, "FailedSQLServerAgentJobsCount", "AWS/RDS", instance_id, start_time, end_time, Some("Count"), period_seconds),
+        fetch_comprehensive_metric(client, "CheckpointLag", "AWS/RDS", instance_id, start_time, end_time, Some("Seconds"), period_seconds),
+        fetch_comprehensive_metric(client, "ConnectionAttempts", "AWS/RDS", instance_id, start_time, end_time, Some("Count"), period_seconds),
     );
 
     AdvancedMetrics {
@@ -217,6 +263,7 @@ async fn fetch_comprehensive_metric(
     start_time: SystemTime,
     end_time: SystemTime,
     unit: Option<&str>,
+    period_seconds: i32,
 ) -> (f64, Vec<f64>, Vec<SystemTime>) {
     let mut request = client
         .get_metric_statistics()
@@ -230,7 +277,7 @@ async fn fetch_comprehensive_metric(
         )
         .start_time(aws_sdk_cloudwatch::primitives::DateTime::from(start_time))
         .end_time(aws_sdk_cloudwatch::primitives::DateTime::from(end_time))
-        .period(300) // 5 minutes
+        .period(period_seconds)
         .statistics(aws_sdk_cloudwatch::types::Statistic::Average);
 
     if let Some(u) = unit {
