@@ -74,20 +74,6 @@ When viewing an RDS instance, you'll see:
 3. **Full-Width High-Resolution Charts**: Each metric displays in a dedicated chart with 3-hour time series data
 4. **Scrollable Interface**: Navigate through all 27 metrics with smooth scrolling
 
-### Sample Metrics Display
-
-```
-┌─ Core Performance ──────────────────────────────────────────┐
-│ ┌─ CPU Utilization ─────┐ ┌─ DB Connections ──────────┐    │
-│ │ 65.3%                 │ │ 42                        │    │
-│ │ ┌─ 3h Trend ────────┐ │ │ ┌─ 3h Trend ─────────┐  │    │
-│ │ │ ⠈⠑⠒⠢⠤⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀ │ │ │ ⠈⠉⠒⠢⠤⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀ │  │    │
-│ │ │ 3h ago      now │ │ │ │ 3h ago       now │  │    │
-│ │ └─────────────────┘ │ │ └──────────────────┘  │    │
-│ └───────────────────── │ └─────────────────────── │    │
-└─────────────────────────────────────────────────────────────┘
-```
-
 ## AWS Configuration
 
 Ensure your AWS credentials are configured:
