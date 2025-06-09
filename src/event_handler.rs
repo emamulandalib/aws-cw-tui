@@ -55,22 +55,25 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
             Ok(false)
         },
         (KeyCode::Enter, _) => {
-            // If TimeRanges panel is focused, select the current time range
-            if matches!(app.get_focused_panel(), crate::models::FocusedPanel::TimeRanges) {
-                let current_index = app.get_current_time_range_index();
-                app.select_time_range(current_index)?;
-                // Reload metrics with new time range
-                if let Some(selected) = app.selected_instance {
-                    let instance_id = app.rds_instances[selected].identifier.clone();
-                    app.load_metrics(&instance_id).await?;
+            match app.get_focused_panel() {
+                crate::models::FocusedPanel::TimeRanges => {
+                    // Select the current time range and reload metrics
+                    let current_index = app.get_current_time_range_index();
+                    app.select_time_range(current_index)?;
+                    if let Some(selected) = app.selected_instance {
+                        let instance_id = app.rds_instances[selected].identifier.clone();
+                        app.load_metrics(&instance_id).await?;
+                    }
+                },
+                crate::models::FocusedPanel::SparklineGrid => {
+                    // Navigate to Instance Details when Enter is pressed on SparklineGrid
+                    app.enter_instance_details();
                 }
-            } else {
-                // If Metrics panel is focused, enter instance details
-                app.enter_instance_details();
             }
             Ok(false)
         },
         (KeyCode::Tab, _) => {
+            // Cycle through TimeRanges → SparklineGrid panels
             app.switch_panel();
             Ok(false)
         },
@@ -136,6 +139,7 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
             Ok(false)
         },
         (KeyCode::Left, _) | (KeyCode::Right, _) => {
+            // Left/Right arrows also cycle through panels
             app.switch_panel();
             Ok(false)
         },

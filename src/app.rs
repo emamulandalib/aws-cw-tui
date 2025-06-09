@@ -26,8 +26,13 @@ impl App {
             metrics_per_screen: 1, // Show 1 metric per screen for maximum chart size
             metrics_summary_scroll: 0, // Initialize metrics summary scroll position
             time_range_scroll: 2, // Initialize to "3 hours" (index 2 in the list)
-            focused_panel: crate::models::FocusedPanel::Metrics, // Start with metrics panel focused
+            focused_panel: crate::models::FocusedPanel::TimeRanges, // Start with time ranges panel focused
             time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(), // Default: 3 hours with 1-day period
+            
+            // Initialize sparkline grid state
+            selected_metric: None,
+            sparkline_grid_scroll: 0,
+            sparkline_grid_selected_index: 0,
         };
         app.list_state.select(Some(0));
         app
@@ -110,12 +115,17 @@ impl App {
             Ok(metrics) => {
                 self.metrics = metrics;
                 self.metrics_loading = false;
+                // Initialize sparkline grid with new metrics data
+                self.initialize_sparkline_grid();
                 Ok(())
             }
             Err(e) => {
                 self.metrics_loading = false;
                 // Reset to default metrics on error
                 self.metrics = MetricData::default();
+                // Reset sparkline grid state
+                self.selected_metric = None;
+                self.sparkline_grid_selected_index = 0;
                 Err(e)
             }
         }
@@ -128,7 +138,10 @@ impl App {
             // Initialize scroll positions for metrics summary
             self.metrics_summary_scroll = 0;
             self.scroll_offset = 0;
-            self.focused_panel = crate::models::FocusedPanel::Metrics; // Start with metrics focused
+            self.focused_panel = crate::models::FocusedPanel::TimeRanges; // Start with time ranges focused
+            // Initialize sparkline grid state and synchronize with scroll offset
+            self.sparkline_grid_selected_index = 0;
+            self.initialize_sparkline_grid();
         }
     }
 
@@ -136,6 +149,9 @@ impl App {
         self.state = AppState::MetricsSummary;
         // Restore the metrics summary scroll position
         self.scroll_offset = self.metrics_summary_scroll;
+        // Synchronize sparkline grid state with scroll position
+        self.sparkline_grid_selected_index = self.scroll_offset;
+        self.update_selected_metric();
     }
 
     pub fn enter_instance_details(&mut self) {
@@ -144,9 +160,10 @@ impl App {
             self.state = AppState::InstanceDetails;
             // Save current metrics summary scroll position before transitioning
             self.metrics_summary_scroll = self.scroll_offset;
-            // Set scroll_offset to the same position for instance details view
-            // This ensures the same metric is shown that was selected in summary
-            self.scroll_offset = self.metrics_summary_scroll;
+            // Set scroll_offset to match the sparkline grid selected index for consistency
+            self.scroll_offset = self.sparkline_grid_selected_index;
+            // Update metrics summary scroll to match
+            self.metrics_summary_scroll = self.scroll_offset;
         }
     }
 
@@ -162,15 +179,11 @@ impl App {
         match self.state {
             AppState::MetricsSummary => {
                 match self.focused_panel {
-                    crate::models::FocusedPanel::Metrics => {
-                        if self.metrics_summary_scroll > 0 {
-                            self.metrics_summary_scroll -= 1;
-                            // Keep scroll_offset in sync for UI consistency
-                            self.scroll_offset = self.metrics_summary_scroll;
-                        }
-                    },
                     crate::models::FocusedPanel::TimeRanges => {
                         self.time_range_scroll_up();
+                    },
+                    crate::models::FocusedPanel::SparklineGrid => {
+                        self.sparkline_grid_scroll_up();
                     }
                 }
             }
@@ -186,18 +199,11 @@ impl App {
         match self.state {
             AppState::MetricsSummary => {
                 match self.focused_panel {
-                    crate::models::FocusedPanel::Metrics => {
-                        // For metrics summary, limit to available metrics count
-                        let available_metrics_count = self.get_available_metrics_count();
-                        let max_offset = available_metrics_count.saturating_sub(1);
-                        if self.metrics_summary_scroll < max_offset {
-                            self.metrics_summary_scroll += 1;
-                            // Keep scroll_offset in sync for UI consistency
-                            self.scroll_offset = self.metrics_summary_scroll;
-                        }
-                    },
                     crate::models::FocusedPanel::TimeRanges => {
                         self.time_range_scroll_down();
+                    },
+                    crate::models::FocusedPanel::SparklineGrid => {
+                        self.sparkline_grid_scroll_down();
                     }
                 }
             }
@@ -253,10 +259,17 @@ impl App {
             AppState::MetricsSummary => {
                 self.metrics_summary_scroll = 0;
                 self.scroll_offset = 0;
-                self.focused_panel = crate::models::FocusedPanel::Metrics; // Reset to metrics panel
+                self.focused_panel = crate::models::FocusedPanel::TimeRanges; // Reset to time ranges panel
+                // Also reset sparkline grid state and synchronize
+                self.sparkline_grid_scroll = 0;
+                self.sparkline_grid_selected_index = 0;
+                self.initialize_sparkline_grid();
             }
             _ => {
                 self.scroll_offset = 0;
+                // Also synchronize sparkline grid state for consistency
+                self.sparkline_grid_selected_index = 0;
+                self.metrics_summary_scroll = 0;
             }
         }
     }
@@ -307,12 +320,97 @@ impl App {
 
     pub fn switch_panel(&mut self) {
         self.focused_panel = match self.focused_panel {
-            crate::models::FocusedPanel::Metrics => crate::models::FocusedPanel::TimeRanges,
-            crate::models::FocusedPanel::TimeRanges => crate::models::FocusedPanel::Metrics,
+            crate::models::FocusedPanel::TimeRanges => crate::models::FocusedPanel::SparklineGrid,
+            crate::models::FocusedPanel::SparklineGrid => crate::models::FocusedPanel::TimeRanges,
         };
     }
 
     pub fn get_focused_panel(&self) -> &crate::models::FocusedPanel {
         &self.focused_panel
+    }
+
+    // Sparkline grid navigation methods
+    pub fn sparkline_grid_scroll_up(&mut self) {
+        if self.sparkline_grid_selected_index > 0 {
+            self.sparkline_grid_selected_index -= 1;
+            self.update_selected_metric();
+            // Synchronize with main scroll offset
+            self.scroll_offset = self.sparkline_grid_selected_index;
+            self.metrics_summary_scroll = self.scroll_offset;
+        }
+    }
+
+    pub fn sparkline_grid_scroll_down(&mut self) {
+        let available_metrics = self.metrics.get_available_metrics();
+        if self.sparkline_grid_selected_index < available_metrics.len().saturating_sub(1) {
+            self.sparkline_grid_selected_index += 1;
+            self.update_selected_metric();
+            // Synchronize with main scroll offset
+            self.scroll_offset = self.sparkline_grid_selected_index;
+            self.metrics_summary_scroll = self.scroll_offset;
+        }
+    }
+
+    pub fn get_available_metrics(&self) -> Vec<crate::models::MetricType> {
+        self.metrics.get_available_metrics()
+    }
+
+    pub fn get_selected_metric(&self) -> Option<&crate::models::MetricType> {
+        self.selected_metric.as_ref()
+    }
+
+    pub fn set_selected_metric(&mut self, metric: crate::models::MetricType) {
+        // Update the selected index to match the new metric
+        let available_metrics = self.metrics.get_available_metrics();
+        if let Some(index) = available_metrics.iter().position(|m| *m == metric) {
+            self.sparkline_grid_selected_index = index;
+        }
+        self.selected_metric = Some(metric);
+    }
+
+    pub fn get_sparkline_grid_selected_index(&self) -> usize {
+        self.sparkline_grid_selected_index
+    }
+
+    fn update_selected_metric(&mut self) {
+        let available_metrics = self.metrics.get_available_metrics();
+        if let Some(metric) = available_metrics.get(self.sparkline_grid_selected_index) {
+            self.selected_metric = Some(metric.clone());
+        }
+    }
+
+    pub fn initialize_sparkline_grid(&mut self) {
+        let available_metrics = self.metrics.get_available_metrics();
+        if !available_metrics.is_empty() {
+            // Initialize with the first available metric if none selected
+            if self.selected_metric.is_none() {
+                self.selected_metric = Some(available_metrics[0].clone());
+                self.sparkline_grid_selected_index = 0;
+            } else {
+                // Ensure the selected metric is still available and update index
+                if let Some(ref current_metric) = self.selected_metric {
+                    if let Some(index) = available_metrics.iter().position(|m| m == current_metric) {
+                        self.sparkline_grid_selected_index = index;
+                    } else {
+                        // Selected metric is no longer available, select the first one
+                        self.selected_metric = Some(available_metrics[0].clone());
+                        self.sparkline_grid_selected_index = 0;
+                    }
+                }
+            }
+        } else {
+            // No metrics available
+            self.selected_metric = None;
+            self.sparkline_grid_selected_index = 0;
+        }
+    }
+
+    pub fn get_metric_history(&self, metric_type: &crate::models::MetricType) -> &Vec<f64> {
+        self.metrics.get_metric_history(metric_type)
+    }
+
+    pub fn has_sufficient_data_for_sparklines(&self) -> bool {
+        let available_metrics = self.metrics.get_available_metrics();
+        available_metrics.len() >= 4  // Require at least 4 metrics for meaningful sparkline grid
     }
 }

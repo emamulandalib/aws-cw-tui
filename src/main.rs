@@ -6,6 +6,9 @@ mod event_handler;
 mod terminal;
 mod config;
 
+#[cfg(test)]
+mod tests;
+
 use anyhow::Result;
 use clap::{Arg, Command};
 use crossterm::event;
