@@ -24,15 +24,17 @@ pub fn render_instance_details(f: &mut Frame, app: &mut App) {
     if app.metrics_loading {
         render_metrics_loading(f, chunks[1]);
     } else {
-        // Use the same pagination logic as the summary view to ensure consistency
+        // For the detailed chart view, we want to show 1 metric per screen for maximum chart size
+        // Don't use the app's metrics_per_screen as it's been adjusted for the list view
+        let chart_metrics_per_screen = 1;
+        
         // Get available metrics and calculate proper scroll offset
-        let available_metrics = app.get_available_metrics();
-        let total_metrics = available_metrics.len();
+        let available_metrics_count = app.metrics.count_available_metrics();
         
-        // Ensure scroll_offset doesn't exceed available metrics
-        let effective_scroll_offset = app.scroll_offset.min(total_metrics.saturating_sub(1));
+        // Ensure scroll_offset doesn't exceed available metrics for chart view
+        let effective_scroll_offset = app.scroll_offset.min(available_metrics_count.saturating_sub(1));
         
-        render_metrics(f, chunks[1], &app.metrics, effective_scroll_offset, app.metrics_per_screen);
+        render_metrics(f, chunks[1], &app.metrics, effective_scroll_offset, chart_metrics_per_screen);
     }
 }
 

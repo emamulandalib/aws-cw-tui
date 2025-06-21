@@ -160,10 +160,11 @@ impl App {
             self.state = AppState::InstanceDetails;
             // Save current metrics summary scroll position before transitioning
             self.metrics_summary_scroll = self.scroll_offset;
-            // Set scroll_offset to match the sparkline grid selected index for consistency
-            self.scroll_offset = self.sparkline_grid_selected_index;
-            // Update metrics summary scroll to match
-            self.metrics_summary_scroll = self.scroll_offset;
+            
+            // For instance details (chart view), set scroll offset to the currently selected metric
+            // but ensure it doesn't exceed the available metrics count for charts
+            let available_metrics_count = self.metrics.count_available_metrics();
+            self.scroll_offset = self.sparkline_grid_selected_index.min(available_metrics_count.saturating_sub(1));
         }
     }
 
@@ -334,9 +335,12 @@ impl App {
         if self.sparkline_grid_selected_index > 0 {
             self.sparkline_grid_selected_index -= 1;
             self.update_selected_metric();
-            // Synchronize with main scroll offset
-            self.scroll_offset = self.sparkline_grid_selected_index;
-            self.metrics_summary_scroll = self.scroll_offset;
+            
+            // Update scroll offset only if selected item goes above visible area
+            if self.sparkline_grid_selected_index < self.scroll_offset {
+                self.scroll_offset = self.sparkline_grid_selected_index;
+                self.metrics_summary_scroll = self.scroll_offset;
+            }
         }
     }
 
@@ -345,9 +349,13 @@ impl App {
         if self.sparkline_grid_selected_index < available_metrics.len().saturating_sub(1) {
             self.sparkline_grid_selected_index += 1;
             self.update_selected_metric();
-            // Synchronize with main scroll offset
-            self.scroll_offset = self.sparkline_grid_selected_index;
-            self.metrics_summary_scroll = self.scroll_offset;
+            
+            // Update scroll offset only if selected item goes below visible area
+            let max_visible_index = self.scroll_offset + self.metrics_per_screen.saturating_sub(1);
+            if self.sparkline_grid_selected_index > max_visible_index {
+                self.scroll_offset = self.sparkline_grid_selected_index.saturating_sub(self.metrics_per_screen.saturating_sub(1));
+                self.metrics_summary_scroll = self.scroll_offset;
+            }
         }
     }
 

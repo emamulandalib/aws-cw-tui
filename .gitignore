@@ -8,6 +8,7 @@ Cargo.lock
 # Editor files
 .idea/
 .vscode/
+.serena/
 *.swp
 *.swo
 *.code-workspace

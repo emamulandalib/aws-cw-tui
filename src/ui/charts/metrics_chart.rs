@@ -103,9 +103,17 @@ fn render_scrollable_individual_metrics(
         return;
     }
     
-    let constraints: Vec<Constraint> = (0..visible_metrics.len())
-        .map(|_| Constraint::Percentage((100 / visible_metrics.len()) as u16))
-        .collect();
+    // Create constraints with better spacing - ensure each metric gets adequate space
+    let constraints: Vec<Constraint> = if visible_metrics.len() == 1 {
+        // Single metric gets almost all available space with some padding
+        vec![Constraint::Min(0)]
+    } else {
+        // Multiple metrics: give each an equal share with minimum height requirements
+        let min_height_per_metric = 15; // Minimum height for readability
+        (0..visible_metrics.len())
+            .map(|_| Constraint::Min(min_height_per_metric))
+            .collect()
+    };
     
     let metric_chunks = Layout::default()
         .direction(Direction::Vertical)

@@ -3,8 +3,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Chart, Axis, Dataset, GraphType, Scrollbar, ScrollbarOrientation, ScrollbarState},
-    symbols,
+    widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 use crate::models::{App, MetricData, MetricType};
 
@@ -374,6 +373,8 @@ fn create_metric_block(
     is_selected: bool,
     value_color: Color,
     sparkline_color: Color,
+    name_width: usize,
+    sparkline_width: usize,
 ) -> Line<'static> {
     if is_selected {
         // Selected metric block with enhanced styling
@@ -381,17 +382,17 @@ fn create_metric_block(
             Span::styled("▌", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
             Span::styled("▶ ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
             Span::styled(
-                format!("{:<20}", truncate_string(metric_name, 20)),
+                format!("{:<width$}", truncate_string(metric_name, name_width), width = name_width),
                 Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
             ),
             Span::styled(" │ ", Style::default().fg(Color::Yellow)),
             Span::styled(
-                format!("{:<16}", sparkline),
+                format!("{:<width$}", sparkline, width = sparkline_width),
                 Style::default().fg(sparkline_color).add_modifier(Modifier::BOLD)
             ),
             Span::styled(" │ ", Style::default().fg(Color::Yellow)),
             Span::styled(
-                format!("{:>10}", formatted_value),
+                format!("{:>12}", formatted_value),
                 Style::default().fg(value_color).add_modifier(Modifier::BOLD)
             ),
             Span::styled(" ▐", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
@@ -402,17 +403,17 @@ fn create_metric_block(
             Span::styled("│ ", Style::default().fg(Color::DarkGray)),
             Span::styled("  ", Style::default()),
             Span::styled(
-                format!("{:<20}", truncate_string(metric_name, 20)),
+                format!("{:<width$}", truncate_string(metric_name, name_width), width = name_width),
                 Style::default().fg(Color::Cyan)
             ),
             Span::styled(" │ ", Style::default().fg(Color::DarkGray)),
             Span::styled(
-                format!("{:<16}", sparkline),
+                format!("{:<width$}", sparkline, width = sparkline_width),
                 Style::default().fg(sparkline_color)
             ),
             Span::styled(" │ ", Style::default().fg(Color::DarkGray)),
             Span::styled(
-                format!("{:>10}", formatted_value),
+                format!("{:>12}", formatted_value),
                 Style::default().fg(value_color)
             ),
             Span::styled(" │", Style::default().fg(Color::DarkGray)),
@@ -581,64 +582,90 @@ fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
     let total_items = available_metrics.len();
     let selected_index = app.get_sparkline_grid_selected_index();
     
-    // Calculate scroll offset to keep selected item visible
-    let scroll_offset = if selected_index >= items_per_screen {
-        selected_index.saturating_sub(items_per_screen / 2)
-    } else {
-        0
-    };
+    // Update app's metrics_per_screen for the navigation functions to use
+    // Since we have spacing between items, we need to account for that
+    let actual_metrics_per_screen = (items_per_screen + 1) / 2; // Each metric takes 2 lines (content + spacing)
+    app.metrics_per_screen = actual_metrics_per_screen;
+    
+    // Use the app's scroll offset directly
+    let scroll_offset = app.scroll_offset;
 
-    // Calculate available width for sparkline visualization
-    let sparkline_width = (area.width.saturating_sub(6).saturating_sub(22).saturating_sub(12)) as usize; // Account for borders, padding, metric name, and value
-    let sparkline_width = sparkline_width.max(8).min(16); // Constrain to reasonable bounds for inline sparklines
+    // Calculate responsive widths to fill the terminal width
+    let total_width = area.width.saturating_sub(4) as usize; // Account for borders
+    let value_width = 12; // Fixed width for values
+    let separators_width = 8; // Space for separators and padding
+    let name_width = (total_width * 30 / 100).max(18).min(30); // 30% of width for names
+    let sparkline_width = total_width.saturating_sub(name_width + value_width + separators_width).max(20); // Rest for sparkline
 
-    // Create enhanced metric blocks with distinct visual separation
+    // Create enhanced metric blocks with distinct visual separation and spacing
     let empty_history = Vec::new();
-    let items: Vec<ListItem> = available_metrics
+    let mut items: Vec<ListItem> = Vec::new();
+    let mut metric_positions: Vec<usize> = Vec::new(); // Track which positions contain actual metrics
+    
+    for (item_index, (original_index, metric_type)) in available_metrics
         .iter()
         .enumerate()
         .skip(scroll_offset)
-        .take(items_per_screen)
-        .map(|(i, metric_type)| {
-            let is_selected = i == selected_index;
-            
-            // Find corresponding data for this metric
-            let metric_name = metric_type.display_name();
-            let metric_data = metrics_with_data
-                .iter()
-                .find(|(name, _, _, _)| *name == metric_name);
-            
-            let (current_value, history, unit) = match metric_data {
-                Some((_, value, history, unit)) => (*value, *history, *unit),
-                None => (0.0, &empty_history, ""),
-            };
+        .take(actual_metrics_per_screen)
+        .enumerate()
+    {
+        let is_selected = original_index == selected_index;
+        
+        // Track the position of this metric in the items list
+        metric_positions.push(items.len());
+        
+        // Find corresponding data for this metric
+        let metric_name = metric_type.display_name();
+        let metric_data = metrics_with_data
+            .iter()
+            .find(|(name, _, _, _)| *name == metric_name);
+        
+        let (current_value, history, unit) = match metric_data {
+            Some((_, value, history, unit)) => (*value, *history, *unit),
+            None => (0.0, &empty_history, ""),
+        };
 
-            // Generate elegant inline sparkline
-            let sparkline = generate_inline_sparkline(history, sparkline_width);
-            
-            // Format the value with proper styling
-            let formatted_value = format_value(current_value, unit);
-            let (value_color, sparkline_color) = get_metric_colors(metric_name, current_value);
-            
-            // Create distinct visual block for each metric
-            let content = create_metric_block(
-                metric_name,
-                &sparkline,
-                &formatted_value,
-                is_selected,
-                value_color,
-                sparkline_color,
-            );
-            
-            ListItem::new(content)
-        })
-        .collect();
+        // Generate elegant inline sparkline
+        let sparkline = generate_inline_sparkline(history, sparkline_width);
+        
+        // Format the value with proper styling
+        let formatted_value = format_value(current_value, unit);
+        let (value_color, sparkline_color) = get_metric_colors(metric_name, current_value);
+        
+        // Create distinct visual block for each metric
+        let content = create_metric_block(
+            metric_name,
+            &sparkline,
+            &formatted_value,
+            is_selected,
+            value_color,
+            sparkline_color,
+            name_width,
+            sparkline_width,
+        );
+        
+        items.push(ListItem::new(content));
+        
+        // Add spacing between metrics for better readability (except for the last item)
+        // Only add spacing if this is not the last metric in the entire list AND
+        // not the last item we're displaying in this view
+        let is_last_metric_overall = (scroll_offset + item_index + 1) >= total_items;
+        let is_last_item_in_view = item_index >= actual_metrics_per_screen.saturating_sub(1);
+        
+        if !is_last_metric_overall && !is_last_item_in_view {
+            items.push(ListItem::new(Line::from("")));
+        }
+    }
 
     // Create list state for navigation and scrolling
     let mut list_state = ratatui::widgets::ListState::default();
     let has_items = !items.is_empty();
-    if has_items {
-        list_state.select(Some(selected_index.saturating_sub(scroll_offset)));
+    if has_items && selected_index >= scroll_offset && selected_index < scroll_offset + actual_metrics_per_screen {
+        // Find the position of the selected metric in our items list
+        let relative_index = selected_index - scroll_offset;
+        if let Some(&position) = metric_positions.get(relative_index) {
+            list_state.select(Some(position));
+        }
     }
 
     // Create the list widget with enhanced styling
@@ -654,8 +681,8 @@ fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_stateful_widget(list, area, &mut list_state);
 
     // Render scroll indicator if needed
-    if total_items > items_per_screen {
-        render_scroll_indicator(f, area, selected_index, total_items, items_per_screen);
+    if total_items > actual_metrics_per_screen {
+        render_scroll_indicator(f, area, selected_index, total_items, actual_metrics_per_screen);
     }
 }
 
