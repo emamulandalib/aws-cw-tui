@@ -36,7 +36,7 @@ fn render_header(f: &mut Frame, area: ratatui::layout::Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("RDS CloudWatch TUI")
+                .title("RDS Instances")
                 .border_style(Style::default().fg(Color::Cyan)),
         );
     f.render_widget(header, area);
@@ -109,8 +109,10 @@ fn create_instance_list_item(instance: &RdsInstance) -> ListItem {
 }
 
 fn render_controls(f: &mut Frame, area: ratatui::layout::Rect) {
-    let controls = Paragraph::new("↑/↓: Navigate • Enter: View Details • q: Quit")
-        .style(Style::default().fg(Color::Gray));
+    let controls = Paragraph::new(
+        "↑/↓: Navigate • Enter: View Details • Esc: Back to Services • r: Refresh • q: Quit",
+    )
+    .style(Style::default().fg(Color::Gray));
     f.render_widget(controls, area);
 }
 

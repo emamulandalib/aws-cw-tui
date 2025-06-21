@@ -6,7 +6,8 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 pub async fn handle_event(app: &mut App, event: Event) -> Result<bool> {
     if let Event::Key(key) = event {
         match app.state {
-            AppState::RdsList => handle_rds_list_event(app, key.code).await,
+            AppState::ServiceList => handle_service_list_event(app, key.code).await,
+            AppState::InstanceList => handle_rds_list_event(app, key.code).await,
             AppState::MetricsSummary => handle_metrics_summary_event(app, key).await,
             AppState::InstanceDetails => handle_instance_details_event(app, key.code).await,
         }
@@ -15,9 +16,41 @@ pub async fn handle_event(app: &mut App, event: Event) -> Result<bool> {
     }
 }
 
+async fn handle_service_list_event(app: &mut App, key: KeyCode) -> Result<bool> {
+    match key {
+        KeyCode::Char('q') => return Ok(true),
+        KeyCode::Down | KeyCode::Char('j') => {
+            app.service_next();
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            app.service_previous();
+        }
+        KeyCode::Enter => {
+            if let Some(selected_service) = app.select_service() {
+                match selected_service {
+                    crate::models::AwsService::Rds => {
+                        app.load_rds_instances().await?;
+                    }
+                    crate::models::AwsService::Sqs => {
+                        // TODO: Load SQS queues when SQS support is implemented
+                        // For now, just show empty list
+                        app.loading = false;
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(false)
+}
+
 async fn handle_rds_list_event(app: &mut App, key_code: KeyCode) -> Result<bool> {
     match key_code {
         KeyCode::Char('q') => Ok(true), // Signal to quit
+        KeyCode::Esc => {
+            app.back_to_service_list(); // Navigate back to service selection
+            Ok(false)
+        }
         KeyCode::Down => {
             app.next();
             Ok(false)
@@ -36,7 +69,17 @@ async fn handle_rds_list_event(app: &mut App, key_code: KeyCode) -> Result<bool>
         }
         KeyCode::Char('r') => {
             app.loading = true;
-            app.load_rds_instances().await?;
+            if let Some(service) = &app.selected_service {
+                match service {
+                    crate::models::AwsService::Rds => {
+                        app.load_rds_instances().await?;
+                    }
+                    crate::models::AwsService::Sqs => {
+                        // TODO: Load SQS queues when SQS support is implemented
+                        app.loading = false;
+                    }
+                }
+            }
             Ok(false)
         }
         _ => Ok(false),

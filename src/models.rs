@@ -11,6 +11,25 @@ pub struct RdsInstance {
     pub endpoint: Option<String>,
 }
 
+impl AwsInstance for RdsInstance {
+    fn id(&self) -> &str {
+        &self.identifier
+    }
+
+    fn name(&self) -> Option<&str> {
+        // RDS instances use identifier as their name
+        Some(&self.identifier)
+    }
+
+    fn status(&self) -> &str {
+        &self.status
+    }
+
+    fn service_type(&self) -> AwsService {
+        AwsService::Rds
+    }
+}
+
 #[derive(Debug)]
 pub struct MetricData {
     // Core Performance Metrics
@@ -358,12 +377,43 @@ impl MetricData {
         }
     }
 }
+#[derive(Debug, Clone, PartialEq)]
+pub enum AwsService {
+    Rds,
+    Sqs,
+    // Future services can be added here
+}
+
+impl AwsService {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            AwsService::Rds => "RDS (Relational Database Service)",
+            AwsService::Sqs => "SQS (Simple Queue Service)",
+        }
+    }
+
+    pub fn short_name(&self) -> &'static str {
+        match self {
+            AwsService::Rds => "RDS",
+            AwsService::Sqs => "SQS",
+        }
+    }
+}
+
+// Generic instance trait that different AWS services can implement
+pub trait AwsInstance {
+    fn id(&self) -> &str;
+    fn name(&self) -> Option<&str>;
+    fn status(&self) -> &str;
+    fn service_type(&self) -> AwsService;
+}
 
 #[derive(Debug, PartialEq)]
 pub enum AppState {
-    RdsList,
-    MetricsSummary,
-    InstanceDetails,
+    ServiceList,     // NEW: Show list of available AWS services
+    InstanceList,    // RENAMED: Show instances for selected service (was RdsList)
+    MetricsSummary,  // Show metrics summary for selected instance
+    InstanceDetails, // Show detailed metrics for selected instance
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -438,6 +488,12 @@ impl MetricType {
 }
 
 pub struct App {
+    // Service selection state (NEW)
+    pub available_services: Vec<AwsService>,
+    pub service_list_state: ListState,
+    pub selected_service: Option<AwsService>,
+
+    // Instance list state (renamed from rds_instances)
     pub rds_instances: Vec<RdsInstance>,
     pub list_state: ListState,
     pub loading: bool,

@@ -1,6 +1,6 @@
 use crate::aws::cloudwatch_service::{TimeRange, TimeUnit};
 use crate::aws::{load_metrics, load_rds_instances};
-use crate::models::{App, AppState, MetricData};
+use crate::models::{App, AppState, AwsService, MetricData};
 use anyhow::Result;
 use ratatui::widgets::ListState;
 use std::time::{Duration, Instant};
@@ -18,10 +18,16 @@ impl App {
 
     pub fn new() -> App {
         let mut app = App {
+            // Service selection initialization (NEW)
+            available_services: vec![AwsService::Rds, AwsService::Sqs],
+            service_list_state: ListState::default(),
+            selected_service: None,
+
+            // Instance list initialization
             rds_instances: Vec::new(),
             list_state: ListState::default(),
             loading: true,
-            state: AppState::RdsList,
+            state: AppState::ServiceList, // Start with service selection
             selected_instance: None,
             metrics: MetricData::default(),
             metrics_loading: false,
@@ -41,7 +47,7 @@ impl App {
             sparkline_grid_selected_index: 0,
             saved_sparkline_grid_selected_index: 0,
         };
-        app.list_state.select(Some(0));
+        app.service_list_state.select(Some(0)); // Select first service by default
         app
     }
 
@@ -60,6 +66,53 @@ impl App {
         self.last_refresh = Some(Instant::now());
     }
 
+    // Service navigation methods
+    pub fn service_next(&mut self) {
+        let i = match self.service_list_state.selected() {
+            Some(i) => {
+                if i >= self.available_services.len() - 1 {
+                    0
+                } else {
+                    i + 1
+                }
+            }
+            None => 0,
+        };
+        self.service_list_state.select(Some(i));
+    }
+
+    pub fn service_previous(&mut self) {
+        let i = match self.service_list_state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    self.available_services.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.service_list_state.select(Some(i));
+    }
+
+    pub fn select_service(&mut self) -> Option<&AwsService> {
+        if let Some(index) = self.service_list_state.selected() {
+            if let Some(service) = self.available_services.get(index) {
+                self.selected_service = Some(service.clone());
+                self.state = AppState::InstanceList;
+                self.list_state.select(Some(0)); // Reset instance selection
+                return Some(service);
+            }
+        }
+        None
+    }
+
+    pub fn back_to_service_list(&mut self) {
+        self.state = AppState::ServiceList;
+        self.selected_service = None;
+        self.rds_instances.clear(); // Clear instances when going back
+        self.loading = true;
+    }
     pub fn next(&mut self) {
         if self.rds_instances.is_empty() {
             return;
@@ -184,9 +237,9 @@ impl App {
     }
 
     pub fn back_to_list(&mut self) {
-        self.state = AppState::RdsList;
+        self.state = AppState::InstanceList;
         self.selected_instance = None;
-        // Reset all scroll positions when going back to the main list
+        // Reset all scroll positions when going back to the instance list
         self.scroll_offset = 0;
         self.metrics_summary_scroll = 0;
     }
