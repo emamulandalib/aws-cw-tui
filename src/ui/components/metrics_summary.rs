@@ -426,9 +426,9 @@ fn truncate_string(s: &str, max_len: usize) -> String {
 }
 
 /// Creates a distinct visual block for each metric item with proper spacing and styling
-fn create_metric_block(params: MetricBlockParams) -> Line<'static> {
+fn create_metric_block(params: MetricBlockParams) -> Vec<Line<'static>> {
     let content = format!(
-        "  {:<name_width$}  {:<sparkline_width$}  {:>12}  ",
+        " {:<name_width$}  {:<sparkline_width$}  {:>12} ",
         truncate_string(&params.metric_name, params.name_width),
         params.sparkline,
         params.formatted_value,
@@ -436,43 +436,75 @@ fn create_metric_block(params: MetricBlockParams) -> Line<'static> {
         sparkline_width = params.sparkline_width,
     );
 
+    let total_width = content.chars().count();
+
+    // Create the frame characters
+    let top_border = format!("┌{}┐", "─".repeat(total_width));
+    let bottom_border = format!("└{}┘", "─".repeat(total_width));
+
     if params.is_selected {
-        // Selected metric with yellow background highlighting
-        Line::from(vec![Span::styled(
-            content,
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )])
+        // Selected metric with yellow background highlighting and yellow frame
+        vec![
+            Line::from(vec![Span::styled(
+                top_border,
+                Style::default().fg(Color::Yellow),
+            )]),
+            Line::from(vec![
+                Span::styled("│", Style::default().fg(Color::Yellow)),
+                Span::styled(
+                    content,
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled("│", Style::default().fg(Color::Yellow)),
+            ]),
+            Line::from(vec![Span::styled(
+                bottom_border,
+                Style::default().fg(Color::Yellow),
+            )]),
+        ]
     } else {
-        // Regular metric with clean styling - apply colors to specific parts
-        Line::from(vec![
-            Span::styled("  ", Style::default()),
-            Span::styled(
-                format!(
-                    "{:<width$}",
-                    truncate_string(&params.metric_name, params.name_width),
-                    width = params.name_width
+        // Regular metric with yellow frame and colored content
+        vec![
+            Line::from(vec![Span::styled(
+                top_border,
+                Style::default().fg(Color::Yellow),
+            )]),
+            Line::from(vec![
+                Span::styled("│", Style::default().fg(Color::Yellow)),
+                Span::styled(" ", Style::default()),
+                Span::styled(
+                    format!(
+                        "{:<width$}",
+                        truncate_string(&params.metric_name, params.name_width),
+                        width = params.name_width
+                    ),
+                    Style::default().fg(Color::Cyan),
                 ),
-                Style::default().fg(Color::Cyan),
-            ),
-            Span::styled("  ", Style::default()),
-            Span::styled(
-                format!(
-                    "{:<width$}",
-                    params.sparkline,
-                    width = params.sparkline_width
+                Span::styled("  ", Style::default()),
+                Span::styled(
+                    format!(
+                        "{:<width$}",
+                        params.sparkline,
+                        width = params.sparkline_width
+                    ),
+                    Style::default().fg(params.sparkline_color),
                 ),
-                Style::default().fg(params.sparkline_color),
-            ),
-            Span::styled("  ", Style::default()),
-            Span::styled(
-                format!("{:>12}", params.formatted_value),
-                Style::default().fg(params.value_color),
-            ),
-            Span::styled("  ", Style::default()),
-        ])
+                Span::styled("  ", Style::default()),
+                Span::styled(
+                    format!("{:>12}", params.formatted_value),
+                    Style::default().fg(params.value_color),
+                ),
+                Span::styled(" ", Style::default()),
+                Span::styled("│", Style::default().fg(Color::Yellow)),
+            ]),
+            Line::from(vec![Span::styled(
+                bottom_border,
+                Style::default().fg(Color::Yellow),
+            )]),
+        ]
     }
 }
 
@@ -653,8 +685,8 @@ fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
     let selected_index = app.get_sparkline_grid_selected_index();
 
     // Update app's metrics_per_screen for the navigation functions to use
-    // Since we have spacing between items, we need to account for that
-    let actual_metrics_per_screen = items_per_screen.div_ceil(2); // Each metric takes 2 lines (content + spacing)
+    // Each metric now takes 3 lines (top border, content, bottom border) with no spacing
+    let actual_metrics_per_screen = items_per_screen.div_ceil(3); // Each metric takes 3 lines (frame only)
     app.metrics_per_screen = actual_metrics_per_screen;
 
     // Use the app's scroll offset directly
@@ -683,8 +715,9 @@ fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
     {
         let is_selected = original_index == selected_index;
 
-        // Track the position of this metric in the items list
-        metric_positions.push(items.len());
+        // Track the position of this metric in the items list (content line is the middle line)
+        let metric_position = items.len() + 1; // +1 because content is the second line of the frame
+        metric_positions.push(metric_position);
 
         // Find corresponding data for this metric
         let metric_name = metric_type.display_name();
@@ -704,8 +737,8 @@ fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
         let formatted_value = format_value(current_value, unit);
         let (value_color, sparkline_color) = get_metric_colors(metric_name, current_value);
 
-        // Create distinct visual block for each metric
-        let content = create_metric_block(MetricBlockParams {
+        // Create distinct visual block for each metric (returns multiple lines for frame)
+        let content_lines = create_metric_block(MetricBlockParams {
             metric_name: metric_name.to_string(),
             sparkline,
             formatted_value,
@@ -716,17 +749,12 @@ fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
             sparkline_width,
         });
 
-        items.push(ListItem::new(content));
-
-        // Add spacing between metrics for better readability (except for the last item)
-        // Only add spacing if this is not the last metric in the entire list AND
-        // not the last item we're displaying in this view
-        let is_last_metric_overall = (scroll_offset + item_index + 1) >= total_items;
-        let is_last_item_in_view = item_index >= actual_metrics_per_screen.saturating_sub(1);
-
-        if !is_last_metric_overall && !is_last_item_in_view {
-            items.push(ListItem::new(Line::from("")));
+        // Add each line of the framed metric block as separate list items
+        for line in content_lines {
+            items.push(ListItem::new(line));
         }
+
+        // No additional spacing between metrics - frames provide sufficient visual separation
     }
 
     // Create list state for navigation and scrolling
