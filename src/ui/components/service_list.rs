@@ -30,7 +30,7 @@ fn render_header(f: &mut Frame, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         )
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).title("AWS Services"));
+        .block(Block::default().borders(Borders::ALL));
     f.render_widget(header, area);
 }
 
