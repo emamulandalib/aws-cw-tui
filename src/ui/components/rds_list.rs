@@ -1,3 +1,4 @@
+use crate::models::{App, RdsInstance};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
@@ -5,7 +6,6 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
 };
-use crate::models::{App, RdsInstance};
 
 pub fn render_rds_list(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
@@ -33,30 +33,36 @@ pub fn render_rds_list(f: &mut Frame, app: &mut App) {
 fn render_header(f: &mut Frame, area: ratatui::layout::Rect) {
     let header = Paragraph::new("AWS CloudWatch TUI - RDS Instances")
         .style(Style::default().fg(Color::White))
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("RDS CloudWatch TUI")
-            .border_style(Style::default().fg(Color::Cyan)));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("RDS CloudWatch TUI")
+                .border_style(Style::default().fg(Color::Cyan)),
+        );
     f.render_widget(header, area);
 }
 
 fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect) {
     let loading_msg = Paragraph::new("Loading RDS instances...")
         .style(Style::default().fg(Color::Yellow))
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Status")
-            .border_style(Style::default().fg(Color::White)));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Status")
+                .border_style(Style::default().fg(Color::White)),
+        );
     f.render_widget(loading_msg, area);
 }
 
 fn render_no_instances_message(f: &mut Frame, area: ratatui::layout::Rect) {
     let no_instances = Paragraph::new("No RDS instances found in this account/region")
         .style(Style::default().fg(Color::Red))
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("RDS Instances")
-            .border_style(Style::default().fg(Color::White)));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("RDS Instances")
+                .border_style(Style::default().fg(Color::White)),
+        );
     f.render_widget(no_instances, area);
 }
 
@@ -68,10 +74,12 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         .collect();
 
     let items = List::new(items)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("RDS Instances")
-            .border_style(Style::default().fg(Color::White)))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("RDS Instances")
+                .border_style(Style::default().fg(Color::White)),
+        )
         .highlight_style(
             Style::default()
                 .bg(Color::DarkGray)
@@ -85,24 +93,17 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
 fn create_instance_list_item(instance: &RdsInstance) -> ListItem {
     let lines = vec![Line::from(vec![
         Span::styled(
-            format!("{}", instance.identifier),
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            instance.identifier.to_string(),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" | "),
-        Span::styled(
-            &instance.engine,
-            Style::default().fg(Color::Green),
-        ),
+        Span::styled(&instance.engine, Style::default().fg(Color::Green)),
         Span::raw(" | "),
-        Span::styled(
-            &instance.status,
-            get_status_style(&instance.status),
-        ),
+        Span::styled(&instance.status, get_status_style(&instance.status)),
         Span::raw(" | "),
-        Span::styled(
-            &instance.instance_class,
-            Style::default().fg(Color::Cyan),
-        ),
+        Span::styled(&instance.instance_class, Style::default().fg(Color::Cyan)),
     ])];
     ListItem::new(lines)
 }

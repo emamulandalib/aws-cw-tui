@@ -1,20 +1,19 @@
-mod models;
-mod aws;
 mod app;
-mod ui;
-mod event_handler;
-mod terminal;
+mod aws;
 mod config;
+mod event_handler;
+mod models;
+mod terminal;
+mod ui;
 
 use anyhow::Result;
 use clap::{Arg, Command};
 use crossterm::event;
-use tokio;
 
-use models::App;
-use ui::render_app;
 use event_handler::handle_event;
+use models::App;
 use terminal::TerminalManager;
+use ui::render_app;
 
 async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
     // Load RDS instances

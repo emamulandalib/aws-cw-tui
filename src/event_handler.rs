@@ -1,7 +1,7 @@
-use anyhow::Result;
-use crossterm::event::{Event, KeyCode, KeyModifiers, KeyEvent};
-use crate::models::{App, AppState};
 use crate::aws::cloudwatch_service::TimeUnit;
+use crate::models::{App, AppState};
+use anyhow::Result;
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
 pub async fn handle_event(app: &mut App, event: Event) -> Result<bool> {
     if let Event::Key(key) = event {
@@ -21,11 +21,11 @@ async fn handle_rds_list_event(app: &mut App, key_code: KeyCode) -> Result<bool>
         KeyCode::Down => {
             app.next();
             Ok(false)
-        },
+        }
         KeyCode::Up => {
             app.previous();
             Ok(false)
-        },
+        }
         KeyCode::Enter => {
             app.enter_metrics_summary();
             if let Some(selected) = app.selected_instance {
@@ -33,13 +33,13 @@ async fn handle_rds_list_event(app: &mut App, key_code: KeyCode) -> Result<bool>
                 app.load_metrics(&instance_id).await?;
             }
             Ok(false)
-        },
+        }
         KeyCode::Char('r') => {
             app.loading = true;
             app.load_rds_instances().await?;
             Ok(false)
         }
-        _ => Ok(false)
+        _ => Ok(false),
     }
 }
 
@@ -49,11 +49,11 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
         (KeyCode::Down, _) => {
             app.scroll_down();
             Ok(false)
-        },
+        }
         (KeyCode::Up, _) => {
             app.scroll_up();
             Ok(false)
-        },
+        }
         (KeyCode::Enter, _) => {
             match app.get_focused_panel() {
                 crate::models::FocusedPanel::TimeRanges => {
@@ -64,19 +64,19 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
                         let instance_id = app.rds_instances[selected].identifier.clone();
                         app.load_metrics(&instance_id).await?;
                     }
-                },
+                }
                 crate::models::FocusedPanel::SparklineGrid => {
                     // Navigate to Instance Details when Enter is pressed on SparklineGrid
                     app.enter_instance_details();
                 }
             }
             Ok(false)
-        },
+        }
         (KeyCode::Tab, _) => {
             // Cycle through TimeRanges → SparklineGrid panels
             app.switch_panel();
             Ok(false)
-        },
+        }
         (KeyCode::Char('1'), KeyModifiers::CONTROL) => {
             app.update_time_range(1, TimeUnit::Hours, 1)?;
             if let Some(selected) = app.selected_instance {
@@ -84,7 +84,7 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
                 app.load_metrics(&instance_id).await?
             }
             Ok(false)
-        },
+        }
         (KeyCode::Char('3'), KeyModifiers::CONTROL) => {
             app.update_time_range(3, TimeUnit::Hours, 1)?;
             if let Some(selected) = app.selected_instance {
@@ -92,7 +92,7 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
                 app.load_metrics(&instance_id).await?
             }
             Ok(false)
-        },
+        }
         (KeyCode::Char('6'), KeyModifiers::CONTROL) => {
             app.update_time_range(6, TimeUnit::Hours, 1)?;
             if let Some(selected) = app.selected_instance {
@@ -100,7 +100,7 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
                 app.load_metrics(&instance_id).await?
             }
             Ok(false)
-        },
+        }
         (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
             app.update_time_range(1, TimeUnit::Days, 1)?;
             if let Some(selected) = app.selected_instance {
@@ -108,7 +108,7 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
                 app.load_metrics(&instance_id).await?
             }
             Ok(false)
-        },
+        }
         (KeyCode::Char('w'), KeyModifiers::CONTROL) => {
             app.update_time_range(1, TimeUnit::Weeks, 7)?;
             if let Some(selected) = app.selected_instance {
@@ -116,7 +116,7 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
                 app.load_metrics(&instance_id).await?
             }
             Ok(false)
-        },
+        }
         (KeyCode::Char('m'), KeyModifiers::CONTROL) => {
             app.update_time_range(1, TimeUnit::Months, 30)?;
             if let Some(selected) = app.selected_instance {
@@ -124,37 +124,37 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
                 app.load_metrics(&instance_id).await?
             }
             Ok(false)
-        },
+        }
         (KeyCode::Char('b'), _) | (KeyCode::Esc, _) => {
             app.back_to_list();
             app.reset_scroll();
             Ok(false)
-        },
+        }
         (KeyCode::Char('k'), _) => {
             app.scroll_up();
             Ok(false)
-        },
+        }
         (KeyCode::Char('j'), _) => {
             app.scroll_down();
             Ok(false)
-        },
+        }
         (KeyCode::Left, _) | (KeyCode::Right, _) => {
             // Left/Right arrows also cycle through panels
             app.switch_panel();
             Ok(false)
-        },
+        }
         (KeyCode::Home, _) => {
             app.reset_scroll();
             Ok(false)
-        },
+        }
         (KeyCode::Char('r'), _) => {
             if let Some(selected) = app.selected_instance {
                 let instance_id = app.rds_instances[selected].identifier.clone();
                 app.load_metrics(&instance_id).await?
             }
             Ok(false)
-        },
-        _ => Ok(false)
+        }
+        _ => Ok(false),
     }
 }
 
@@ -176,15 +176,15 @@ async fn handle_instance_details_event(app: &mut App, key_code: KeyCode) -> Resu
         KeyCode::Up | KeyCode::Char('k') => {
             app.scroll_up();
             Ok(false)
-        },
+        }
         KeyCode::Down | KeyCode::Char('j') => {
             app.scroll_down();
             Ok(false)
-        },
+        }
         KeyCode::Home => {
             app.reset_scroll();
             Ok(false)
-        },
-        _ => Ok(false)
+        }
+        _ => Ok(false),
     }
 }

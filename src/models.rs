@@ -1,6 +1,6 @@
+use crate::aws::cloudwatch_service::TimeRange;
 use ratatui::widgets::ListState;
 use std::time::{Instant, SystemTime};
-use crate::aws::cloudwatch_service::{TimeRange};
 
 #[derive(Debug)]
 pub struct RdsInstance {
@@ -21,31 +21,31 @@ pub struct MetricData {
     pub write_iops: f64,
     pub read_latency: f64,
     pub write_latency: f64,
-    
+
     // Extended RDS Metrics
-    pub read_throughput: f64,          // Bytes/second
-    pub write_throughput: f64,         // Bytes/second
+    pub read_throughput: f64,  // Bytes/second
+    pub write_throughput: f64, // Bytes/second
     pub network_receive_throughput: f64,
     pub network_transmit_throughput: f64,
-    pub swap_usage: f64,               // Bytes
-    pub freeable_memory: f64,          // Bytes
-    pub queue_depth: f64,              // Number of outstanding I/O requests
-    
+    pub swap_usage: f64,      // Bytes
+    pub freeable_memory: f64, // Bytes
+    pub queue_depth: f64,     // Number of outstanding I/O requests
+
     // Additional Core RDS Metrics (27 total metrics)
-    pub burst_balance: f64,            // Percent - GP2 burst bucket credits
-    pub cpu_credit_usage: f64,         // Credits - for T2/T3/T4g instances
-    pub cpu_credit_balance: f64,       // Credits - for T2/T3/T4g instances
-    pub bin_log_disk_usage: f64,       // Bytes - MySQL/MariaDB binary logs
-    pub replica_lag: f64,              // Seconds - read replica lag
+    pub burst_balance: f64,      // Percent - GP2 burst bucket credits
+    pub cpu_credit_usage: f64,   // Credits - for T2/T3/T4g instances
+    pub cpu_credit_balance: f64, // Credits - for T2/T3/T4g instances
+    pub bin_log_disk_usage: f64, // Bytes - MySQL/MariaDB binary logs
+    pub replica_lag: f64,        // Seconds - read replica lag
     pub maximum_used_transaction_ids: f64, // Count - PostgreSQL transaction IDs
-    pub oldest_replication_slot_lag: f64,  // Bytes - PostgreSQL replication slot lag
-    pub replication_slot_disk_usage: f64,  // Bytes - PostgreSQL replication slots
-    pub transaction_logs_disk_usage: f64,  // Bytes - PostgreSQL transaction logs
-    pub transaction_logs_generation: f64,  // Bytes/second - PostgreSQL log generation
+    pub oldest_replication_slot_lag: f64, // Bytes - PostgreSQL replication slot lag
+    pub replication_slot_disk_usage: f64, // Bytes - PostgreSQL replication slots
+    pub transaction_logs_disk_usage: f64, // Bytes - PostgreSQL transaction logs
+    pub transaction_logs_generation: f64, // Bytes/second - PostgreSQL log generation
     pub failed_sql_server_agent_jobs_count: f64, // Count/minute - SQL Server agent jobs
-    pub checkpoint_lag: f64,           // Seconds - checkpoint lag
-    pub connection_attempts: f64,      // Count - MySQL connection attempts
-    
+    pub checkpoint_lag: f64,     // Seconds - checkpoint lag
+    pub connection_attempts: f64, // Count - MySQL connection attempts
+
     // Historical data for 3 hours (36 data points at 5min intervals)
     pub timestamps: Vec<SystemTime>,
     pub cpu_history: Vec<f64>,
@@ -62,7 +62,7 @@ pub struct MetricData {
     pub swap_usage_history: Vec<f64>,
     pub queue_depth_history: Vec<f64>,
     pub free_storage_space_history: Vec<f64>,
-    
+
     // Additional metric histories
     pub burst_balance_history: Vec<f64>,
     pub cpu_credit_usage_history: Vec<f64>,
@@ -97,7 +97,7 @@ impl Default for MetricData {
             swap_usage: 0.0,
             freeable_memory: 0.0,
             queue_depth: 0.0,
-            
+
             // Additional Core RDS Metrics
             burst_balance: 0.0,
             cpu_credit_usage: 0.0,
@@ -112,7 +112,7 @@ impl Default for MetricData {
             failed_sql_server_agent_jobs_count: 0.0,
             checkpoint_lag: 0.0,
             connection_attempts: 0.0,
-            
+
             cpu_history: Vec::new(),
             connections_history: Vec::new(),
             read_iops_history: Vec::new(),
@@ -127,7 +127,7 @@ impl Default for MetricData {
             swap_usage_history: Vec::new(),
             queue_depth_history: Vec::new(),
             free_storage_space_history: Vec::new(),
-            
+
             // Additional metric histories
             burst_balance_history: Vec::new(),
             cpu_credit_usage_history: Vec::new(),
@@ -149,11 +149,11 @@ impl Default for MetricData {
 impl MetricData {
     pub fn count_available_metrics(&self) -> usize {
         let mut count = 0;
-        
+
         // Core metrics (14) - always counted if they have data
         let core_metric_names = [
             "cpu_history",
-            "connections_history", 
+            "connections_history",
             "read_iops_history",
             "write_iops_history",
             "read_latency_history",
@@ -167,7 +167,7 @@ impl MetricData {
             "swap_usage_history",
             "queue_depth_history",
         ];
-        
+
         let core_histories = [
             &self.cpu_history,
             &self.connections_history,
@@ -184,17 +184,17 @@ impl MetricData {
             &self.swap_usage_history,
             &self.queue_depth_history,
         ];
-        
+
         for (_, history) in core_metric_names.iter().zip(core_histories.iter()) {
-            if !history.is_empty() { 
-                count += 1; 
+            if !history.is_empty() {
+                count += 1;
             }
         }
-        
+
         // Advanced metrics (13) - only counted if they have data
         let advanced_metric_names = [
             "burst_balance_history",
-            "cpu_credit_usage_history", 
+            "cpu_credit_usage_history",
             "cpu_credit_balance_history",
             "bin_log_disk_usage_history",
             "replica_lag_history",
@@ -207,7 +207,7 @@ impl MetricData {
             "checkpoint_lag_history",
             "connection_attempts_history",
         ];
-        
+
         let advanced_histories = [
             &self.burst_balance_history,
             &self.cpu_credit_usage_history,
@@ -223,19 +223,19 @@ impl MetricData {
             &self.checkpoint_lag_history,
             &self.connection_attempts_history,
         ];
-        
+
         for (_, history) in advanced_metric_names.iter().zip(advanced_histories.iter()) {
-            if !history.is_empty() { 
-                count += 1; 
+            if !history.is_empty() {
+                count += 1;
             }
         }
-        
+
         count
     }
 
     pub fn get_available_metrics(&self) -> Vec<MetricType> {
         let mut available_metrics = Vec::new();
-        
+
         // Core metrics
         if !self.cpu_history.is_empty() {
             available_metrics.push(MetricType::CpuUtilization);
@@ -350,7 +350,9 @@ impl MetricData {
             MetricType::ReplicationSlotDiskUsage => &self.replication_slot_disk_usage_history,
             MetricType::TransactionLogsDiskUsage => &self.transaction_logs_disk_usage_history,
             MetricType::TransactionLogsGeneration => &self.transaction_logs_generation_history,
-            MetricType::FailedSqlServerAgentJobsCount => &self.failed_sql_server_agent_jobs_count_history,
+            MetricType::FailedSqlServerAgentJobsCount => {
+                &self.failed_sql_server_agent_jobs_count_history
+            }
             MetricType::CheckpointLag => &self.checkpoint_lag_history,
             MetricType::ConnectionAttempts => &self.connection_attempts_history,
         }
@@ -364,7 +366,7 @@ pub enum AppState {
     InstanceDetails,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum FocusedPanel {
     TimeRanges,
     SparklineGrid,
@@ -448,12 +450,14 @@ pub struct App {
     pub scroll_offset: usize,
     pub metrics_per_screen: usize,
     pub metrics_summary_scroll: usize, // Track metrics summary scroll position separately
-    pub time_range_scroll: usize, // Track time range selection scroll position
-    pub focused_panel: FocusedPanel, // Track which panel has focus (metrics or time ranges)
+    pub time_range_scroll: usize,      // Track time range selection scroll position
+    pub focused_panel: FocusedPanel,   // Track which panel has focus (metrics or time ranges)
+    pub saved_focused_panel: FocusedPanel, // Save focused panel state when transitioning to details
     pub time_range: TimeRange,
-    
+
     // Sparkline grid state
     pub selected_metric: Option<MetricType>, // Currently selected metric in sparkline grid
-    pub sparkline_grid_scroll: usize, // Track scroll position in sparkline grid
+    pub sparkline_grid_scroll: usize,        // Track scroll position in sparkline grid
     pub sparkline_grid_selected_index: usize, // Track currently selected metric index in grid
+    pub saved_sparkline_grid_selected_index: usize, // Save selected metric index when transitioning to details
 }

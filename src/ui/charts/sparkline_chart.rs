@@ -8,6 +8,7 @@ use std::time::SystemTime;
 
 /// Renders a compact sparkline chart using Braille Unicode characters
 /// Optimized for small dimensions (20-30 characters wide, 3-4 lines tall)
+#[allow(dead_code)]
 pub fn render_sparkline(
     f: &mut Frame,
     area: ratatui::layout::Rect,
@@ -34,23 +35,24 @@ pub fn render_sparkline(
 
     // Generate sparkline using Braille characters
     let sparkline_content = generate_braille_sparkline(history, chart_width, chart_height);
-    
+
     // Apply health-based color coding
     let sparkline_color = get_health_color(history, metric_name, color);
-    
+
     let sparkline_widget = Paragraph::new(sparkline_content)
         .style(Style::default().fg(sparkline_color))
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title(metric_name)
-                .border_style(Style::default().fg(Color::White))
+                .border_style(Style::default().fg(Color::White)),
         );
 
     f.render_widget(sparkline_widget, area);
 }
 
 /// Generates a sparkline using Braille Unicode characters for high-resolution rendering
+#[allow(dead_code)]
 fn generate_braille_sparkline(history: &[f64], width: usize, height: usize) -> Vec<Line<'static>> {
     if history.is_empty() || width == 0 || height == 0 {
         return vec![Line::from("No data")];
@@ -73,6 +75,7 @@ fn generate_braille_sparkline(history: &[f64], width: usize, height: usize) -> V
 }
 
 /// Samples data to fit the available width while preserving trend
+#[allow(dead_code)]
 fn sample_data(history: &[f64], target_points: usize) -> Vec<f64> {
     if history.len() <= target_points {
         return history.to_vec();
@@ -87,6 +90,7 @@ fn sample_data(history: &[f64], target_points: usize) -> Vec<f64> {
 }
 
 /// Creates lines of text using Braille characters to represent the sparkline
+#[allow(dead_code)]
 fn create_braille_lines_owned(
     data: Vec<f64>,
     y_min: f64,
@@ -96,14 +100,14 @@ fn create_braille_lines_owned(
 ) -> Vec<Line<'static>> {
     let mut lines = Vec::with_capacity(height);
     let y_range = y_max - y_min;
-    
+
     // Braille characters are used directly in the match expressions below
     // Each character represents a 2x4 grid of dots for high-resolution rendering
-    
+
     // For simplicity, create a basic line chart using selected Braille patterns
     for row in 0..height {
         let mut line_chars = Vec::with_capacity(width);
-        
+
         for col in 0..width {
             let data_idx = (col * 2).min(data.len().saturating_sub(1));
             if data_idx < data.len() {
@@ -112,15 +116,15 @@ fn create_braille_lines_owned(
                 } else {
                     0.5
                 };
-                
+
                 // Map the normalized value to the row position
                 let target_row = ((1.0 - normalized_value) * (height - 1) as f64) as usize;
-                
+
                 // Choose Braille character based on position
                 let char_to_use = if target_row == row {
                     match (normalized_value * 8.0) as usize {
                         0..=1 => '⣀', // Bottom dots
-                        2..=3 => '⣤', // Middle dots  
+                        2..=3 => '⣤', // Middle dots
                         4..=5 => '⣶', // Upper-middle dots
                         _ => '⣿',     // Full dots
                     }
@@ -134,25 +138,30 @@ fn create_braille_lines_owned(
                 } else {
                     '⠀' // Empty
                 };
-                
+
                 line_chars.push(char_to_use);
             } else {
                 line_chars.push('⠀');
             }
         }
-        
+
         let line_string: String = line_chars.into_iter().collect();
         lines.push(Line::from(line_string));
     }
-    
+
     lines
 }
 
 /// Calculates Y bounds using the same logic as the main charts for consistency
+#[allow(dead_code)]
 fn calculate_y_bounds(history: &[f64]) -> (f64, f64) {
     if history.len() == 1 {
         let val = history[0];
-        let margin = if val.abs() > 1.0 { val.abs() * 0.1 } else { 1.0 };
+        let margin = if val.abs() > 1.0 {
+            val.abs() * 0.1
+        } else {
+            1.0
+        };
         (val - margin, val + margin)
     } else {
         let min_val = history.iter().cloned().fold(f64::INFINITY, f64::min);
@@ -160,7 +169,11 @@ fn calculate_y_bounds(history: &[f64]) -> (f64, f64) {
         if min_val.is_finite() && max_val.is_finite() && min_val != max_val {
             let range = max_val - min_val;
             let padding = range * 0.1;
-            let y_min = if min_val >= 0.0 { (min_val - padding).max(0.0) } else { min_val - padding };
+            let y_min = if min_val >= 0.0 {
+                (min_val - padding).max(0.0)
+            } else {
+                min_val - padding
+            };
             (y_min, max_val + padding)
         } else {
             (0.0, 1.0)
@@ -169,6 +182,7 @@ fn calculate_y_bounds(history: &[f64]) -> (f64, f64) {
 }
 
 /// Determines health-based color coding based on metric values
+#[allow(dead_code)]
 fn get_health_color(history: &[f64], metric_name: &str, default_color: Color) -> Color {
     if history.is_empty() {
         return Color::DarkGray;
@@ -187,7 +201,7 @@ fn get_health_color(history: &[f64], metric_name: &str, default_color: Color) ->
             } else {
                 Color::Green // Normal CPU usage
             }
-        },
+        }
         name if name.contains("Latency") => {
             // Latency values are in seconds, convert to ms for threshold
             let latest_ms = latest_value * 1000.0;
@@ -199,7 +213,7 @@ fn get_health_color(history: &[f64], metric_name: &str, default_color: Color) ->
             } else {
                 Color::Green // Low latency
             }
-        },
+        }
         name if name.contains("Memory") || name.contains("Storage") => {
             // For memory/storage, lower values (less free space) are worse
             let gb_value = latest_value / (1024.0 * 1024.0 * 1024.0);
@@ -210,7 +224,7 @@ fn get_health_color(history: &[f64], metric_name: &str, default_color: Color) ->
             } else {
                 Color::Green // Adequate free space
             }
-        },
+        }
         name if name.contains("Connection") => {
             if latest_value > 150.0 || avg_value > 100.0 {
                 Color::Red // High connection count
@@ -219,14 +233,14 @@ fn get_health_color(history: &[f64], metric_name: &str, default_color: Color) ->
             } else {
                 Color::Green // Normal connection count
             }
-        },
+        }
         name if name.contains("Failed") || name.contains("Error") => {
             if latest_value > 0.0 || avg_value > 0.0 {
                 Color::Red // Any failures are bad
             } else {
                 Color::Green // No failures
             }
-        },
+        }
         _ => {
             // For other metrics, use trend-based coloring
             if history.len() > 1 {
@@ -250,6 +264,7 @@ fn get_health_color(history: &[f64], metric_name: &str, default_color: Color) ->
 }
 
 /// Renders a minimal sparkline when space is very limited
+#[allow(dead_code)]
 fn render_minimal_sparkline(
     f: &mut Frame,
     area: ratatui::layout::Rect,
@@ -279,6 +294,7 @@ fn render_minimal_sparkline(
 }
 
 /// Renders a message when no data is available
+#[allow(dead_code)]
 fn render_no_data_sparkline(
     f: &mut Frame,
     area: ratatui::layout::Rect,
@@ -291,7 +307,7 @@ fn render_no_data_sparkline(
             Block::default()
                 .borders(Borders::ALL)
                 .title(metric_name)
-                .border_style(Style::default().fg(Color::DarkGray))
+                .border_style(Style::default().fg(Color::DarkGray)),
         );
 
     f.render_widget(no_data_widget, area);
