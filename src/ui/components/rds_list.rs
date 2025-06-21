@@ -85,7 +85,7 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
                 .bg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
         )
-        .highlight_symbol("► ");
+        .highlight_symbol("");
 
     f.render_stateful_widget(items, area, &mut app.list_state);
 }

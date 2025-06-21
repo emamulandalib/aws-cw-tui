@@ -35,7 +35,7 @@ pub fn create_metric_block(params: MetricBlockParams) -> Vec<Line<'static>> {
 
     if params.is_selected {
         // Selected metric with yellow background highlighting and yellow frame
-        create_selected_metric_block(top_border, content, bottom_border)
+        create_selected_metric_block(top_border, bottom_border, &params)
     } else {
         // Regular metric with yellow frame and colored content
         create_regular_metric_block(top_border, bottom_border, &params)
@@ -45,8 +45,8 @@ pub fn create_metric_block(params: MetricBlockParams) -> Vec<Line<'static>> {
 /// Create the visual block for a selected metric
 fn create_selected_metric_block(
     top_border: String,
-    content: String,
     bottom_border: String,
+    params: &MetricBlockParams,
 ) -> Vec<Line<'static>> {
     vec![
         Line::from(vec![Span::styled(
@@ -55,13 +55,39 @@ fn create_selected_metric_block(
         )]),
         Line::from(vec![
             Span::styled("│", Style::default().fg(Color::Yellow)),
+            Span::styled(" ", Style::default().bg(Color::DarkGray)),
             Span::styled(
-                content,
+                format!(
+                    "{:<width$}",
+                    truncate_string(&params.metric_name, params.name_width),
+                    width = params.name_width
+                ),
                 Style::default()
-                    .fg(Color::Black)
-                    .bg(Color::Yellow)
+                    .fg(Color::Cyan)
+                    .bg(Color::DarkGray)
                     .add_modifier(Modifier::BOLD),
             ),
+            Span::styled("  ", Style::default().bg(Color::DarkGray)),
+            Span::styled(
+                format!(
+                    "{:<width$}",
+                    params.sparkline,
+                    width = params.sparkline_width
+                ),
+                Style::default()
+                    .fg(params.sparkline_color)
+                    .bg(Color::DarkGray)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("  ", Style::default().bg(Color::DarkGray)),
+            Span::styled(
+                format!("{:>12}", params.formatted_value),
+                Style::default()
+                    .fg(params.value_color)
+                    .bg(Color::DarkGray)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" ", Style::default().bg(Color::DarkGray)),
             Span::styled("│", Style::default().fg(Color::Yellow)),
         ]),
         Line::from(vec![Span::styled(
@@ -70,6 +96,9 @@ fn create_selected_metric_block(
         )]),
     ]
 }
+
+
+
 
 /// Create the visual block for a regular (non-selected) metric
 fn create_regular_metric_block(

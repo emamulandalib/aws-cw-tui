@@ -1,6 +1,6 @@
 use crate::models::App;
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
@@ -11,9 +11,9 @@ pub fn render_service_list(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // Header
-            Constraint::Min(0),    // Service list
-            Constraint::Length(3), // Controls
+            Constraint::Length(3), // Header - reduced height
+            Constraint::Min(0),    // Content
+            Constraint::Length(1), // Controls at bottom
         ])
         .split(f.area());
 
@@ -22,17 +22,19 @@ pub fn render_service_list(f: &mut Frame, app: &mut App) {
     render_controls(f, chunks[2]);
 }
 
+
 fn render_header(f: &mut Frame, area: Rect) {
     let header = Paragraph::new("AWS CloudWatch TUI - Service Selection")
-        .style(
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )
-        .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL));
+        .style(Style::default().fg(Color::White))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Cyan)),
+        );
     f.render_widget(header, area);
 }
+
+
 
 fn render_services(f: &mut Frame, area: Rect, app: &mut App) {
     let services: Vec<ListItem> = app
@@ -40,14 +42,7 @@ fn render_services(f: &mut Frame, area: Rect, app: &mut App) {
         .iter()
         .map(|service| {
             let content = vec![Line::from(vec![
-                Span::styled(
-                    service.short_name(),
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::raw(" - "),
-                Span::raw(service.display_name()),
+                Span::styled(service.display_name(), Style::default().fg(Color::Green)),
             ])];
             ListItem::new(content)
         })
@@ -57,22 +52,24 @@ fn render_services(f: &mut Frame, area: Rect, app: &mut App) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Available Services"),
+                .title("Available Services")
+                .border_style(Style::default().fg(Color::White)),
         )
         .highlight_style(
             Style::default()
-                .bg(Color::Blue)
+                .bg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
         )
-        .highlight_symbol(">> ");
+        .highlight_symbol("");
 
     f.render_stateful_widget(services_list, area, &mut app.service_list_state);
 }
 
+
+
 fn render_controls(f: &mut Frame, area: Rect) {
-    let controls = Paragraph::new("↑↓: Navigate | Enter: Select Service | q: Quit")
-        .style(Style::default().fg(Color::Gray))
-        .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).title("Controls"));
+    let controls = Paragraph::new("↑/↓: Navigate • Enter: Select Service • q: Quit")
+        .style(Style::default().fg(Color::Gray));
     f.render_widget(controls, area);
 }
+

@@ -392,6 +392,7 @@ impl AwsService {
         }
     }
 
+    #[allow(dead_code)]
     pub fn short_name(&self) -> &'static str {
         match self {
             AwsService::Rds => "RDS",
@@ -401,6 +402,7 @@ impl AwsService {
 }
 
 // Generic instance trait that different AWS services can implement
+#[allow(dead_code)]
 pub trait AwsInstance {
     fn id(&self) -> &str;
     fn name(&self) -> Option<&str>;
