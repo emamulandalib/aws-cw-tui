@@ -57,6 +57,7 @@ impl TimeRange {
 }
 
 pub async fn load_metrics(instance_id: &str, time_range: TimeRange) -> Result<MetricData> {
+    // Load AWS config - this doesn't return a Result, just loads the config
     let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
     let client = CloudWatchClient::new(&config);
 
@@ -68,7 +69,7 @@ pub async fn load_metrics(instance_id: &str, time_range: TimeRange) -> Result<Me
     // Calculate period based on time range duration and period_days
     let period_seconds = calculate_period_seconds(&time_range);
 
-    // Fetch core metrics concurrently
+    // Fetch core metrics concurrently with error handling
     let core_metrics = fetch_core_metrics(
         &client,
         &instance_id_owned,
@@ -77,6 +78,7 @@ pub async fn load_metrics(instance_id: &str, time_range: TimeRange) -> Result<Me
         period_seconds,
     )
     .await;
+    
     let advanced_metrics = fetch_advanced_metrics(
         &client,
         &instance_id_owned,
@@ -88,6 +90,8 @@ pub async fn load_metrics(instance_id: &str, time_range: TimeRange) -> Result<Me
 
     Ok(build_metric_data(core_metrics, advanced_metrics))
 }
+
+
 
 fn calculate_period_seconds(time_range: &TimeRange) -> i32 {
     // Calculate appropriate period based on time range duration and period_days

@@ -83,7 +83,7 @@ fn render_instance_info(
     f.render_widget(info, area);
 }
 
-fn render_metrics_loading(f: &mut Frame, area: ratatui::layout::Rect) {
+pub fn render_metrics_loading(f: &mut Frame, area: ratatui::layout::Rect) {
     let loading_msg = Paragraph::new("Loading metrics...")
         .style(Style::default().fg(Color::Yellow))
         .block(

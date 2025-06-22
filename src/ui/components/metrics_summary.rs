@@ -1,6 +1,6 @@
 use super::{
-    display_utils::calculate_time_panel_width, metric_list_utils::render_enhanced_metric_list,
-    time_range_utils::render_time_range_panel,
+    display_utils::calculate_time_panel_width, instance_details::render_metrics_loading,
+    metric_list_utils::render_enhanced_metric_list, time_range_utils::render_time_range_panel,
 };
 use crate::models::App;
 
@@ -33,25 +33,33 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
         render_default_header(f, chunks[0]);
     }
 
-    // Two-panel layout: Time ranges (left), Full-height metric list (right)
-    let time_panel_width = calculate_time_panel_width(chunks[1].width);
-    let content_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Length(time_panel_width), // Compact Time Panel (responsive width)
-            Constraint::Min(0),                   // Right panel for full-height metric list
-        ])
-        .split(chunks[1]);
+    // Content area - check for errors first, then loading, then normal content
+    if let Some(error_msg) = &app.error_message {
+        render_error_message(f, chunks[1], error_msg);
+    } else if app.metrics_loading {
+        render_metrics_loading(f, chunks[1]);
+    } else {
+        // Two-panel layout: Time ranges (left), Full-height metric list (right)
+        let time_panel_width = calculate_time_panel_width(chunks[1].width);
+        let content_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(time_panel_width), // Compact Time Panel (responsive width)
+                Constraint::Min(0),                   // Right panel for full-height metric list
+            ])
+            .split(chunks[1]);
 
-    // Compact Time Range Panel
-    render_compact_time_ranges(f, app, content_chunks[0]);
+        // Compact Time Range Panel
+        render_compact_time_ranges(f, app, content_chunks[0]);
 
-    // Full-height Metric List Panel
-    render_enhanced_metric_list(f, app, content_chunks[1]);
+        // Full-height Metric List Panel
+        render_enhanced_metric_list(f, app, content_chunks[1]);
+    }
 
     // Controls
     render_controls(f, chunks[2]);
 }
+
 
 fn render_instance_info(
     f: &mut Frame,
@@ -112,4 +120,18 @@ fn render_controls(f: &mut Frame, area: ratatui::layout::Rect) {
 
 fn render_compact_time_ranges(f: &mut Frame, app: &mut App, area: Rect) {
     render_time_range_panel(f, app, area);
+}
+
+fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, error_msg: &str) {
+    let error_paragraph = Paragraph::new(error_msg)
+        .style(Style::default().fg(Color::Red))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Error")
+                .border_style(Style::default().fg(Color::Red)),
+        )
+        .wrap(ratatui::widgets::Wrap { trim: false })
+        .alignment(ratatui::layout::Alignment::Left);
+    f.render_widget(error_paragraph, area);
 }

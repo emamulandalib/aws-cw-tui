@@ -518,4 +518,8 @@ pub struct App {
     pub sparkline_grid_scroll: usize,        // Track scroll position in sparkline grid
     pub sparkline_grid_selected_index: usize, // Track currently selected metric index in grid
     pub saved_sparkline_grid_selected_index: usize, // Save selected metric index when transitioning to details
+
+    // Error handling
+    pub error_message: Option<String>, // Store user-friendly error messages
 }
+

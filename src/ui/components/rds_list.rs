@@ -19,7 +19,10 @@ pub fn render_rds_list(f: &mut Frame, app: &mut App) {
 
     render_header(f, chunks[0]);
 
-    if app.loading {
+    // Check for errors first
+    if let Some(error_msg) = &app.error_message {
+        render_error_message(f, chunks[1], error_msg);
+    } else if app.loading {
         render_loading_message(f, chunks[1]);
     } else if app.rds_instances.is_empty() {
         render_no_instances_message(f, chunks[1]);
@@ -29,6 +32,7 @@ pub fn render_rds_list(f: &mut Frame, app: &mut App) {
 
     render_controls(f, chunks[2]);
 }
+
 
 fn render_header(f: &mut Frame, area: ratatui::layout::Rect) {
     let header = Paragraph::new("AWS CloudWatch TUI - RDS Instances")
@@ -66,6 +70,19 @@ fn render_no_instances_message(f: &mut Frame, area: ratatui::layout::Rect) {
     f.render_widget(no_instances, area);
 }
 
+fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, error_msg: &str) {
+    let error_paragraph = Paragraph::new(error_msg)
+        .style(Style::default().fg(Color::Red))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Error")
+                .border_style(Style::default().fg(Color::Red)),
+        )
+        .wrap(ratatui::widgets::Wrap { trim: false })
+        .alignment(ratatui::layout::Alignment::Left);
+    f.render_widget(error_paragraph, area);
+}
 fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut App) {
     let items: Vec<ListItem> = app
         .rds_instances

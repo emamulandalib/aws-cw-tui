@@ -17,39 +17,43 @@ impl App {
     }
 
     pub fn new() -> App {
-        let mut app = App {
-            // Service selection initialization (NEW)
-            available_services: vec![AwsService::Rds, AwsService::Sqs],
-            service_list_state: ListState::default(),
-            selected_service: None,
+            let mut app = App {
+                // Service selection initialization (NEW)
+                available_services: vec![AwsService::Rds, AwsService::Sqs],
+                service_list_state: ListState::default(),
+                selected_service: None,
+    
+                // Instance list initialization
+                rds_instances: Vec::new(),
+                list_state: ListState::default(),
+                loading: true,
+                state: AppState::ServiceList, // Start with service selection
+                selected_instance: None,
+                metrics: MetricData::default(),
+                metrics_loading: false,
+                last_refresh: None,
+                auto_refresh_enabled: true,
+                scroll_offset: 0,
+                metrics_per_screen: 1, // Show 1 metric per screen for maximum chart size
+                metrics_summary_scroll: 0, // Initialize metrics summary scroll position
+                time_range_scroll: 2,  // Initialize to "3 hours" (index 2 in the list)
+                focused_panel: crate::models::FocusedPanel::TimeRanges, // Start with time ranges panel focused
+                saved_focused_panel: crate::models::FocusedPanel::TimeRanges, // Initialize saved focused panel
+                time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(), // Default: 3 hours with 1-day period
+    
+                // Initialize sparkline grid state
+                selected_metric: None,
+                sparkline_grid_scroll: 0,
+                sparkline_grid_selected_index: 0,
+                saved_sparkline_grid_selected_index: 0,
+    
+                // Initialize error handling
+                error_message: None,
+            };
+            app.service_list_state.select(Some(0)); // Select first service by default
+            app
+        }
 
-            // Instance list initialization
-            rds_instances: Vec::new(),
-            list_state: ListState::default(),
-            loading: true,
-            state: AppState::ServiceList, // Start with service selection
-            selected_instance: None,
-            metrics: MetricData::default(),
-            metrics_loading: false,
-            last_refresh: None,
-            auto_refresh_enabled: true,
-            scroll_offset: 0,
-            metrics_per_screen: 1, // Show 1 metric per screen for maximum chart size
-            metrics_summary_scroll: 0, // Initialize metrics summary scroll position
-            time_range_scroll: 2,  // Initialize to "3 hours" (index 2 in the list)
-            focused_panel: crate::models::FocusedPanel::TimeRanges, // Start with time ranges panel focused
-            saved_focused_panel: crate::models::FocusedPanel::TimeRanges, // Initialize saved focused panel
-            time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(), // Default: 3 hours with 1-day period
-
-            // Initialize sparkline grid state
-            selected_metric: None,
-            sparkline_grid_scroll: 0,
-            sparkline_grid_selected_index: 0,
-            saved_sparkline_grid_selected_index: 0,
-        };
-        app.service_list_state.select(Some(0)); // Select first service by default
-        app
-    }
 
     pub fn needs_refresh(&self) -> bool {
         if !self.auto_refresh_enabled {
@@ -148,48 +152,73 @@ impl App {
     }
 
     pub async fn load_rds_instances(&mut self) -> Result<()> {
-        self.rds_instances = load_rds_instances().await?;
-        self.loading = false;
-        self.mark_refreshed();
-
-        // Ensure list state is properly set
-        if !self.rds_instances.is_empty() {
-            // If we had a selection before, try to maintain it
-            let current_selection = self.list_state.selected().unwrap_or(0);
-            let new_selection = if current_selection < self.rds_instances.len() {
-                current_selection
-            } else {
-                0
-            };
-            self.list_state.select(Some(new_selection));
-        } else {
-            self.list_state.select(None);
+            match load_rds_instances().await {
+                Ok(instances) => {
+                    self.rds_instances = instances;
+                    self.clear_error(); // Clear any previous errors
+                    self.loading = false;
+                    self.mark_refreshed();
+    
+                    // Ensure list state is properly set
+                    if !self.rds_instances.is_empty() {
+                        // If we had a selection before, try to maintain it
+                        let current_selection = self.list_state.selected().unwrap_or(0);
+                        let new_selection = if current_selection < self.rds_instances.len() {
+                            current_selection
+                        } else {
+                            0
+                        };
+                        self.list_state.select(Some(new_selection));
+                    } else {
+                        self.list_state.select(None);
+                    }
+                    Ok(())
+                },
+                Err(e) => {
+                    // Store user-friendly error message instead of panicking
+                    self.error_message = Some(format!("AWS Error: {}", e));
+                    self.loading = false;
+                    self.rds_instances = Vec::new(); // Clear any partial data
+                    self.list_state.select(None);
+                    
+                    // Don't propagate the error - let the UI show the error message
+                    Ok(())
+                }
+            }
         }
-        Ok(())
-    }
+
 
     pub async fn load_metrics(&mut self, instance_id: &str) -> Result<()> {
-        self.metrics_loading = true;
-
-        match load_metrics(instance_id, self.time_range).await {
-            Ok(metrics) => {
-                self.metrics = metrics;
-                self.metrics_loading = false;
-                // Initialize sparkline grid with new metrics data
-                self.initialize_sparkline_grid();
-                Ok(())
-            }
-            Err(e) => {
-                self.metrics_loading = false;
-                // Reset to default metrics on error
-                self.metrics = MetricData::default();
-                // Reset sparkline grid state
-                self.selected_metric = None;
-                self.sparkline_grid_selected_index = 0;
-                Err(e)
+            self.metrics_loading = true;
+    
+            match load_metrics(instance_id, self.time_range).await {
+                Ok(metrics) => {
+                    self.metrics = metrics;
+                    self.metrics_loading = false;
+                    self.clear_error(); // Clear any previous errors
+                    // Initialize sparkline grid with new metrics data
+                    self.initialize_sparkline_grid();
+                    Ok(())
+                }
+                Err(e) => {
+                    self.metrics_loading = false;
+                    // Store user-friendly error message instead of panicking
+                    self.error_message = Some(format!("CloudWatch Error: {}", e));
+                    // Reset to default metrics on error
+                    self.metrics = MetricData::default();
+                    // Reset sparkline grid state
+                    self.selected_metric = None;
+                    self.sparkline_grid_selected_index = 0;
+                    // Don't propagate the error - let the UI show the error message
+                    Ok(())
+                }
             }
         }
-    }
+    
+        // Clear error message
+        pub fn clear_error(&mut self) {
+            self.error_message = None;
+        }
 
     pub fn enter_metrics_summary(&mut self) {
         if let Some(i) = self.list_state.selected() {

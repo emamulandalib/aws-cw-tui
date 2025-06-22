@@ -547,6 +547,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-cloudwatch",
  "aws-sdk-rds",
+ "aws-sdk-sts",
  "chrono",
  "clap",
  "crossterm",
