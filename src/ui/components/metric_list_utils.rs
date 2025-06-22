@@ -3,15 +3,15 @@ use crate::models::App;
 use ratatui::{layout::Rect, Frame};
 
 /// Calculate the layout parameters for the metric list
-
+///
 /// Create metric list items for display
-
+///
 /// Create and configure the metric list state
-
+///
 /// Render empty state for metric list
-
+///
 /// Create the final metric list widget
-
+///
 /// Render the enhanced metric list with full functionality
 pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
     use super::{
@@ -100,12 +100,11 @@ pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
     let mut items: Vec<ListItem> = Vec::new();
     let mut metric_positions: Vec<usize> = Vec::new(); // Track which positions contain actual metrics
 
-    for (_item_index, (original_index, metric_type)) in available_metrics
+    for (original_index, metric_type) in available_metrics
         .iter()
         .enumerate()
         .skip(scroll_offset)
         .take(actual_metrics_per_screen)
-        .enumerate()
     {
         let is_selected = original_index == selected_index;
 

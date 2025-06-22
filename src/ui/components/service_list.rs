@@ -22,7 +22,6 @@ pub fn render_service_list(f: &mut Frame, app: &mut App) {
     render_controls(f, chunks[2]);
 }
 
-
 fn render_header(f: &mut Frame, area: Rect) {
     let header = Paragraph::new("AWS CloudWatch TUI - Service Selection")
         .style(Style::default().fg(Color::White))
@@ -34,16 +33,15 @@ fn render_header(f: &mut Frame, area: Rect) {
     f.render_widget(header, area);
 }
 
-
-
 fn render_services(f: &mut Frame, area: Rect, app: &mut App) {
     let services: Vec<ListItem> = app
         .available_services
         .iter()
         .map(|service| {
-            let content = vec![Line::from(vec![
-                Span::styled(service.display_name(), Style::default().fg(Color::Green)),
-            ])];
+            let content = vec![Line::from(vec![Span::styled(
+                service.display_name(),
+                Style::default().fg(Color::Green),
+            )])];
             ListItem::new(content)
         })
         .collect();
@@ -65,11 +63,8 @@ fn render_services(f: &mut Frame, area: Rect, app: &mut App) {
     f.render_stateful_widget(services_list, area, &mut app.service_list_state);
 }
 
-
-
 fn render_controls(f: &mut Frame, area: Rect) {
     let controls = Paragraph::new("↑/↓: Navigate • Enter: Select Service • q: Quit")
         .style(Style::default().fg(Color::Gray));
     f.render_widget(controls, area);
 }
-

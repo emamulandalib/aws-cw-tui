@@ -97,9 +97,6 @@ fn create_selected_metric_block(
     ]
 }
 
-
-
-
 /// Create the visual block for a regular (non-selected) metric
 fn create_regular_metric_block(
     top_border: String,

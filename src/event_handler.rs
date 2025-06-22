@@ -26,17 +26,9 @@ async fn handle_service_list_event(app: &mut App, key: KeyCode) -> Result<bool> 
             app.service_previous();
         }
         KeyCode::Enter => {
-            if let Some(selected_service) = app.select_service() {
-                match selected_service {
-                    crate::models::AwsService::Rds => {
-                        app.load_rds_instances().await?;
-                    }
-                    crate::models::AwsService::Sqs => {
-                        // TODO: Load SQS queues when SQS support is implemented
-                        // For now, just show empty list
-                        app.loading = false;
-                    }
-                }
+            let selected_service = app.select_service().cloned();
+            if let Some(service) = selected_service {
+                app.load_service_instances(&service).await?;
             }
         }
         _ => {}
@@ -61,24 +53,16 @@ async fn handle_rds_list_event(app: &mut App, key_code: KeyCode) -> Result<bool>
         }
         KeyCode::Enter => {
             app.enter_metrics_summary();
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
+            if let Some(instance_id) = app.get_selected_instance_id() {
                 app.load_metrics(&instance_id).await?;
             }
             Ok(false)
         }
         KeyCode::Char('r') => {
             app.loading = true;
-            if let Some(service) = &app.selected_service {
-                match service {
-                    crate::models::AwsService::Rds => {
-                        app.load_rds_instances().await?;
-                    }
-                    crate::models::AwsService::Sqs => {
-                        // TODO: Load SQS queues when SQS support is implemented
-                        app.loading = false;
-                    }
-                }
+            let selected_service = app.selected_service.clone();
+            if let Some(service) = selected_service {
+                app.load_service_instances(&service).await?;
             }
             Ok(false)
         }

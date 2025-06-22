@@ -60,7 +60,6 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
     render_controls(f, chunks[2]);
 }
 
-
 fn render_instance_info(
     f: &mut Frame,
     area: ratatui::layout::Rect,

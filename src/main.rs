@@ -16,24 +16,26 @@ use terminal::TerminalManager;
 use ui::render_app;
 async fn validate_aws_credentials() -> Result<()> {
     println!("Checking AWS credentials...");
-    
+
     // Get current profile info
     let profile = std::env::var("AWS_PROFILE").unwrap_or_else(|_| "default".to_string());
-    // 
+    //
     // Try to load AWS config first to get the actual region that will be used
     println!("Loading AWS configuration...");
-    let config = aws_config::defaults(aws_config::BehaviorVersion::latest()).load().await;
-    
+    let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+        .load()
+        .await;
+
     // Get the actual region that the AWS SDK will use
     let region = config.region().map(|r| r.as_ref()).unwrap_or("unknown");
-    
+
     println!("Using AWS Profile: {}", profile);
     println!("Using AWS Region: {}", region);
-    
+
     // Test credential access with a simple STS call
     println!("Validating credentials...");
     let sts_client = aws_sdk_sts::Client::new(&config);
-    
+
     match sts_client.get_caller_identity().send().await {
         Ok(identity) => {
             let account_id = identity.account().unwrap_or("Unknown");
@@ -47,7 +49,7 @@ async fn validate_aws_credentials() -> Result<()> {
         Err(e) => {
             println!("AWS credential validation failed!");
             println!();
-            
+
             let error_msg = e.to_string();
             if error_msg.contains("credential") || error_msg.contains("no providers in chain") {
                 println!("Credential issue detected. Please try:");
@@ -58,16 +60,18 @@ async fn validate_aws_credentials() -> Result<()> {
                 println!("      export AWS_SECRET_ACCESS_KEY=your-secret-key");
                 println!("   4. Ensure your profile exists in ~/.aws/credentials");
                 println!();
-                println!("Current profile '{}' might not exist or be configured correctly.", profile);
+                println!(
+                    "Current profile '{}' might not exist or be configured correctly.",
+                    profile
+                );
             } else {
                 println!("Error details: {}", error_msg);
             }
-            
+
             Err(anyhow::anyhow!("AWS credential validation failed"))
         }
     }
 }
-
 
 async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
     // Start with service selection - no need to load RDS instances immediately
@@ -136,5 +140,3 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
-
-

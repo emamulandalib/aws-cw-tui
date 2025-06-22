@@ -13,14 +13,18 @@ pub async fn load_rds_instances() -> Result<Vec<RdsInstance>> {
         Err(e) => {
             // Check if it's a credential error
             let error_msg = e.to_string();
-            if error_msg.contains("credential") || error_msg.contains("authentication") || error_msg.contains("access") || error_msg.contains("no providers in chain") {
+            if error_msg.contains("credential")
+                || error_msg.contains("authentication")
+                || error_msg.contains("access")
+                || error_msg.contains("no providers in chain")
+            {
                 return Err(anyhow::anyhow!(
                     "AWS credentials error: {}\n\n\
                      Please ensure:\n\
                      - Your AWS credentials are configured correctly\n\
                      - You have the correct AWS_PROFILE set (currently: {})\n\
                      - Your credentials have RDS describe permissions\n\
-                     - Try: export AWS_PROFILE=your-profile-name", 
+                     - Try: export AWS_PROFILE=your-profile-name",
                     error_msg,
                     std::env::var("AWS_PROFILE").unwrap_or_else(|_| "default".to_string())
                 ));
@@ -47,5 +51,3 @@ pub async fn load_rds_instances() -> Result<Vec<RdsInstance>> {
 
     Ok(instances)
 }
-
-

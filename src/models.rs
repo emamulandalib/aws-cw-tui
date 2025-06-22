@@ -2,7 +2,7 @@ use crate::aws::cloudwatch_service::TimeRange;
 use ratatui::widgets::ListState;
 use std::time::{Instant, SystemTime};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RdsInstance {
     pub identifier: String,
     pub engine: String,
@@ -400,6 +400,22 @@ impl AwsService {
         }
     }
 }
+// Generic instance container to hold different service instances
+#[derive(Debug, Clone)]
+pub enum ServiceInstance {
+    Rds(RdsInstance),
+    // Future services will be added here
+    // Sqs(SqsQueue),
+    // Ec2(Ec2Instance),
+}
+
+impl ServiceInstance {
+    pub fn as_aws_instance(&self) -> &dyn AwsInstance {
+        match self {
+            ServiceInstance::Rds(instance) => instance,
+        }
+    }
+}
 
 // Generic instance trait that different AWS services can implement
 #[allow(dead_code)]
@@ -495,8 +511,9 @@ pub struct App {
     pub service_list_state: ListState,
     pub selected_service: Option<AwsService>,
 
-    // Instance list state (renamed from rds_instances)
-    pub rds_instances: Vec<RdsInstance>,
+    // Instance list state (generic for all services)
+    pub instances: Vec<ServiceInstance>,
+    pub rds_instances: Vec<RdsInstance>, // Keep for backward compatibility during transition
     pub list_state: ListState,
     pub loading: bool,
     pub state: AppState,
@@ -522,4 +539,3 @@ pub struct App {
     // Error handling
     pub error_message: Option<String>, // Store user-friendly error messages
 }
-

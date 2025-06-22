@@ -24,7 +24,7 @@ pub fn render_rds_list(f: &mut Frame, app: &mut App) {
         render_error_message(f, chunks[1], error_msg);
     } else if app.loading {
         render_loading_message(f, chunks[1]);
-    } else if app.rds_instances.is_empty() {
+    } else if app.get_current_instances().is_empty() {
         render_no_instances_message(f, chunks[1]);
     } else {
         render_instances_list(f, chunks[1], app);
@@ -32,7 +32,6 @@ pub fn render_rds_list(f: &mut Frame, app: &mut App) {
 
     render_controls(f, chunks[2]);
 }
-
 
 fn render_header(f: &mut Frame, area: ratatui::layout::Rect) {
     let header = Paragraph::new("AWS CloudWatch TUI - RDS Instances")
@@ -84,17 +83,34 @@ fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, error_msg: &
     f.render_widget(error_paragraph, area);
 }
 fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut App) {
-    let items: Vec<ListItem> = app
-        .rds_instances
+    // Get dynamic title based on selected service
+    let title = if let Some(service) = &app.selected_service {
+        format!("{} Instances", service.short_name())
+    } else {
+        "Instances".to_string()
+    };
+
+    // Clone the instances to avoid borrowing issues
+    let current_instances = app.get_current_instances().clone();
+
+    // Create items from instances
+    let items: Vec<ListItem> = current_instances
         .iter()
-        .map(|instance| create_instance_list_item(instance))
+        .map(|service_instance| {
+            match service_instance {
+                crate::models::ServiceInstance::Rds(instance) => {
+                    create_instance_list_item(instance)
+                }
+                // Future service instances will be handled here
+            }
+        })
         .collect();
 
-    let items = List::new(items)
+    let items_list = List::new(items)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("RDS Instances")
+                .title(title)
                 .border_style(Style::default().fg(Color::White)),
         )
         .highlight_style(
@@ -104,7 +120,7 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         )
         .highlight_symbol("");
 
-    f.render_stateful_widget(items, area, &mut app.list_state);
+    f.render_stateful_widget(items_list, area, &mut app.list_state);
 }
 
 fn create_instance_list_item(instance: &RdsInstance) -> ListItem {
