@@ -377,12 +377,13 @@ impl MetricData {
         }
     }
 }
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AwsService {
     Rds,
     Sqs,
     // Future services can be added here
 }
+
 
 impl AwsService {
     pub fn display_name(&self) -> &'static str {

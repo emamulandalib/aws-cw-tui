@@ -8,5 +8,7 @@ pub mod metric_fetcher;
 pub mod metric_types;
 pub mod time_range;
 
+// New modular metrics system
+pub mod metrics;
 // Removed unused exports - only keeping what's needed
 pub use rds_service::load_rds_instances;

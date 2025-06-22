@@ -48,6 +48,50 @@ pub async fn load_metrics(instance_id: &str, time_range: TimeRange) -> Result<Me
     Ok(build_metric_data(core_metrics, advanced_metrics))
 }
 
+/// New modular function for loading metrics from any AWS service
+/// This uses the trait-based architecture for extensibility
+pub async fn load_service_metrics(
+    service_type: crate::models::AwsService,
+    instance_id: &str,
+    time_range: TimeRange,
+) -> Result<crate::aws::metrics::types::ServiceMetrics> {
+    use crate::aws::metrics::{MetricServiceFactory, UniversalMetricFetcher};
+    
+    // Create factory and get provider
+    let factory = MetricServiceFactory::new();
+    let provider = factory.get_provider(&service_type)
+        .map_err(|e| anyhow::anyhow!("Provider not found for {:?}: {}", service_type, e))?;
+    
+    // Load AWS config and create fetcher
+    let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
+    let client = CloudWatchClient::new(&config);
+    let fetcher = UniversalMetricFetcher::new(client);
+    
+    // Fetch metrics using the provider
+    fetcher.fetch_metrics(provider, instance_id, time_range).await
+}
+
+/// Enhanced load_metrics that now uses the modular architecture internally
+/// while maintaining backward compatibility
+pub async fn load_metrics_v2(instance_id: &str, time_range: TimeRange) -> Result<MetricData> {
+    use crate::aws::metrics::{MetricServiceFactory, UniversalMetricFetcher};
+    use crate::models::AwsService;
+    
+    // Use the new modular system
+    let service_metrics = load_service_metrics(AwsService::Rds, instance_id, time_range).await?;
+    
+    // Get the RDS provider to transform the data back to legacy format
+    let factory = MetricServiceFactory::new();
+    let provider = factory.get_provider(&AwsService::Rds)
+        .map_err(|e| anyhow::anyhow!("RDS provider not found: {}", e))?;
+    
+    // Transform to legacy format
+    let legacy_data = provider.transform_raw_data(service_metrics);
+    let metric_data = legacy_data.downcast::<MetricData>()
+        .map_err(|_| anyhow::anyhow!("Failed to convert metrics to legacy format"))?;
+    
+    Ok(*metric_data)
+}
 async fn fetch_core_metrics(
     client: &CloudWatchClient,
     instance_id: &str,
