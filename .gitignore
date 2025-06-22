@@ -9,6 +9,7 @@ Cargo.lock
 .idea/
 .vscode/
 .serena/
+.claude/
 *.swp
 *.swo
 *.code-workspace
