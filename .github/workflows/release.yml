@@ -96,9 +96,7 @@ jobs:
             os: windows-latest
             binary-suffix: ".exe"
             
-          - target: x86_64-pc-windows-gnu
-            os: windows-latest
-            binary-suffix: ".exe"
+
 
     steps:
       - uses: actions/checkout@v4
