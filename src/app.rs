@@ -1,4 +1,4 @@
-use crate::aws::{load_rds_instances, rds::RdsInstanceManager, rds::RdsMetricsManager, cloudwatch_service::load_metrics};
+use crate::aws::{load_rds_instances, rds::RdsInstanceManager, cloudwatch_service::load_metrics};
 use crate::aws::time_range::{TimeRange, TimeUnit};
 use crate::models::{App, AppState, AwsService, FocusedPanel, MetricType, ServiceInstance};
 use anyhow::Result;
@@ -254,40 +254,7 @@ impl App {
         Ok(())
     }
 
-    
-        /// Load RDS metrics using the new RDS metrics manager
-        pub async fn load_rds_metrics(&mut self, metric_names: &[String]) -> Result<()> {
-            if let Some(instance_id) = self.get_selected_instance_id() {
-                self.metrics_loading = true;
-                
-                match RdsMetricsManager::load_metrics(&instance_id, metric_names).await {
-                    Ok(metrics_map) => {
-                        // For now, just take the first metric as we're maintaining backward compatibility
-                        if let Some((_, metric_data)) = metrics_map.into_iter().next() {
-                            self.metrics = metric_data;
-                        }
-                        self.metrics_loading = false;
-                    }
-                    Err(e) => {
-                        self.metrics_loading = false;
-                        self.error_message = Some(format!("Failed to load RDS metrics: {}", e));
-                    }
-                }
-            }
-            Ok(())
-        }
-        
-        /// Get available RDS metrics
-        pub fn get_rds_available_metrics(&self) -> Vec<&'static str> {
-            RdsInstanceManager::available_metrics()
-        }
-        
-        /// Get RDS metric unit
-        pub fn get_rds_metric_unit(&self, metric_name: &str) -> &'static str {
-            RdsInstanceManager::get_metric_unit(metric_name)
-        }
-
-    // ================================
+// ================================
     // 5. INSTANCE ACCESS HELPERS
     // ================================
 

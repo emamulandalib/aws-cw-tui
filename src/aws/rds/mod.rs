@@ -4,4 +4,3 @@ pub mod metrics;
 pub mod client;
 
 pub use instances::*;
-pub use metrics::*;

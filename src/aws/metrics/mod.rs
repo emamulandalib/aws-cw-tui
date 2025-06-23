@@ -11,5 +11,3 @@ pub mod factory;
 
 // Re-export commonly used types
 // Types are imported directly where needed
-pub use fetcher::UniversalMetricFetcher;
-pub use factory::MetricServiceFactory;

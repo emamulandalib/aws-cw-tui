@@ -250,7 +250,6 @@ pub fn build_from_service_metrics(service_metrics: ServiceMetrics) -> MetricResu
 pub fn build_empty_metric_data_for_service(service_type: AwsService) -> MetricData {
     match service_type {
         AwsService::Rds => create_default_rds_metrics(),
-        _ => create_default_generic_metrics(),
     }
 }
 
@@ -259,11 +258,7 @@ fn create_default_rds_metrics() -> MetricData {
     MetricData::default()
 }
 
-/// Create default generic metric data for unsupported services
-fn create_default_generic_metrics() -> MetricData {
-    // Future enhancement: could provide service-specific defaults
-    MetricData::default()
-}
+
 
 
 #[cfg(test)]

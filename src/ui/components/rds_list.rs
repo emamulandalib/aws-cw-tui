@@ -46,7 +46,7 @@ fn render_header(f: &mut Frame, area: ratatui::layout::Rect) {
 }
 
 fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect) {
-    let loading_text = vec![
+    let loading_text = [
         "Loading RDS instances...".to_string(),
         "".to_string(),
         "Press 'q' to quit or 'Esc' to go back".to_string(),
