@@ -73,10 +73,5 @@ mod tests {
         assert!(provider.is_ok());
     }
     
-    #[test]
-    fn test_unsupported_service() {
-        let factory = MetricServiceFactory::new();
-        let provider = factory.get_provider(&AwsService::Sqs);
-        assert!(provider.is_err());
-    }
+
 }

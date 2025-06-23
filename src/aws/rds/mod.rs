@@ -5,4 +5,3 @@ pub mod client;
 
 pub use instances::*;
 pub use metrics::*;
-pub use client::*;

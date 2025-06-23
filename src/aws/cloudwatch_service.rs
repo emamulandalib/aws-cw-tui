@@ -74,7 +74,7 @@ pub async fn load_service_metrics(
 /// Enhanced load_metrics that now uses the modular architecture internally
 /// while maintaining backward compatibility
 pub async fn load_metrics_v2(instance_id: &str, time_range: TimeRange) -> Result<MetricData> {
-    use crate::aws::metrics::{MetricServiceFactory, UniversalMetricFetcher};
+    use crate::aws::metrics::MetricServiceFactory;
     use crate::models::AwsService;
     
     // Use the new modular system
