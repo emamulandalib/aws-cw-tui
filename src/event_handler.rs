@@ -37,6 +37,20 @@ async fn handle_service_list_event(app: &mut App, key: KeyCode) -> Result<bool> 
 }
 
 async fn handle_rds_list_event(app: &mut App, key_code: KeyCode) -> Result<bool> {
+    // If we're in loading state, allow certain keys to work
+    if app.loading {
+        match key_code {
+            KeyCode::Char('q') => return Ok(true), // Always allow quit
+            KeyCode::Esc => {
+                // Allow going back even during loading
+                app.loading = false;
+                app.back_to_service_list();
+                return Ok(false);
+            }
+            _ => return Ok(false), // Ignore other keys during loading
+        }
+    }
+
     match key_code {
         KeyCode::Char('q') => Ok(true), // Signal to quit
         KeyCode::Esc => {

@@ -1,5 +1,5 @@
-use crate::aws::cloudwatch_service::{load_metrics, TimeRange, TimeUnit};
-use crate::aws::load_rds_instances;
+use crate::aws::{load_rds_instances, rds::RdsInstanceManager, rds::RdsMetricsManager, cloudwatch_service::load_metrics};
+use crate::aws::time_range::{TimeRange, TimeUnit};
 use crate::models::{App, AppState, AwsService, FocusedPanel, MetricType, ServiceInstance};
 use anyhow::Result;
 use std::time::{Duration, Instant};
@@ -10,43 +10,48 @@ impl App {
     // ================================
 
     pub fn new() -> App {
-        let mut app = App {
-            // Service selection initialization
-            available_services: vec![AwsService::Rds, AwsService::Sqs],
-            service_list_state: ratatui::widgets::ListState::default(),
-            selected_service: None,
+            let mut app = App {
+                // Service selection initialization (RDS-focused for now)
+                available_services: vec![AwsService::Rds],  // Focus on RDS only
+                service_list_state: ratatui::widgets::ListState::default(),
+                selected_service: None,  // No service selected initially
+    
+                // Instance list initialization
+                instances: Vec::new(),
+                rds_instances: Vec::new(),
+                list_state: ratatui::widgets::ListState::default(),
+                loading: false,
+                state: AppState::ServiceList,  // Start with service selection
+                selected_instance: None,
+                metrics: crate::models::MetricData::default(),
+                metrics_loading: false,
+                last_refresh: None,
+                auto_refresh_enabled: true,
+                scroll_offset: 0,
+                metrics_per_screen: 1,
+                metrics_summary_scroll: 0,
+                time_range_scroll: 2,
+                focused_panel: FocusedPanel::TimeRanges,
+                saved_focused_panel: FocusedPanel::TimeRanges,
+                time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(),
+    
+                // Initialize sparkline grid state
+                selected_metric: None,
+                sparkline_grid_scroll: 0,
+                sparkline_grid_selected_index: 0,
+                saved_sparkline_grid_selected_index: 0,
+    
+                // Initialize error handling
+                error_message: None,
+                
+                // Initialize loading timeout
+                loading_start_time: None,
+            };
+            app.service_list_state.select(Some(0));
+            app
+        }
 
-            // Instance list initialization
-            instances: Vec::new(),
-            rds_instances: Vec::new(),
-            list_state: ratatui::widgets::ListState::default(),
-            loading: true,
-            state: AppState::ServiceList,
-            selected_instance: None,
-            metrics: crate::models::MetricData::default(),
-            metrics_loading: false,
-            last_refresh: None,
-            auto_refresh_enabled: true,
-            scroll_offset: 0,
-            metrics_per_screen: 1,
-            metrics_summary_scroll: 0,
-            time_range_scroll: 2,
-            focused_panel: FocusedPanel::TimeRanges,
-            saved_focused_panel: FocusedPanel::TimeRanges,
-            time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(),
 
-            // Initialize sparkline grid state
-            selected_metric: None,
-            sparkline_grid_scroll: 0,
-            sparkline_grid_selected_index: 0,
-            saved_sparkline_grid_selected_index: 0,
-
-            // Initialize error handling
-            error_message: None,
-        };
-        app.service_list_state.select(Some(0));
-        app
-    }
 
     // ================================
     // 2. STATE MANAGEMENT
@@ -58,9 +63,10 @@ impl App {
         }
         match self.last_refresh {
             None => true,
-            Some(last) => last.elapsed() > Duration::from_secs(60),
+            Some(last) => last.elapsed() > Duration::from_secs(30), // Reduced from 60 to 30 seconds
         }
     }
+
 
     pub fn mark_refreshed(&mut self) {
         self.last_refresh = Some(Instant::now());
@@ -69,6 +75,24 @@ impl App {
     pub fn clear_error(&mut self) {
         self.error_message = None;
     }
+    
+    pub fn check_loading_timeout(&mut self) -> bool {
+        if let Some(start_time) = self.loading_start_time {
+            if start_time.elapsed() > Duration::from_secs(30) { // 30 second timeout
+                self.loading = false;
+                self.loading_start_time = None;
+                self.error_message = Some("Loading timeout - operation took too long. Press 'r' to retry.".to_string());
+                return true;
+            }
+        }
+        false
+    }    
+        // ================================
+        // RDS-FOCUSED METHODS  
+        // ================================
+        
+
+        
 
     // ================================
     // 3. NAVIGATION METHODS
@@ -195,46 +219,73 @@ impl App {
                     Ok(())
                 }
             },
-            AwsService::Sqs => {
-                self.error_message = Some("SQS support coming soon".to_string());
-                self.loading = false;
-                self.instances = Vec::new();
-                self.list_state.select(None);
-                Ok(())
-            }
+
         }
     }
 
     pub async fn load_rds_instances(&mut self) -> Result<()> {
-        match load_rds_instances().await {
-            Ok(instances) => {
-                self.rds_instances = instances;
-                self.clear_error();
-                self.loading = false;
-                self.mark_refreshed();
+        self.loading = true;
+        self.loading_start_time = Some(Instant::now());
+        self.error_message = None;
 
-                if !self.rds_instances.is_empty() {
-                    let current_selection = self.list_state.selected().unwrap_or(0);
-                    let new_selection = if current_selection < self.rds_instances.len() {
-                        current_selection
-                    } else {
-                        0
-                    };
-                    self.list_state.select(Some(new_selection));
-                } else {
-                    self.list_state.select(None);
+        match RdsInstanceManager::load_instances().await {
+            Ok(instances) => {
+                // Store in both places for compatibility
+                self.rds_instances = instances.clone();
+                self.instances = instances
+                    .into_iter()
+                    .map(ServiceInstance::Rds)
+                    .collect();
+
+                self.loading = false;
+                self.loading_start_time = None;
+                self.list_state = ratatui::widgets::ListState::default();
+                if !self.instances.is_empty() {
+                    self.list_state.select(Some(0));
                 }
-                Ok(())
             }
             Err(e) => {
-                self.error_message = Some(format!("AWS Error: {}", e));
                 self.loading = false;
-                self.rds_instances = Vec::new();
-                self.list_state.select(None);
-                Ok(())
+                self.loading_start_time = None;
+                self.error_message = Some(e.to_string());
             }
         }
+
+        Ok(())
     }
+
+    
+        /// Load RDS metrics using the new RDS metrics manager
+        pub async fn load_rds_metrics(&mut self, metric_names: &[String]) -> Result<()> {
+            if let Some(instance_id) = self.get_selected_instance_id() {
+                self.metrics_loading = true;
+                
+                match RdsMetricsManager::load_metrics(&instance_id, metric_names).await {
+                    Ok(metrics_map) => {
+                        // For now, just take the first metric as we're maintaining backward compatibility
+                        if let Some((_, metric_data)) = metrics_map.into_iter().next() {
+                            self.metrics = metric_data;
+                        }
+                        self.metrics_loading = false;
+                    }
+                    Err(e) => {
+                        self.metrics_loading = false;
+                        self.error_message = Some(format!("Failed to load RDS metrics: {}", e));
+                    }
+                }
+            }
+            Ok(())
+        }
+        
+        /// Get available RDS metrics
+        pub fn get_rds_available_metrics(&self) -> Vec<&'static str> {
+            RdsInstanceManager::available_metrics()
+        }
+        
+        /// Get RDS metric unit
+        pub fn get_rds_metric_unit(&self, metric_name: &str) -> &'static str {
+            RdsInstanceManager::get_metric_unit(metric_name)
+        }
 
     // ================================
     // 5. INSTANCE ACCESS HELPERS

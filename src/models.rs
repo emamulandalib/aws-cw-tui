@@ -17,7 +17,6 @@ impl AwsInstance for RdsInstance {
     }
 
     fn name(&self) -> Option<&str> {
-        // RDS instances use identifier as their name
         Some(&self.identifier)
     }
 
@@ -29,7 +28,6 @@ impl AwsInstance for RdsInstance {
         AwsService::Rds
     }
 }
-
 #[derive(Debug)]
 pub struct MetricData {
     // Core Performance Metrics
@@ -380,16 +378,16 @@ impl MetricData {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AwsService {
     Rds,
-    Sqs,
-    // Future services can be added here
+    // Future services can be added here when needed
+    // Sqs,
 }
+
 
 
 impl AwsService {
     pub fn display_name(&self) -> &'static str {
         match self {
             AwsService::Rds => "RDS (Relational Database Service)",
-            AwsService::Sqs => "SQS (Simple Queue Service)",
         }
     }
 
@@ -397,18 +395,22 @@ impl AwsService {
     pub fn short_name(&self) -> &'static str {
         match self {
             AwsService::Rds => "RDS",
-            AwsService::Sqs => "SQS",
         }
     }
 }
+
 // Generic instance container to hold different service instances
+// Currently RDS-focused, easily extensible for future services
 #[derive(Debug, Clone)]
 pub enum ServiceInstance {
     Rds(RdsInstance),
-    // Future services will be added here
+    // Future services will be added here when needed
     // Sqs(SqsQueue),
     // Ec2(Ec2Instance),
 }
+
+
+
 
 impl ServiceInstance {
     pub fn as_aws_instance(&self) -> &dyn AwsInstance {
@@ -417,6 +419,7 @@ impl ServiceInstance {
         }
     }
 }
+
 
 // Generic instance trait that different AWS services can implement
 #[allow(dead_code)]
@@ -507,12 +510,12 @@ impl MetricType {
 }
 
 pub struct App {
-    // Service selection state (NEW)
+    // Service selection state (focused on RDS for now)
     pub available_services: Vec<AwsService>,
     pub service_list_state: ListState,
     pub selected_service: Option<AwsService>,
 
-    // Instance list state (generic for all services)
+    // Instance list state (generic for all services, but RDS-focused)
     pub instances: Vec<ServiceInstance>,
     pub rds_instances: Vec<RdsInstance>, // Keep for backward compatibility during transition
     pub list_state: ListState,
@@ -539,4 +542,9 @@ pub struct App {
 
     // Error handling
     pub error_message: Option<String>, // Store user-friendly error messages
+    
+    // Loading timeout management
+    pub loading_start_time: Option<Instant>, // Track when loading started
 }
+
+

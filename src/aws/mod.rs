@@ -10,5 +10,9 @@ pub mod time_range;
 
 // New modular metrics system
 pub mod metrics;
-// Removed unused exports - only keeping what's needed
+
+// RDS-focused service organization
+pub mod rds;
+
+// Keep existing exports for backward compatibility
 pub use rds_service::load_rds_instances;

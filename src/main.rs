@@ -10,6 +10,7 @@ use anyhow::Result;
 use clap::Command;
 use crossterm::event;
 
+
 use event_handler::handle_event;
 use models::{App, AppState};
 use terminal::TerminalManager;
@@ -74,11 +75,24 @@ async fn validate_aws_credentials() -> Result<()> {
 }
 
 async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
-    // Start with service selection - no need to load RDS instances immediately
-    // They will be loaded when a service is selected
+    // Initial load for RDS instances since we start directly with InstanceList
+    if app.state == AppState::InstanceList && app.loading {
+        if let Some(service) = &app.selected_service {
+            match service {
+                crate::models::AwsService::Rds => {
+                    app.load_rds_instances().await?;
+                }
+            }
+        }
+    }
 
     loop {
         terminal.draw(|f| render_app(f, &mut app))?;
+
+        // Check for loading timeout
+        if app.loading {
+            app.check_loading_timeout();
+        }
 
         if let Ok(event) = event::read() {
             let should_quit = handle_event(&mut app, event).await?;
@@ -99,9 +113,7 @@ async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
                     crate::models::AwsService::Rds => {
                         app.load_rds_instances().await?;
                     }
-                    crate::models::AwsService::Sqs => {
-                        // TODO: Refresh SQS queues when SQS support is implemented
-                    }
+
                 }
             }
         }
