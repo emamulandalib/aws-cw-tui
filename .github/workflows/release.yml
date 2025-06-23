@@ -41,6 +41,7 @@ jobs:
     needs: check-permissions
     if: needs.check-permissions.outputs.authorized == 'true'
     runs-on: ubuntu-latest
+    environment: production  # Requires manual approval for releases
     permissions:
       contents: write
     outputs:
