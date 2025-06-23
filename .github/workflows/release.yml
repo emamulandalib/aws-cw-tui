@@ -17,9 +17,10 @@ env:
 jobs:
   create-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      release_id: ${{ steps.create_release.outputs.id }}
+      tag_name: ${{ steps.tag_name.outputs.TAG_NAME }}
     steps:
       - uses: actions/checkout@v4
       
@@ -33,39 +34,37 @@ jobs:
           fi
       
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.tag_name.outputs.TAG_NAME }}
-          release_name: Release ${{ steps.tag_name.outputs.TAG_NAME }}
-          draft: false
-          prerelease: false
-          body: |
-            ## Changes
-            
-            See the [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
-            
-            ## Installation
-            
-            ### Download Binary
-            Download the appropriate binary for your platform from the assets below.
-            
-            ### Cargo Install
-            ```bash
-            cargo install awscw
-            ```
-            
-            ### Usage
-            ```bash
-            awscw --help
-            ```
+        run: |
+          gh release create "${{ steps.tag_name.outputs.TAG_NAME }}" \
+            --title "Release ${{ steps.tag_name.outputs.TAG_NAME }}" \
+            --notes "## Changes
+
+          See the [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+
+          ## Installation
+
+          ### Download Binary
+          Download the appropriate binary for your platform from the assets below.
+
+          ### Cargo Install
+          \`\`\`bash
+          cargo install awscw
+          \`\`\`
+
+          ### Usage
+          \`\`\`bash
+          awscw --help
+          \`\`\`" \
+            ${{ contains(steps.tag_name.outputs.TAG_NAME, 'alpha') && '--prerelease' || '' }}
 
   build:
     name: Build for ${{ matrix.target }}
     needs: create-release
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -172,40 +171,34 @@ jobs:
           fi
 
       - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ env.ARCHIVE_PATH }}
-          asset_name: ${{ env.ARCHIVE_NAME }}
-          asset_content_type: application/octet-stream
+        run: |
+          gh release upload "${{ needs.create-release.outputs.tag_name }}" "${{ env.ARCHIVE_PATH }}"
 
   checksums:
     name: Generate checksums
     needs: [create-release, build]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+      - name: Download release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "${{ needs.create-release.outputs.tag_name }}" -R "${{ github.repository }}"
 
       - name: Generate checksums
         run: |
-          cd artifacts
           find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec sha256sum {} \; > SHA256SUMS
           cat SHA256SUMS
 
       - name: Upload checksums
-        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: artifacts/SHA256SUMS
-          asset_name: SHA256SUMS
-          asset_content_type: text/plain
+        run: |
+          gh release upload "${{ needs.create-release.outputs.tag_name }}" SHA256SUMS
 
   publish-crate:
     name: Publish to crates.io
