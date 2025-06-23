@@ -52,7 +52,7 @@ fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect) {
         "Press 'q' to quit or 'Esc' to go back".to_string(),
         "Loading will timeout after 30 seconds".to_string(),
     ];
-    
+
     let loading_msg = Paragraph::new(loading_text.join("\n"))
         .style(Style::default().fg(Color::Yellow))
         .alignment(ratatui::layout::Alignment::Center)
@@ -64,8 +64,6 @@ fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect) {
         );
     f.render_widget(loading_msg, area);
 }
-
-
 
 fn render_no_instances_message(f: &mut Frame, area: ratatui::layout::Rect) {
     let no_instances = Paragraph::new("No RDS instances found in this account/region")
@@ -110,8 +108,7 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
             match service_instance {
                 crate::models::ServiceInstance::Rds(instance) => {
                     create_instance_list_item(instance)
-                }
-                // Future service instances will be handled here
+                } // Future service instances will be handled here
             }
         })
         .collect();

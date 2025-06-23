@@ -1,5 +1,5 @@
-use crate::aws::{load_rds_instances, rds::RdsInstanceManager, cloudwatch_service::load_metrics};
 use crate::aws::time_range::{TimeRange, TimeUnit};
+use crate::aws::{cloudwatch_service::load_metrics, load_rds_instances, rds::RdsInstanceManager};
 use crate::models::{App, AppState, AwsService, FocusedPanel, MetricType, ServiceInstance};
 use anyhow::Result;
 use std::time::{Duration, Instant};
@@ -10,48 +10,46 @@ impl App {
     // ================================
 
     pub fn new() -> App {
-            let mut app = App {
-                // Service selection initialization (RDS-focused for now)
-                available_services: vec![AwsService::Rds],  // Focus on RDS only
-                service_list_state: ratatui::widgets::ListState::default(),
-                selected_service: None,  // No service selected initially
-    
-                // Instance list initialization
-                instances: Vec::new(),
-                rds_instances: Vec::new(),
-                list_state: ratatui::widgets::ListState::default(),
-                loading: false,
-                state: AppState::ServiceList,  // Start with service selection
-                selected_instance: None,
-                metrics: crate::models::MetricData::default(),
-                metrics_loading: false,
-                last_refresh: None,
-                auto_refresh_enabled: true,
-                scroll_offset: 0,
-                metrics_per_screen: 1,
-                metrics_summary_scroll: 0,
-                time_range_scroll: 2,
-                focused_panel: FocusedPanel::TimeRanges,
-                saved_focused_panel: FocusedPanel::TimeRanges,
-                time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(),
-    
-                // Initialize sparkline grid state
-                selected_metric: None,
-                sparkline_grid_scroll: 0,
-                sparkline_grid_selected_index: 0,
-                saved_sparkline_grid_selected_index: 0,
-    
-                // Initialize error handling
-                error_message: None,
-                
-                // Initialize loading timeout
-                loading_start_time: None,
-            };
-            app.service_list_state.select(Some(0));
-            app
-        }
+        let mut app = App {
+            // Service selection initialization (RDS-focused for now)
+            available_services: vec![AwsService::Rds], // Focus on RDS only
+            service_list_state: ratatui::widgets::ListState::default(),
+            selected_service: None, // No service selected initially
 
+            // Instance list initialization
+            instances: Vec::new(),
+            rds_instances: Vec::new(),
+            list_state: ratatui::widgets::ListState::default(),
+            loading: false,
+            state: AppState::ServiceList, // Start with service selection
+            selected_instance: None,
+            metrics: crate::models::MetricData::default(),
+            metrics_loading: false,
+            last_refresh: None,
+            auto_refresh_enabled: true,
+            scroll_offset: 0,
+            metrics_per_screen: 1,
+            metrics_summary_scroll: 0,
+            time_range_scroll: 2,
+            focused_panel: FocusedPanel::TimeRanges,
+            saved_focused_panel: FocusedPanel::TimeRanges,
+            time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(),
 
+            // Initialize sparkline grid state
+            selected_metric: None,
+            sparkline_grid_scroll: 0,
+            sparkline_grid_selected_index: 0,
+            saved_sparkline_grid_selected_index: 0,
+
+            // Initialize error handling
+            error_message: None,
+
+            // Initialize loading timeout
+            loading_start_time: None,
+        };
+        app.service_list_state.select(Some(0));
+        app
+    }
 
     // ================================
     // 2. STATE MANAGEMENT
@@ -67,7 +65,6 @@ impl App {
         }
     }
 
-
     pub fn mark_refreshed(&mut self) {
         self.last_refresh = Some(Instant::now());
     }
@@ -75,24 +72,24 @@ impl App {
     pub fn clear_error(&mut self) {
         self.error_message = None;
     }
-    
+
     pub fn check_loading_timeout(&mut self) -> bool {
         if let Some(start_time) = self.loading_start_time {
-            if start_time.elapsed() > Duration::from_secs(30) { // 30 second timeout
+            if start_time.elapsed() > Duration::from_secs(30) {
+                // 30 second timeout
                 self.loading = false;
                 self.loading_start_time = None;
-                self.error_message = Some("Loading timeout - operation took too long. Press 'r' to retry.".to_string());
+                self.error_message = Some(
+                    "Loading timeout - operation took too long. Press 'r' to retry.".to_string(),
+                );
                 return true;
             }
         }
         false
-    }    
-        // ================================
-        // RDS-FOCUSED METHODS  
-        // ================================
-        
-
-        
+    }
+    // ================================
+    // RDS-FOCUSED METHODS
+    // ================================
 
     // ================================
     // 3. NAVIGATION METHODS
@@ -219,7 +216,6 @@ impl App {
                     Ok(())
                 }
             },
-
         }
     }
 
@@ -232,10 +228,7 @@ impl App {
             Ok(instances) => {
                 // Store in both places for compatibility
                 self.rds_instances = instances.clone();
-                self.instances = instances
-                    .into_iter()
-                    .map(ServiceInstance::Rds)
-                    .collect();
+                self.instances = instances.into_iter().map(ServiceInstance::Rds).collect();
 
                 self.loading = false;
                 self.loading_start_time = None;
@@ -254,7 +247,7 @@ impl App {
         Ok(())
     }
 
-// ================================
+    // ================================
     // 5. INSTANCE ACCESS HELPERS
     // ================================
 

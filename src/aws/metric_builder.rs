@@ -4,11 +4,11 @@
 //! metric types and new dynamic service metrics from the provider system.
 
 use super::metric_types::{AdvancedMetrics, CoreMetrics};
-use crate::models::{MetricData, AwsService};
-use crate::aws::metrics::types::ServiceMetrics;
-use crate::aws::metrics::providers::MetricProvider;
 use crate::aws::metrics::factory::MetricServiceFactory;
-use anyhow::{Result, anyhow};
+use crate::aws::metrics::providers::MetricProvider;
+use crate::aws::metrics::types::ServiceMetrics;
+use crate::models::{AwsService, MetricData};
+use anyhow::{anyhow, Result};
 use std::any::Any;
 
 /// Type alias for the result of metric transformation operations
@@ -17,16 +17,15 @@ type MetricResult<T> = Result<T>;
 /// Type alias for boxed transformation data from providers
 type TransformedData = Box<dyn Any>;
 
-
 /// Dynamic metric builder that constructs MetricData from various AWS service sources
-/// 
+///
 /// This builder provides a unified interface for converting service-specific metrics
 /// into the legacy MetricData format used throughout the application. It leverages
 /// the provider pattern to support multiple AWS services while maintaining backward
 /// compatibility with existing RDS-focused code.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```rust
 /// let builder = DynamicMetricBuilder::new();
 /// let metric_data = builder.build_from_service_metrics(service_metrics)?;
@@ -35,7 +34,6 @@ pub struct DynamicMetricBuilder {
     factory: MetricServiceFactory,
 }
 
-
 impl DynamicMetricBuilder {
     /// Create a new dynamic metric builder with the default factory
     pub fn new() -> Self {
@@ -43,77 +41,80 @@ impl DynamicMetricBuilder {
             factory: MetricServiceFactory::new(),
         }
     }
-    
+
     /// Create a builder with a custom factory
     pub fn with_factory(factory: MetricServiceFactory) -> Self {
         Self { factory }
     }
-    
+
     /// Build MetricData from ServiceMetrics using the appropriate service provider
-    pub fn build_from_service_metrics(&self, service_metrics: ServiceMetrics) -> Result<MetricData> {
+    pub fn build_from_service_metrics(
+        &self,
+        service_metrics: ServiceMetrics,
+    ) -> Result<MetricData> {
         let service_type = service_metrics.service_type.clone();
         self.transform_service_metrics_to_legacy(service_metrics, &service_type)
     }
 
-
-    
     /// Build MetricData dynamically based on service type and raw metrics
-    /// 
+    ///
     /// This method provides a unified interface for transforming service metrics
-    /// from any AWS service into the legacy MetricData format. It uses the 
+    /// from any AWS service into the legacy MetricData format. It uses the
     /// provider system to handle service-specific transformations.
-    pub fn build_dynamic(&self, 
-        service_type: AwsService, 
-        service_metrics: ServiceMetrics
+    pub fn build_dynamic(
+        &self,
+        service_type: AwsService,
+        service_metrics: ServiceMetrics,
     ) -> Result<MetricData> {
         self.transform_service_metrics_to_legacy(service_metrics, &service_type)
     }
-    
+
     /// Internal helper method that handles the common transformation logic
-    /// 
-    /// This method encapsulates the provider lookup, transformation, and 
+    ///
+    /// This method encapsulates the provider lookup, transformation, and
     /// downcasting logic that is shared between different public methods.
-    /// 
+    ///
     /// # Arguments
     /// * `service_metrics` - Raw metrics data from CloudWatch
     /// * `service_type` - The AWS service type for provider lookup
-    /// 
+    ///
     /// # Returns
     /// * `Result<MetricData>` - Transformed legacy format or error
     fn transform_service_metrics_to_legacy(
-        &self, 
-        service_metrics: ServiceMetrics, 
-        service_type: &AwsService
+        &self,
+        service_metrics: ServiceMetrics,
+        service_type: &AwsService,
     ) -> MetricResult<MetricData> {
         let provider = self.get_service_provider(service_type)?;
         let transformed_data = self.apply_provider_transformation(provider, service_metrics);
         self.downcast_to_metric_data(transformed_data, service_type)
     }
-    
+
     /// Get the appropriate provider for the given service type
     fn get_service_provider(&self, service_type: &AwsService) -> MetricResult<&dyn MetricProvider> {
-        self.factory.get_provider(service_type)
-            .map_err(|e| anyhow!(
-                "No provider registered for service {:?}. {}", 
-                service_type, 
+        self.factory.get_provider(service_type).map_err(|e| {
+            anyhow!(
+                "No provider registered for service {:?}. {}",
+                service_type,
                 e
-            ))
+            )
+        })
     }
-    
+
     /// Apply the provider's transformation to convert ServiceMetrics to Any
     fn apply_provider_transformation(
-        &self, 
-        provider: &dyn MetricProvider, 
-        service_metrics: ServiceMetrics
+        &self,
+        provider: &dyn MetricProvider,
+        service_metrics: ServiceMetrics,
     ) -> TransformedData {
         provider.transform_raw_data(service_metrics)
     }
-    
+
     /// Downcast the transformed data to MetricData with helpful error messages
     fn downcast_to_metric_data(
-        &self, 
-        transformed_data: TransformedData, 
-        service_type: &AwsService
+        &self,
+        transformed_data: TransformedData,
+        service_type: &AwsService,
     ) -> MetricResult<MetricData> {
         transformed_data
             .downcast::<MetricData>()
@@ -124,12 +125,12 @@ impl DynamicMetricBuilder {
                 service_type
             ))
     }
-    
+
     /// Get the underlying factory for provider management
     pub fn factory(&self) -> &MetricServiceFactory {
         &self.factory
     }
-    
+
     /// Get a mutable reference to the factory for registering new providers
     pub fn factory_mut(&mut self) -> &mut MetricServiceFactory {
         &mut self.factory
@@ -210,17 +211,17 @@ pub fn build_metric_data(core: CoreMetrics, advanced: AdvancedMetrics) -> Metric
 }
 
 /// Convenience function to build MetricData from ServiceMetrics using default factory
-/// 
-/// This provides a simple, stateless interface for converting new-style ServiceMetrics 
-/// to legacy MetricData format. For repeated operations, prefer creating a 
+///
+/// This provides a simple, stateless interface for converting new-style ServiceMetrics
+/// to legacy MetricData format. For repeated operations, prefer creating a
 /// DynamicMetricBuilder instance to avoid factory recreation overhead.
-/// 
+///
 /// # Arguments
 /// * `service_metrics` - Raw metrics data from any AWS service
-/// 
+///
 /// # Returns
 /// * `MetricResult<MetricData>` - Transformed legacy format or error
-/// 
+///
 /// # Examples
 /// ```rust
 /// let metric_data = build_from_service_metrics(rds_metrics)?;
@@ -231,17 +232,17 @@ pub fn build_from_service_metrics(service_metrics: ServiceMetrics) -> MetricResu
 }
 
 /// Create a MetricData with sensible defaults for a given AWS service
-/// 
+///
 /// This function provides fallback MetricData when no metrics are available
 /// from CloudWatch but the application still needs to display something.
 /// All metrics will be initialized to zero values.
-/// 
+///
 /// # Arguments
 /// * `service_type` - The AWS service type to create defaults for
-/// 
+///
 /// # Returns
 /// * `MetricData` - Empty metric data structure with zero values
-/// 
+///
 /// # Examples
 /// ```rust
 /// let empty_rds_data = build_empty_metric_data_for_service(AwsService::Rds);
@@ -258,13 +259,10 @@ fn create_default_rds_metrics() -> MetricData {
     MetricData::default()
 }
 
-
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::aws::metrics::types::{ServiceMetrics, MetricValue};
+    use crate::aws::metrics::types::{MetricValue, ServiceMetrics};
     use std::collections::HashMap;
     use std::time::SystemTime;
 
@@ -277,16 +275,22 @@ mod tests {
     #[test]
     fn test_build_from_service_metrics_rds() {
         let builder = DynamicMetricBuilder::new();
-        
+
         // Create test ServiceMetrics
         let mut service_metrics = ServiceMetrics::new(AwsService::Rds);
-        service_metrics.add_metric("CPUUtilization".to_string(), MetricValue::new(50.0, vec![45.0, 48.0, 50.0]));
-        service_metrics.add_metric("DatabaseConnections".to_string(), MetricValue::new(10.0, vec![8.0, 9.0, 10.0]));
+        service_metrics.add_metric(
+            "CPUUtilization".to_string(),
+            MetricValue::new(50.0, vec![45.0, 48.0, 50.0]),
+        );
+        service_metrics.add_metric(
+            "DatabaseConnections".to_string(),
+            MetricValue::new(10.0, vec![8.0, 9.0, 10.0]),
+        );
         service_metrics.timestamps = vec![SystemTime::now(); 3];
-        
+
         let result = builder.build_from_service_metrics(service_metrics);
         assert!(result.is_ok());
-        
+
         let metric_data = result.unwrap();
         assert_eq!(metric_data.cpu_utilization, 50.0);
         assert_eq!(metric_data.database_connections, 10.0);
