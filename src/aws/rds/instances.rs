@@ -1,6 +1,6 @@
-use anyhow::Result;
-use crate::models::RdsInstance;
 use super::client::RdsClientManager;
+use crate::models::RdsInstance;
+use anyhow::Result;
 
 /// RDS instance management operations
 pub struct RdsInstanceManager;
@@ -11,12 +11,12 @@ impl RdsInstanceManager {
         let client_manager = RdsClientManager::new().await;
         client_manager.load_instances().await
     }
-    
+
     /// Get RDS-specific metrics list
     pub fn available_metrics() -> Vec<&'static str> {
         vec![
             "CPUUtilization",
-            "DatabaseConnections", 
+            "DatabaseConnections",
             "FreeableMemory",
             "ReadLatency",
             "WriteLatency",
@@ -44,7 +44,7 @@ impl RdsInstanceManager {
             "MaximumUsedTransactionIDs",
         ]
     }
-    
+
     /// Get metric unit for RDS metrics
     pub fn get_metric_unit(metric_name: &str) -> &'static str {
         match metric_name {
@@ -60,8 +60,10 @@ impl RdsInstanceManager {
             "BurstBalance" => "Percent",
             "DBLoad" | "DBLoadCPU" | "DBLoadNonCPU" => "Count",
             "EngineUptime" => "Seconds",
-            "RDSToAuroraPostgreSQLReplicaLag" | "AuroraReplicaLag" | 
-            "AuroraReplicaLagMinimum" | "AuroraReplicaLagMaximum" => "Milliseconds",
+            "RDSToAuroraPostgreSQLReplicaLag"
+            | "AuroraReplicaLag"
+            | "AuroraReplicaLagMinimum"
+            | "AuroraReplicaLagMaximum" => "Milliseconds",
             "CheckpointLag" => "Seconds",
             "TransactionLogsDiskUsage" => "Bytes",
             "TransactionLogsGeneration" => "Bytes/Second",
@@ -70,7 +72,7 @@ impl RdsInstanceManager {
             _ => "None",
         }
     }
-    
+
     /// Validate RDS instance identifier format
     pub fn validate_instance_id(id: &str) -> bool {
         !id.is_empty() && id.len() <= 63 && id.chars().all(|c| c.is_alphanumeric() || c == '-')

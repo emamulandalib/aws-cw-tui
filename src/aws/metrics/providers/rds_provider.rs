@@ -1,13 +1,11 @@
 //! RDS-specific metric provider implementation
 
 use super::MetricProvider;
-use crate::models::AwsService;
-use crate::aws::metrics::types::{
-    MetricDefinition, ServiceMetrics, StatisticType, MetricCategory
-};
 use crate::aws::metric_builder::build_metric_data;
-use std::collections::HashMap;
+use crate::aws::metrics::types::{MetricCategory, MetricDefinition, ServiceMetrics, StatisticType};
+use crate::models::AwsService;
 use std::any::Any;
+use std::collections::HashMap;
 
 /// RDS metric provider that implements the MetricProvider trait
 pub struct RdsMetricProvider;
@@ -16,7 +14,7 @@ impl MetricProvider for RdsMetricProvider {
     fn get_service_namespace(&self) -> &'static str {
         "AWS/RDS"
     }
-    
+
     fn get_metrics_config(&self) -> Vec<MetricDefinition> {
         vec![
             // Core Performance Metrics
@@ -104,7 +102,6 @@ impl MetricProvider for RdsMetricProvider {
                 statistic: StatisticType::Average,
                 category: MetricCategory::Performance,
             },
-            
             // Advanced Metrics
             MetricDefinition {
                 name: "BurstBalance".to_string(),
@@ -186,24 +183,28 @@ impl MetricProvider for RdsMetricProvider {
             },
         ]
     }
-    
+
     fn get_dimension_mappings(&self) -> HashMap<String, String> {
         let mut map = HashMap::new();
-        map.insert("instance_id".to_string(), "DBInstanceIdentifier".to_string());
+        map.insert(
+            "instance_id".to_string(),
+            "DBInstanceIdentifier".to_string(),
+        );
         map
     }
-    
+
     fn transform_raw_data(&self, data: ServiceMetrics) -> Box<dyn Any> {
         // Transform ServiceMetrics back to legacy MetricData format for backward compatibility
-        use crate::aws::metric_types::{CoreMetrics, AdvancedMetrics};
-        
+        use crate::aws::metric_types::{AdvancedMetrics, CoreMetrics};
+
         // Extract metric values or use defaults
         let get_metric = |name: &str| -> (f64, Vec<f64>) {
-            data.raw_metrics.get(name)
+            data.raw_metrics
+                .get(name)
                 .map(|mv| (mv.current, mv.history.clone()))
                 .unwrap_or((0.0, Vec::new()))
         };
-        
+
         // Build CoreMetrics
         let core_metrics = CoreMetrics {
             cpu_utilization: get_metric("CPUUtilization").0,
@@ -236,7 +237,7 @@ impl MetricProvider for RdsMetricProvider {
             queue_depth: get_metric("DiskQueueDepth").0,
             queue_depth_history: get_metric("DiskQueueDepth").1,
         };
-        
+
         // Build AdvancedMetrics
         let advanced_metrics = AdvancedMetrics {
             burst_balance: get_metric("BurstBalance").0,
@@ -260,18 +261,19 @@ impl MetricProvider for RdsMetricProvider {
             transaction_logs_generation: get_metric("TransactionLogsGeneration").0,
             transaction_logs_generation_history: get_metric("TransactionLogsGeneration").1,
             failed_sql_server_agent_jobs_count: get_metric("FailedSQLServerAgentJobsCount").0,
-            failed_sql_server_agent_jobs_count_history: get_metric("FailedSQLServerAgentJobsCount").1,
+            failed_sql_server_agent_jobs_count_history: get_metric("FailedSQLServerAgentJobsCount")
+                .1,
             checkpoint_lag: get_metric("CheckpointLag").0,
             checkpoint_lag_history: get_metric("CheckpointLag").1,
             connection_attempts: get_metric("ConnectionAttempts").0,
             connection_attempts_history: get_metric("ConnectionAttempts").1,
         };
-        
+
         // Use the existing build_metric_data function
         let legacy_data = build_metric_data(core_metrics, advanced_metrics);
         Box::new(legacy_data)
     }
-    
+
     fn get_service_type(&self) -> AwsService {
         AwsService::Rds
     }

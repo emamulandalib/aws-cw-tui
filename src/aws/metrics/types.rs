@@ -51,7 +51,7 @@ impl MetricValue {
     pub fn new(current: f64, history: Vec<f64>) -> Self {
         Self { current, history }
     }
-    
+
     pub fn empty() -> Self {
         Self {
             current: 0.0,
@@ -68,7 +68,7 @@ impl ServiceMetrics {
             service_type,
         }
     }
-    
+
     pub fn add_metric(&mut self, name: String, value: MetricValue) {
         self.raw_metrics.insert(name, value);
     }

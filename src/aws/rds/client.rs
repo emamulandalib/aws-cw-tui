@@ -1,7 +1,7 @@
+use crate::models::RdsInstance;
 use anyhow::Result;
 use aws_config::BehaviorVersion;
 use aws_sdk_rds::Client as RdsClient;
-use crate::models::RdsInstance;
 
 /// RDS client operations - centralized AWS RDS API calls
 pub struct RdsClientManager {
@@ -13,10 +13,10 @@ impl RdsClientManager {
     pub async fn new() -> Self {
         let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
         let client = RdsClient::new(&config);
-        
+
         Self { client }
     }
-    
+
     /// Load all RDS instances from AWS
     pub async fn load_instances(&self) -> Result<Vec<RdsInstance>> {
         let resp = match self.client.describe_db_instances().send().await {

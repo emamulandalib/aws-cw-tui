@@ -10,7 +10,6 @@ use anyhow::Result;
 use clap::Command;
 use crossterm::event;
 
-
 use event_handler::handle_event;
 use models::{App, AppState};
 use terminal::TerminalManager;
@@ -113,7 +112,6 @@ async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
                     crate::models::AwsService::Rds => {
                         app.load_rds_instances().await?;
                     }
-
                 }
             }
         }

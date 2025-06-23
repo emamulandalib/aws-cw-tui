@@ -382,8 +382,6 @@ pub enum AwsService {
     // Sqs,
 }
 
-
-
 impl AwsService {
     pub fn display_name(&self) -> &'static str {
         match self {
@@ -409,9 +407,6 @@ pub enum ServiceInstance {
     // Ec2(Ec2Instance),
 }
 
-
-
-
 impl ServiceInstance {
     pub fn as_aws_instance(&self) -> &dyn AwsInstance {
         match self {
@@ -419,7 +414,6 @@ impl ServiceInstance {
         }
     }
 }
-
 
 // Generic instance trait that different AWS services can implement
 #[allow(dead_code)]
@@ -542,9 +536,7 @@ pub struct App {
 
     // Error handling
     pub error_message: Option<String>, // Store user-friendly error messages
-    
+
     // Loading timeout management
     pub loading_start_time: Option<Instant>, // Track when loading started
 }
-
-
