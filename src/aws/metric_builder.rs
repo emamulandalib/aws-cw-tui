@@ -263,7 +263,7 @@ fn create_default_rds_metrics() -> MetricData {
 mod tests {
     use super::*;
     use crate::aws::metrics::types::{MetricValue, ServiceMetrics};
-    
+
     use std::time::SystemTime;
 
     #[test]
