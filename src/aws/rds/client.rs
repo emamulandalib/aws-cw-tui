@@ -1,6 +1,7 @@
+use crate::aws::error_utils::AwsErrorHandler;
+use crate::aws::session::AwsSessionManager;
 use crate::models::RdsInstance;
 use anyhow::Result;
-use aws_config::BehaviorVersion;
 use aws_sdk_rds::Client as RdsClient;
 
 /// RDS client operations - centralized AWS RDS API calls
@@ -9,40 +10,25 @@ pub struct RdsClientManager {
 }
 
 impl RdsClientManager {
-    /// Create a new RDS client manager
+    /// Create a new RDS client manager using shared AWS session
     pub async fn new() -> Self {
-        let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
-        let client = RdsClient::new(&config);
-
+        let client = AwsSessionManager::rds_client().await;
         Self { client }
     }
 
     /// Load all RDS instances from AWS
     pub async fn load_instances(&self) -> Result<Vec<RdsInstance>> {
-        let resp = match self.client.describe_db_instances().send().await {
-            Ok(resp) => resp,
-            Err(e) => {
-                let error_msg = e.to_string();
-                if error_msg.contains("credential")
-                    || error_msg.contains("authentication")
-                    || error_msg.contains("access")
-                    || error_msg.contains("no providers in chain")
-                {
-                    return Err(anyhow::anyhow!(
-                        "AWS credentials error: {}\\n\\n\
-                         Please ensure:\\n\
-                         - Your AWS credentials are configured correctly\\n\
-                         - You have the correct AWS_PROFILE set (currently: {})\\n\
-                         - Your credentials have RDS describe permissions\\n\
-                         - Try: export AWS_PROFILE=your-profile-name",
-                        error_msg,
-                        std::env::var("AWS_PROFILE").unwrap_or_else(|_| "default".to_string())
+        let resp: aws_sdk_rds::operation::describe_db_instances::DescribeDbInstancesOutput =
+            match self.client.describe_db_instances().send().await {
+                Ok(resp) => resp,
+                Err(e) => {
+                    return Err(AwsErrorHandler::handle_aws_error(
+                        e,
+                        "fetch RDS instances",
+                        "RDS describe permissions",
                     ));
-                } else {
-                    return Err(anyhow::anyhow!("Failed to fetch RDS instances: {}", e));
                 }
-            }
-        };
+            };
 
         let mut instances = Vec::new();
 

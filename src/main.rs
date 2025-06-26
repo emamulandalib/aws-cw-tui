@@ -10,80 +10,43 @@ use anyhow::Result;
 use clap::Command;
 use crossterm::event;
 
+use aws::session::AwsSessionManager;
 use event_handler::handle_event;
 use models::{App, AppState};
 use terminal::TerminalManager;
 use ui::render_app;
 async fn validate_aws_credentials() -> Result<()> {
-    println!("Checking AWS credentials...");
+    // Use the new centralized session manager for credential validation
+    let validation_result = AwsSessionManager::validate_credentials().await?;
 
-    // Get current profile info
-    let profile = std::env::var("AWS_PROFILE").unwrap_or_else(|_| "default".to_string());
-    //
-    // Try to load AWS config first to get the actual region that will be used
-    println!("Loading AWS configuration...");
-    let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
-        .load()
-        .await;
+    // Display status messages
+    for message in &validation_result.status_messages {
+        println!("{}", message);
+    }
 
-    // Get the actual region that the AWS SDK will use
-    let region = config.region().map(|r| r.as_ref()).unwrap_or("unknown");
-
-    println!("Using AWS Profile: {}", profile);
-    println!("Using AWS Region: {}", region);
-
-    // Test credential access with a simple STS call
-    println!("Validating credentials...");
-    let sts_client = aws_sdk_sts::Client::new(&config);
-
-    match sts_client.get_caller_identity().send().await {
-        Ok(identity) => {
-            let account_id = identity.account().unwrap_or("Unknown");
-            let user_id = identity.user_id().unwrap_or("Unknown");
-            println!("AWS credentials validated successfully!");
-            println!("   Account ID: {}", account_id);
-            println!("   User/Role: {}", user_id);
-            println!();
-            Ok(())
+    if validation_result.success {
+        // Success case - credential info is already included in status messages
+        println!();
+        Ok(())
+    } else {
+        // Error case - display error guidance
+        for guidance in &validation_result.error_guidance {
+            println!("{}", guidance);
         }
-        Err(e) => {
-            println!("AWS credential validation failed!");
-            println!();
+        println!();
 
-            let error_msg = e.to_string();
-            if error_msg.contains("credential") || error_msg.contains("no providers in chain") {
-                println!("Credential issue detected. Please try:");
-                println!("   1. Set your AWS profile: export AWS_PROFILE=your-profile-name");
-                println!("   2. Or run: aws configure");
-                println!("   3. Or set environment variables:");
-                println!("      export AWS_ACCESS_KEY_ID=your-access-key");
-                println!("      export AWS_SECRET_ACCESS_KEY=your-secret-key");
-                println!("   4. Ensure your profile exists in ~/.aws/credentials");
-                println!();
-                println!(
-                    "Current profile '{}' might not exist or be configured correctly.",
-                    profile
-                );
-            } else {
-                println!("Error details: {}", error_msg);
-            }
-
-            Err(anyhow::anyhow!("AWS credential validation failed"))
-        }
+        // Return error if validation failed
+        Err(anyhow::anyhow!(
+            "AWS credential validation failed: {}",
+            validation_result
+                .error_message
+                .unwrap_or_else(|| "Unknown error".to_string())
+        ))
     }
 }
 
 async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
-    // Initial load for RDS instances since we start directly with InstanceList
-    if app.state == AppState::InstanceList && app.loading {
-        if let Some(service) = &app.selected_service {
-            match service {
-                crate::models::AwsService::Rds => {
-                    app.load_rds_instances().await?;
-                }
-            }
-        }
-    }
+    // App starts with ServiceList state; instance loading happens via event handler
 
     loop {
         terminal.draw(|f| render_app(f, &mut app))?;

@@ -15,25 +15,62 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Security check - only allow releases from authorized users
+  # Security check - only allow releases from authorized users and main branch
   check-permissions:
     runs-on: ubuntu-latest
     outputs:
       authorized: ${{ steps.check.outputs.authorized }}
     steps:
-      - name: Check if user is authorized
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history to check tag origin
+          
+      - name: Check if user is authorized and tag is from main
         id: check
         run: |
-          # List of authorized users who can create releases
+          # List of authorized users who can create releases (space-separated for exact matching)
           AUTHORIZED_USERS="emamulandalib"
           ACTOR="${{ github.actor }}"
           
-          if [[ "$AUTHORIZED_USERS" == *"$ACTOR"* ]]; then
-            echo "authorized=true" >> $GITHUB_OUTPUT
-            echo "✅ User $ACTOR is authorized to create releases"
+          # Check user authorization with exact matching
+          USER_AUTHORIZED=false
+          for user in $AUTHORIZED_USERS; do
+            if [[ "$user" == "$ACTOR" ]]; then
+              USER_AUTHORIZED=true
+              break
+            fi
+          done
+          
+          if [[ "$USER_AUTHORIZED" == "false" ]]; then
+            echo "authorized=false" >> $GITHUB_OUTPUT
+            echo "User $ACTOR is not authorized to create releases"
+            echo "Authorized users: $AUTHORIZED_USERS"
+            exit 1
+          fi
+          
+          # Get tag name
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_NAME="${{ github.event.inputs.tag }}"
+          else
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          fi
+          
+          # Check if tag exists and is from main branch
+          if git rev-parse --verify "$TAG_NAME" >/dev/null 2>&1; then
+            TAG_COMMIT=$(git rev-list -n 1 "$TAG_NAME")
+            MAIN_COMMITS=$(git rev-list origin/main)
+            
+            if echo "$MAIN_COMMITS" | grep -q "$TAG_COMMIT"; then
+              echo "authorized=true" >> $GITHUB_OUTPUT
+              echo "User $ACTOR is authorized and tag $TAG_NAME is from main branch"
+            else
+              echo "authorized=false" >> $GITHUB_OUTPUT
+              echo "Tag $TAG_NAME is not created from main branch"
+              exit 1
+            fi
           else
             echo "authorized=false" >> $GITHUB_OUTPUT
-            echo "❌ User $ACTOR is not authorized to create releases"
+            echo "Tag $TAG_NAME does not exist"
             exit 1
           fi
 
