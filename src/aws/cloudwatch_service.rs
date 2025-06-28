@@ -1,6 +1,5 @@
 use crate::models::MetricData;
 use anyhow::Result;
-use aws_config::BehaviorVersion;
 use aws_sdk_cloudwatch::Client as CloudWatchClient;
 use std::time::SystemTime;
 
@@ -8,15 +7,15 @@ use std::time::SystemTime;
 use super::metric_builder::build_metric_data;
 use super::metric_fetcher::fetch_comprehensive_metric;
 use super::metric_types::{AdvancedMetrics, CoreMetrics, MetricFetchParams};
+use super::session::AwsSessionManager;
 use super::time_range::calculate_period_seconds;
 
 // Re-export for backward compatibility
 pub use super::time_range::{TimeRange, TimeUnit};
 
 pub async fn load_metrics(instance_id: &str, time_range: TimeRange) -> Result<MetricData> {
-    // Load AWS config - this doesn't return a Result, just loads the config
-    let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
-    let client = CloudWatchClient::new(&config);
+    // Use shared AWS session manager for CloudWatch client
+    let client = AwsSessionManager::cloudwatch_client().await;
 
     let end_time = SystemTime::now();
     let start_time = end_time - time_range.duration();

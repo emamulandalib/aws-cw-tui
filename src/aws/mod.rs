@@ -2,6 +2,12 @@
 pub mod cloudwatch_service;
 pub mod rds_service;
 
+// Error handling utilities
+pub mod error_utils;
+
+// AWS Session Management - centralized config and client management
+pub mod session;
+
 // New refactored modules
 pub mod metric_builder;
 pub mod metric_fetcher;
