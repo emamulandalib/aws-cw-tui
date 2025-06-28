@@ -70,7 +70,7 @@ async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let _matches = Command::new("awscw")
+    Command::new("awscw")
         .version("0.1.0")
         .about("AWS CloudWatch TUI")
         .get_matches();
