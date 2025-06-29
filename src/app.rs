@@ -97,6 +97,9 @@ impl App {
     // ================================
 
     pub fn service_next(&mut self) {
+        if self.available_services.is_empty() {
+            return;
+        }
         let i = match self.service_list_state.selected() {
             Some(i) => {
                 if i >= self.available_services.len() - 1 {
@@ -111,6 +114,9 @@ impl App {
     }
 
     pub fn service_previous(&mut self) {
+        if self.available_services.is_empty() {
+            return;
+        }
         let i = match self.service_list_state.selected() {
             Some(i) => {
                 if i == 0 {
