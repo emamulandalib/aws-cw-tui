@@ -1,10 +1,39 @@
 # AWS CloudWatch TUI
 
-A terminal user interface (TUI) for AWS CloudWatch that provides comprehensive RDS monitoring with advanced data visualization.
+<div align="center">
+
+**A powerful terminal user interface for AWS CloudWatch monitoring with real-time RDS metrics visualization**
+
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/emamulandalib/aws-cw-tui)](https://github.com/emamulandalib/aws-cw-tui/releases)
+[![License](https://img.shields.io/github/license/emamulandalib/aws-cw-tui)](LICENSE)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/emamulandalib/aws-cw-tui/ci.yml?branch=main)](https://github.com/emamulandalib/aws-cw-tui/actions)
+
+[Documentation](https://github.com/emamulandalib/aws-cw-tui/wiki) | [Quick Start](#quick-start) | [Features](#features) | [Community](https://github.com/emamulandalib/aws-cw-tui/discussions)
+
+</div>
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Supported Metrics](#supported-metrics)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Overview
+
+AWS CloudWatch TUI is a comprehensive terminal-based monitoring solution that provides real-time visualization of AWS CloudWatch metrics. Built with modern Rust technologies, it offers an intuitive service selection interface for monitoring AWS services, starting with comprehensive RDS monitoring featuring professional-grade charts and extensive metric coverage.
 
 ## Features
 
-### 🚀 Enhanced RDS Monitoring
+### Enhanced RDS Monitoring
 - **Comprehensive Metrics Collection**: All 27 AWS RDS metrics including CPU, IOPS, latency, throughput, network, memory, storage, and advanced engine-specific metrics
 - **Real CloudWatch Time Series Data**: Actual timestamps from CloudWatch with proper time-based X-axis plotting
 - **Extended Historical Data**: 3 hours of historical data (36 data points at 5-minute intervals) for trend analysis
@@ -12,14 +41,14 @@ A terminal user interface (TUI) for AWS CloudWatch that provides comprehensive R
 - **Scrollable Interface**: Navigate through all 27 individual metrics with smooth scrolling
 - **Single-Metric Layout**: Full-width charts for each metric for maximum detail visibility
 
-### 📊 Modern UI Layout
+### Modern UI Layout
 - **27 Comprehensive Metrics**: Complete AWS RDS monitoring coverage organized in logical sections
   1. **Core Performance**: CPU Utilization, DB Connections, IOPS (Read/Write), Latency (Read/Write), Free Storage
   2. **Extended Performance**: Throughput (Read/Write), Network (RX/TX), Memory (Freeable/Swap), Queue Depth
   3. **Advanced Metrics**: Burst Balance, CPU Credits, Bin Log Usage, Replica Lag, Transaction Management
   4. **Engine-Specific**: PostgreSQL replication slots, SQL Server agent jobs, checkpoint lag, connection attempts
 
-### 🎨 CloudWatch-Style Visualization
+### CloudWatch-Style Visualization
 - **High-Resolution Time Series Charts**: Enhanced Braille plotting with larger chart areas for better visualization
 - **Single-Metric Layout**: Full-width individual metric charts for maximum detail and clarity
 - **Scrollable Interface**: Navigate through all 27 metrics using ↑/↓ or k/j keys
@@ -29,38 +58,127 @@ A terminal user interface (TUI) for AWS CloudWatch that provides comprehensive R
 - **Color-coded Metrics**: Each metric type has distinct colors for easy identification
 - **Professional Charts**: CloudWatch-style line charts using ratatui's Chart widget with enhanced Braille markers
 
-### 🔄 Enhanced Data Collection
+### Enhanced Data Collection
 - **Real CloudWatch Integration**: Fetches actual time series data with timestamps from AWS CloudWatch
 - **Comprehensive AWS Integration**: Fetches all major RDS CloudWatch metrics
 - **Timestamp Accuracy**: Preserves original CloudWatch timestamps for accurate time-based plotting
 - **Error Handling**: Robust error handling for AWS API calls with fallback time calculation
 - **Performance Optimized**: Efficient data collection and visualization with concurrent metric fetching
 
-## Installation
+## Quick Start
+
+### Option 1: Download Pre-built Binary
+
+Download the latest release for your platform:
+
+**Linux (x86_64)**
+```bash
+curl -L https://github.com/emamulandalib/aws-cw-tui/releases/latest/download/awscw-linux-x86_64.tar.gz | tar xz
+sudo mv awscw /usr/local/bin/
+```
+
+**macOS (Apple Silicon)**
+```bash
+curl -L https://github.com/emamulandalib/aws-cw-tui/releases/latest/download/awscw-macos-aarch64.tar.gz | tar xz
+sudo mv awscw /usr/local/bin/
+```
+
+**macOS (Intel)**
+```bash
+curl -L https://github.com/emamulandalib/aws-cw-tui/releases/latest/download/awscw-macos-x86_64.tar.gz | tar xz
+sudo mv awscw /usr/local/bin/
+```
+
+**Windows**
+```powershell
+# Download from releases page
+Invoke-WebRequest -Uri "https://github.com/emamulandalib/aws-cw-tui/releases/latest/download/awscw-windows-x86_64.zip" -OutFile "awscw.zip"
+Expand-Archive -Path "awscw.zip" -DestinationPath "."
+# Add awscw.exe to your PATH
+```
+
+### Option 2: Install from Source
 
 ```bash
+# Prerequisites: Rust 1.70+ required
+git clone https://github.com/emamulandalib/aws-cw-tui.git
+cd aws-cw-tui
 cargo install --path .
 ```
 
-## Usage
-
-### RDS Instances
-
-To view RDS instances in your current AWS account:
+### Configure AWS Credentials
 
 ```bash
-awscw --rds
+aws configure
+# OR set environment variables
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+export AWS_DEFAULT_REGION=us-east-1
 ```
+
+### Run the Application
+
+```bash
+awscw
+```
+
+The application will start with a service selection screen where you can choose RDS monitoring.
+
+## Installation
+
+### Package Managers
+
+**Cargo (Rust)**
+```bash
+cargo install awscw
+```
+
+**From Source**
+```bash
+git clone https://github.com/emamulandalib/aws-cw-tui.git
+cd aws-cw-tui
+cargo install --path .
+```
+
+**Pre-built Binaries**
+
+Visit our [releases page](https://github.com/emamulandalib/aws-cw-tui/releases) to download pre-built binaries for:
+- Linux (x86_64, ARM64)
+- macOS (Intel, Apple Silicon)  
+- Windows (x86_64)
+
+## Usage
+
+### Getting Started
+
+To start monitoring AWS services:
+
+```bash
+awscw
+```
+
+The application will start with a **service selection screen** where you can:
+1. Choose from available AWS services (currently RDS)
+2. Navigate using arrow keys
+3. Press Enter to select a service and view instances
 
 ### Navigation
 
-- **Arrow Keys (Instance List)**: Navigate through RDS instances list
-- **Enter**: Select an RDS instance to view detailed metrics
-- **Arrow Keys / k/j (Metrics View)**: Scroll through metric pairs (↑/↓ or k/j)
+**Service Selection Screen:**
+- **Arrow Keys**: Navigate through available AWS services
+- **Enter**: Select a service to view instances
+
+**Instance List Screen:**
+- **Arrow Keys**: Navigate through instances list (e.g., RDS instances)
+- **Enter**: Select an instance to view detailed metrics
+- **'b'**: Go back to service selection
+
+**Metrics View Screen:**
+- **Arrow Keys / k/j**: Scroll through metric pairs (↑/↓ or k/j)
 - **Home**: Reset scroll position to top
-- **'b'**: Go back to instance list from metrics view
+- **'b'**: Go back to instance list
 - **'r'**: Refresh metrics data (3-hour historical data collection)
-- **'q'**: Quit the application
+- **'q'**: Quit the application (available from any screen)
 
 ### Enhanced Metrics Dashboard
 
@@ -74,36 +192,58 @@ When viewing an RDS instance, you'll see:
 3. **Full-Width High-Resolution Charts**: Each metric displays in a dedicated chart with 3-hour time series data
 4. **Scrollable Interface**: Navigate through all 27 metrics with smooth scrolling
 
-### Sample Metrics Display
+## Configuration
 
-```
-┌─ Core Performance ──────────────────────────────────────────┐
-│ ┌─ CPU Utilization ─────┐ ┌─ DB Connections ──────────┐    │
-│ │ 65.3%                 │ │ 42                        │    │
-│ │ ┌─ 3h Trend ────────┐ │ │ ┌─ 3h Trend ─────────┐  │    │
-│ │ │ ⠈⠑⠒⠢⠤⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀ │ │ │ ⠈⠉⠒⠢⠤⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀ │  │    │
-│ │ │ 3h ago      now │ │ │ │ 3h ago       now │  │    │
-│ │ └─────────────────┘ │ │ └──────────────────┘  │    │
-│ └───────────────────── │ └─────────────────────── │    │
-└─────────────────────────────────────────────────────────────┘
-```
+### AWS Credentials
 
-## AWS Configuration
+Ensure your AWS credentials are configured using one of these methods:
 
-Ensure your AWS credentials are configured:
-
+**AWS CLI Configuration**
 ```bash
 aws configure
 ```
 
-Or use environment variables:
+**Environment Variables**
 ```bash
 export AWS_ACCESS_KEY_ID=your_access_key
 export AWS_SECRET_ACCESS_KEY=your_secret_key
 export AWS_DEFAULT_REGION=us-east-1
 ```
 
-## Supported RDS Metrics
+**AWS Profile**
+```bash
+export AWS_PROFILE=your-profile-name
+awscw
+```
+
+**IAM Instance Profile** (when running on EC2)
+```bash
+# No additional configuration needed
+awscw
+```
+
+### Required AWS Permissions
+
+The application requires the following IAM permissions:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "rds:DescribeDBInstances",
+                "cloudwatch:GetMetricStatistics",
+                "cloudwatch:ListMetrics"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+## Supported Metrics
 
 The application monitors all 27 comprehensive RDS metrics:
 
@@ -139,28 +279,88 @@ The application monitors all 27 comprehensive RDS metrics:
 
 ## Development
 
-### Building
+### Prerequisites
+
+- Rust 1.70+ 
+- AWS CLI (optional, for credential management)
+
+### Building from Source
+
 ```bash
+git clone https://github.com/emamulandalib/aws-cw-tui.git
+cd aws-cw-tui
 cargo build --release
 ```
 
-### Testing
+### Running Tests
+
 ```bash
 cargo test
 ```
 
-### Running in Development
+### Development Mode
+
 ```bash
-cargo run -- --rds
+cargo run
 ```
 
-## Dependencies
+### Project Structure
 
-- **AWS SDK**: CloudWatch and RDS clients
-- **Ratatui**: Terminal UI framework  
-- **Tokio**: Async runtime
-- **Clap**: Command line parsing
+```
+aws-cw-tui/
+├── src/
+│   ├── main.rs           # Application entry point
+│   ├── ui/               # TUI components and layouts
+│   ├── aws/              # AWS service integrations
+│   └── metrics/          # Metric collection and processing
+├── Cargo.toml           # Project dependencies
+└── README.md           # This file
+```
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Quick Start for Contributors
+
+1. **Fork the repository**
+2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+3. **Make your changes** and add tests
+4. **Run the test suite**: `cargo test`
+5. **Commit your changes**: `git commit -m 'Add amazing feature'`
+6. **Push to the branch**: `git push origin feature/amazing-feature`
+7. **Open a Pull Request**
+
+### Reporting Issues
+
+- **Bug Reports**: Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md)
+- **Feature Requests**: Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md)
+- **Security Issues**: Email security@aws-cw-tui.dev
+
+## Support
+
+- **Documentation**: [Wiki](https://github.com/emamulandalib/aws-cw-tui/wiki)
+- **Discussions**: [GitHub Discussions](https://github.com/emamulandalib/aws-cw-tui/discussions)
+- **Issues**: [GitHub Issues](https://github.com/emamulandalib/aws-cw-tui/issues)
+
+## Acknowledgments
+
+- [ratatui](https://github.com/ratatui-org/ratatui) - Rust library for building rich terminal UIs
+- [AWS SDK for Rust](https://github.com/awslabs/aws-sdk-rust) - Official AWS SDK
+- [crossterm](https://github.com/crossterm-rs/crossterm) - Cross-platform terminal manipulation
 
 ## License
 
-This project is open source. See LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+**Star this repository if you find it helpful!**
+
+[Report Bug](https://github.com/emamulandalib/aws-cw-tui/issues) · [Request Feature](https://github.com/emamulandalib/aws-cw-tui/issues) · [Contribute](CONTRIBUTING.md)
+
+Made with care for the AWS community
+
+</div>
