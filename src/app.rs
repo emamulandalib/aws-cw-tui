@@ -236,6 +236,9 @@ impl App {
                 if !self.instances.is_empty() {
                     self.list_state.select(Some(0));
                 }
+                
+                // Mark as refreshed to prevent continuous refresh loops
+                self.mark_refreshed();
             }
             Err(e) => {
                 self.loading = false;
@@ -283,6 +286,8 @@ impl App {
                 self.metrics_loading = false;
                 self.clear_error();
                 self.initialize_sparkline_grid();
+                // Mark as refreshed after successful metrics load
+                self.mark_refreshed();
                 Ok(())
             }
             Err(e) => {
