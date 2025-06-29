@@ -101,8 +101,7 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
                     // Select the current time range and reload metrics
                     let current_index = app.get_current_time_range_index();
                     app.select_time_range(current_index)?;
-                    if let Some(selected) = app.selected_instance {
-                        let instance_id = app.rds_instances[selected].identifier.clone();
+                    if let Some(instance_id) = app.get_selected_rds_instance_id() {
                         app.load_metrics(&instance_id).await?;
                     }
                 }
@@ -120,48 +119,42 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
         }
         (KeyCode::Char('1'), KeyModifiers::CONTROL) => {
             app.update_time_range(1, TimeUnit::Hours, 1)?;
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
+            if let Some(instance_id) = app.get_selected_rds_instance_id() {
                 app.load_metrics(&instance_id).await?
             }
             Ok(false)
         }
         (KeyCode::Char('3'), KeyModifiers::CONTROL) => {
             app.update_time_range(3, TimeUnit::Hours, 1)?;
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
+            if let Some(instance_id) = app.get_selected_rds_instance_id() {
                 app.load_metrics(&instance_id).await?
             }
             Ok(false)
         }
         (KeyCode::Char('6'), KeyModifiers::CONTROL) => {
             app.update_time_range(6, TimeUnit::Hours, 1)?;
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
+            if let Some(instance_id) = app.get_selected_rds_instance_id() {
                 app.load_metrics(&instance_id).await?
             }
             Ok(false)
         }
         (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
             app.update_time_range(1, TimeUnit::Days, 1)?;
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
+            if let Some(instance_id) = app.get_selected_rds_instance_id() {
                 app.load_metrics(&instance_id).await?
             }
             Ok(false)
         }
         (KeyCode::Char('w'), KeyModifiers::CONTROL) => {
             app.update_time_range(1, TimeUnit::Weeks, 7)?;
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
+            if let Some(instance_id) = app.get_selected_rds_instance_id() {
                 app.load_metrics(&instance_id).await?
             }
             Ok(false)
         }
         (KeyCode::Char('m'), KeyModifiers::CONTROL) => {
             app.update_time_range(1, TimeUnit::Months, 30)?;
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
+            if let Some(instance_id) = app.get_selected_rds_instance_id() {
                 app.load_metrics(&instance_id).await?
             }
             Ok(false)
@@ -189,8 +182,7 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
             Ok(false)
         }
         (KeyCode::Char('r'), _) => {
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
+            if let Some(instance_id) = app.get_selected_rds_instance_id() {
                 app.load_metrics(&instance_id).await?
             }
             Ok(false)
@@ -208,8 +200,7 @@ async fn handle_instance_details_event(app: &mut App, key_code: KeyCode) -> Resu
             Ok(false)
         }
         KeyCode::Char('r') => {
-            if let Some(selected) = app.selected_instance {
-                let instance_id = app.rds_instances[selected].identifier.clone();
+            if let Some(instance_id) = app.get_selected_rds_instance_id() {
                 app.load_metrics(&instance_id).await?;
             }
             Ok(false)

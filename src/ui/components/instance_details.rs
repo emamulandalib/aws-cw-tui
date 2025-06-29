@@ -17,7 +17,14 @@ pub fn render_instance_details(f: &mut Frame, app: &mut App) {
         ])
         .split(f.area());
 
-    let instance = &app.rds_instances[app.selected_instance.unwrap()];
+    let instance = match app.get_selected_rds_instance() {
+        Some(instance) => instance,
+        None => {
+            // This should not happen in normal flow, but handle gracefully
+            render_error_message(f, chunks[0], "No instance selected");
+            return;
+        }
+    };
 
     render_instance_info(f, chunks[0], instance);
 
@@ -93,4 +100,16 @@ pub fn render_metrics_loading(f: &mut Frame, area: ratatui::layout::Rect) {
                 .border_style(Style::default().fg(Color::White)),
         );
     f.render_widget(loading_msg, area);
+}
+
+fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, message: &str) {
+    let error_msg = Paragraph::new(message)
+        .style(Style::default().fg(Color::Red))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Error")
+                .border_style(Style::default().fg(Color::Red)),
+        );
+    f.render_widget(error_msg, area);
 }
