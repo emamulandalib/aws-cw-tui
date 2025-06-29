@@ -530,8 +530,8 @@ impl App {
     /// This should be called before rendering to ensure navigation functions work correctly
     pub fn update_metrics_per_screen(&mut self, area_height: u16) {
         let items_per_screen = (area_height.saturating_sub(2)) as usize; // Account for borders
-                                                                         // Each metric takes 3 lines (frame only) - use integer division compatible with Rust 1.70+
-        let actual_metrics_per_screen = (items_per_screen + 2) / 3; // Equivalent to div_ceil(3)
+                                                                         // Each metric takes 3 lines (frame only)
+        let actual_metrics_per_screen = items_per_screen.div_ceil(3);
         self.metrics_per_screen = actual_metrics_per_screen;
     }
 
