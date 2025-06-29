@@ -81,8 +81,8 @@ impl AwsSessionManager {
             .map(|r| r.as_ref())
             .unwrap_or("not-configured");
 
-        status_messages.push(format!("Using AWS Profile: {}", profile));
-        status_messages.push(format!("Using AWS Region: {}", region));
+        status_messages.push(format!("Using AWS Profile: {profile}"));
+        status_messages.push(format!("Using AWS Region: {region}"));
 
         // Test credential access with STS call - this will use whatever credential source AWS SDK found
         status_messages.push("Validating credentials...".to_string());
@@ -95,9 +95,9 @@ impl AwsSessionManager {
                 let arn = identity.arn().unwrap_or("Unknown");
 
                 status_messages.push("AWS credentials validated successfully!".to_string());
-                status_messages.push(format!("   Account ID: {}", account_id));
-                status_messages.push(format!("   User/Role: {}", user_id));
-                status_messages.push(format!("   ARN: {}", arn));
+                status_messages.push(format!("   Account ID: {account_id}"));
+                status_messages.push(format!("   User/Role: {user_id}"));
+                status_messages.push(format!("   ARN: {arn}"));
 
                 let credential_info = CredentialInfo {
                     profile,
@@ -138,11 +138,10 @@ impl AwsSessionManager {
                             .to_string(),
                     );
                     error_guidance.push(format!(
-                        "Current profile '{}' might not exist or be configured correctly.",
-                        profile
+                        "Current profile '{profile}' might not exist or be configured correctly."
                     ));
                 } else {
-                    error_guidance.push(format!("Error details: {}", error_msg));
+                    error_guidance.push(format!("Error details: {error_msg}"));
                 }
 
                 Ok(CredentialValidationResult {

@@ -30,9 +30,9 @@ pub fn create_time_range_items(app: &App) -> Vec<ListItem> {
 
             // Add selection indicator
             let display_text = if is_selected {
-                format!("● {}", compact_label)
+                format!("● {compact_label}")
             } else {
-                format!("  {}", compact_label)
+                format!("  {compact_label}")
             };
 
             ListItem::new(Line::from(Span::styled(display_text, style)))
