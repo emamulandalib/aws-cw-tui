@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 /// Create compact time range list items with abbreviated labels
-pub fn create_time_range_items(app: &App) -> Vec<ListItem> {
+pub fn create_time_range_items(app: &App) -> Vec<ListItem<'_>> {
     let time_ranges = crate::models::App::get_time_range_options();
 
     time_ranges
