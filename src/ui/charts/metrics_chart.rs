@@ -42,7 +42,7 @@ pub fn render_metrics(
     render_instructions(f, main_chunks[1], available_count, scroll_offset);
 }
 
-fn collect_available_metrics(metrics: &MetricData) -> Vec<MetricTuple> {
+fn collect_available_metrics(metrics: &MetricData) -> Vec<MetricTuple<'_>> {
     let mut individual_metrics = vec![];
 
     // Use the same ordering as MetricData::get_available_metrics() to ensure consistency
@@ -536,7 +536,7 @@ fn calculate_y_bounds(history: &[f64]) -> (f64, f64) {
     }
 }
 
-fn create_x_labels(timestamps: &[SystemTime]) -> Vec<Line> {
+fn create_x_labels(timestamps: &[SystemTime]) -> Vec<Line<'_>> {
     use chrono::{DateTime, Utc};
 
     let num_x_labels = 8.min(timestamps.len());
@@ -572,7 +572,7 @@ fn create_x_labels(timestamps: &[SystemTime]) -> Vec<Line> {
     }
 }
 
-fn create_y_labels(y_bounds: [f64; 2], metric_name: &str) -> Vec<Line> {
+fn create_y_labels(y_bounds: [f64; 2], metric_name: &str) -> Vec<Line<'_>> {
     let format_value = |v: f64| -> String {
         if metric_name.contains("Memory") || metric_name.contains("Storage") {
             let gb_value = v / (1024.0 * 1024.0 * 1024.0);

@@ -130,7 +130,7 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
     f.render_stateful_widget(items_list, area, &mut app.list_state);
 }
 
-fn create_instance_list_item(instance: &RdsInstance) -> ListItem {
+fn create_instance_list_item(instance: &RdsInstance) -> ListItem<'_> {
     let lines = vec![Line::from(vec![
         Span::styled(
             instance.identifier.to_string(),
