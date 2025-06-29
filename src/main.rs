@@ -17,21 +17,36 @@ use terminal::TerminalManager;
 use ui::render_app;
 async fn validate_aws_credentials() -> Result<()> {
     // Use the new centralized session manager for credential validation
-    let _credential_info = AwsSessionManager::validate_credentials().await?;
-    Ok(())
+    let validation_result = AwsSessionManager::validate_credentials().await?;
+
+    // Display status messages
+    for message in &validation_result.status_messages {
+        println!("{}", message);
+    }
+
+    if validation_result.success {
+        // Success case - credential info is already included in status messages
+        println!();
+        Ok(())
+    } else {
+        // Error case - display error guidance
+        for guidance in &validation_result.error_guidance {
+            println!("{}", guidance);
+        }
+        println!();
+
+        // Return error if validation failed
+        Err(anyhow::anyhow!(
+            "AWS credential validation failed: {}",
+            validation_result
+                .error_message
+                .unwrap_or_else(|| "Unknown error".to_string())
+        ))
+    }
 }
 
 async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
-    // Initial load for RDS instances since we start directly with InstanceList
-    if app.state == AppState::InstanceList && app.loading {
-        if let Some(service) = &app.selected_service {
-            match service {
-                crate::models::AwsService::Rds => {
-                    app.load_rds_instances().await?;
-                }
-            }
-        }
-    }
+    // App starts with ServiceList state; instance loading happens via event handler
 
     loop {
         terminal.draw(|f| render_app(f, &mut app))?;

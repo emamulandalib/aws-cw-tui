@@ -1,6 +1,6 @@
-use crate::models::RdsInstance;
 use crate::aws::error_utils::AwsErrorHandler;
 use crate::aws::session::AwsSessionManager;
+use crate::models::RdsInstance;
 use anyhow::Result;
 
 pub async fn load_rds_instances() -> Result<Vec<RdsInstance>> {
@@ -13,7 +13,7 @@ pub async fn load_rds_instances() -> Result<Vec<RdsInstance>> {
             return Err(AwsErrorHandler::handle_aws_error(
                 e,
                 "fetch RDS instances",
-                "RDS describe permissions"
+                "RDS describe permissions",
             ));
         }
     };

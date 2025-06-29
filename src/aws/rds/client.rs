@@ -1,6 +1,6 @@
-use crate::models::RdsInstance;
 use crate::aws::error_utils::AwsErrorHandler;
 use crate::aws::session::AwsSessionManager;
+use crate::models::RdsInstance;
 use anyhow::Result;
 use aws_sdk_rds::Client as RdsClient;
 
@@ -18,16 +18,17 @@ impl RdsClientManager {
 
     /// Load all RDS instances from AWS
     pub async fn load_instances(&self) -> Result<Vec<RdsInstance>> {
-        let resp: aws_sdk_rds::operation::describe_db_instances::DescribeDbInstancesOutput = match self.client.describe_db_instances().send().await {
-            Ok(resp) => resp,
-            Err(e) => {
-            return Err(AwsErrorHandler::handle_aws_error(
-                e,
-                "fetch RDS instances",
-                "RDS describe permissions"
-            ));
-        }
-        };
+        let resp: aws_sdk_rds::operation::describe_db_instances::DescribeDbInstancesOutput =
+            match self.client.describe_db_instances().send().await {
+                Ok(resp) => resp,
+                Err(e) => {
+                    return Err(AwsErrorHandler::handle_aws_error(
+                        e,
+                        "fetch RDS instances",
+                        "RDS describe permissions",
+                    ));
+                }
+            };
 
         let mut instances = Vec::new();
 

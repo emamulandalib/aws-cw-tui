@@ -106,7 +106,6 @@ impl DynamicMetricBuilder {
     pub fn factory(&self) -> &MetricServiceFactory {
         &self.factory
     }
-
 }
 
 impl Default for DynamicMetricBuilder {
