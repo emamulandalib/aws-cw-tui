@@ -3,10 +3,10 @@ use aws_sdk_cloudwatch::Client as CloudWatchClient;
 use aws_sdk_rds::Client as RdsClient;
 use aws_sdk_sts::Client as StsClient;
 use std::sync::Arc;
-use tokio::sync::OnceCell;
+use tokio::sync::RwLock;
 
 /// Global AWS configuration - loaded once and reused throughout the application
-static AWS_CONFIG: OnceCell<Arc<SdkConfig>> = OnceCell::const_new();
+static AWS_CONFIG: RwLock<Option<Arc<SdkConfig>>> = RwLock::const_new(None);
 
 /// AWS Session Manager - handles centralized AWS config and client creation
 ///
@@ -31,13 +31,22 @@ impl AwsSessionManager {
     /// 4. Amazon ECS/EKS container credentials
     /// 5. Amazon EC2 Instance Metadata Service (IMDSv2)
     pub async fn get_config() -> Arc<SdkConfig> {
-        AWS_CONFIG
-            .get_or_init(|| async {
-                let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
-                Arc::new(config)
-            })
-            .await
-            .clone()
+        let read_guard = AWS_CONFIG.read().await;
+        if let Some(config) = read_guard.as_ref() {
+            return config.clone();
+        }
+        drop(read_guard);
+
+        let mut write_guard = AWS_CONFIG.write().await;
+        // Check again in case another task initialized it while we were waiting
+        if let Some(config) = write_guard.as_ref() {
+            return config.clone();
+        }
+
+        let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
+        let new_config = Arc::new(config);
+        *write_guard = Some(new_config.clone());
+        new_config
     }
 
     /// Create a new RDS client using the shared config
@@ -173,8 +182,10 @@ impl AwsSessionManager {
         let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
         let new_config = Arc::new(config);
 
-        // This will replace the old config
-        AWS_CONFIG.set(new_config.clone()).ok(); // Ignore error if already set
+        // Update the global config
+        let mut write_guard = AWS_CONFIG.write().await;
+        *write_guard = Some(new_config.clone());
+
         new_config
     }
 }
