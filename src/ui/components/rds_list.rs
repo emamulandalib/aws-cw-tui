@@ -1,3 +1,4 @@
+use crate::models::{App, RdsInstance};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
@@ -5,7 +6,6 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
 };
-use crate::models::{App, RdsInstance};
 
 pub fn render_rds_list(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
@@ -19,9 +19,12 @@ pub fn render_rds_list(f: &mut Frame, app: &mut App) {
 
     render_header(f, chunks[0]);
 
-    if app.loading {
+    // Check for errors first
+    if let Some(error_msg) = &app.error_message {
+        render_error_message(f, chunks[1], error_msg);
+    } else if app.loading {
         render_loading_message(f, chunks[1]);
-    } else if app.rds_instances.is_empty() {
+    } else if app.get_current_instances().is_empty() {
         render_no_instances_message(f, chunks[1]);
     } else {
         render_instances_list(f, chunks[1], app);
@@ -33,83 +36,123 @@ pub fn render_rds_list(f: &mut Frame, app: &mut App) {
 fn render_header(f: &mut Frame, area: ratatui::layout::Rect) {
     let header = Paragraph::new("AWS CloudWatch TUI - RDS Instances")
         .style(Style::default().fg(Color::White))
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("RDS CloudWatch TUI")
-            .border_style(Style::default().fg(Color::Cyan)));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("RDS Instances")
+                .border_style(Style::default().fg(Color::Cyan)),
+        );
     f.render_widget(header, area);
 }
 
 fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect) {
-    let loading_msg = Paragraph::new("Loading RDS instances...")
+    let loading_text = [
+        "Loading RDS instances...".to_string(),
+        "".to_string(),
+        "Press 'q' to quit or 'Esc' to go back".to_string(),
+        "Loading will timeout after 30 seconds".to_string(),
+    ];
+
+    let loading_msg = Paragraph::new(loading_text.join("\n"))
         .style(Style::default().fg(Color::Yellow))
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Status")
-            .border_style(Style::default().fg(Color::White)));
+        .alignment(ratatui::layout::Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Status")
+                .border_style(Style::default().fg(Color::White)),
+        );
     f.render_widget(loading_msg, area);
 }
 
 fn render_no_instances_message(f: &mut Frame, area: ratatui::layout::Rect) {
     let no_instances = Paragraph::new("No RDS instances found in this account/region")
         .style(Style::default().fg(Color::Red))
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("RDS Instances")
-            .border_style(Style::default().fg(Color::White)));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("RDS Instances")
+                .border_style(Style::default().fg(Color::White)),
+        );
     f.render_widget(no_instances, area);
 }
 
+fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, error_msg: &str) {
+    let error_paragraph = Paragraph::new(error_msg)
+        .style(Style::default().fg(Color::Red))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Error")
+                .border_style(Style::default().fg(Color::Red)),
+        )
+        .wrap(ratatui::widgets::Wrap { trim: false })
+        .alignment(ratatui::layout::Alignment::Left);
+    f.render_widget(error_paragraph, area);
+}
 fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut App) {
-    let items: Vec<ListItem> = app
-        .rds_instances
+    // Get dynamic title based on selected service
+    let title = if let Some(service) = &app.selected_service {
+        format!("{} Instances", service.short_name())
+    } else {
+        "Instances".to_string()
+    };
+
+    // Clone the instances to avoid borrowing issues
+    let current_instances = app.get_current_instances().clone();
+
+    // Create items from instances
+    let items: Vec<ListItem> = current_instances
         .iter()
-        .map(|instance| create_instance_list_item(instance))
+        .map(|service_instance| {
+            match service_instance {
+                crate::models::ServiceInstance::Rds(instance) => {
+                    create_instance_list_item(instance)
+                } // Future service instances will be handled here
+            }
+        })
         .collect();
 
-    let items = List::new(items)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("RDS Instances")
-            .border_style(Style::default().fg(Color::White)))
+    let items_list = List::new(items)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(title)
+                .border_style(Style::default().fg(Color::White)),
+        )
         .highlight_style(
             Style::default()
                 .bg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
         )
-        .highlight_symbol("► ");
+        .highlight_symbol("");
 
-    f.render_stateful_widget(items, area, &mut app.list_state);
+    f.render_stateful_widget(items_list, area, &mut app.list_state);
 }
 
-fn create_instance_list_item(instance: &RdsInstance) -> ListItem {
+fn create_instance_list_item(instance: &RdsInstance) -> ListItem<'_> {
     let lines = vec![Line::from(vec![
         Span::styled(
-            format!("{}", instance.identifier),
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            instance.identifier.to_string(),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" | "),
-        Span::styled(
-            &instance.engine,
-            Style::default().fg(Color::Green),
-        ),
+        Span::styled(&instance.engine, Style::default().fg(Color::Green)),
         Span::raw(" | "),
-        Span::styled(
-            &instance.status,
-            get_status_style(&instance.status),
-        ),
+        Span::styled(&instance.status, get_status_style(&instance.status)),
         Span::raw(" | "),
-        Span::styled(
-            &instance.instance_class,
-            Style::default().fg(Color::Cyan),
-        ),
+        Span::styled(&instance.instance_class, Style::default().fg(Color::Cyan)),
     ])];
     ListItem::new(lines)
 }
 
 fn render_controls(f: &mut Frame, area: ratatui::layout::Rect) {
-    let controls = Paragraph::new("↑/↓: Navigate • Enter: View Details • q: Quit")
-        .style(Style::default().fg(Color::Gray));
+    let controls = Paragraph::new(
+        "↑/↓: Navigate • Enter: View Details • Esc: Back to Services • r: Refresh • q: Quit",
+    )
+    .style(Style::default().fg(Color::Gray));
     f.render_widget(controls, area);
 }
 

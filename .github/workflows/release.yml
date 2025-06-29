@@ -1,0 +1,297 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release'
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Security check - only allow releases from authorized users and main branch
+  check-permissions:
+    runs-on: ubuntu-latest
+    outputs:
+      authorized: ${{ steps.check.outputs.authorized }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history to check tag origin
+          
+      - name: Check if user is authorized and tag is from main
+        id: check
+        run: |
+          # List of authorized users who can create releases (space-separated for exact matching)
+          AUTHORIZED_USERS="emamulandalib"
+          ACTOR="${{ github.actor }}"
+          
+          # Check user authorization with exact matching
+          USER_AUTHORIZED=false
+          for user in $AUTHORIZED_USERS; do
+            if [[ "$user" == "$ACTOR" ]]; then
+              USER_AUTHORIZED=true
+              break
+            fi
+          done
+          
+          if [[ "$USER_AUTHORIZED" == "false" ]]; then
+            echo "authorized=false" >> $GITHUB_OUTPUT
+            echo "User $ACTOR is not authorized to create releases"
+            echo "Authorized users: $AUTHORIZED_USERS"
+            exit 1
+          fi
+          
+          # Get tag name
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_NAME="${{ github.event.inputs.tag }}"
+          else
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          fi
+          
+          # Check if tag exists and is from main branch
+          if git rev-parse --verify "$TAG_NAME" >/dev/null 2>&1; then
+            TAG_COMMIT=$(git rev-list -n 1 "$TAG_NAME")
+            MAIN_COMMITS=$(git rev-list origin/main)
+            
+            if echo "$MAIN_COMMITS" | grep -q "$TAG_COMMIT"; then
+              echo "authorized=true" >> $GITHUB_OUTPUT
+              echo "User $ACTOR is authorized and tag $TAG_NAME is from main branch"
+            else
+              echo "authorized=false" >> $GITHUB_OUTPUT
+              echo "Tag $TAG_NAME is not created from main branch"
+              exit 1
+            fi
+          else
+            echo "authorized=false" >> $GITHUB_OUTPUT
+            echo "Tag $TAG_NAME does not exist"
+            exit 1
+          fi
+
+  create-release:
+    needs: check-permissions
+    if: needs.check-permissions.outputs.authorized == 'true'
+    runs-on: ubuntu-latest
+    environment: production  # Requires manual approval for releases
+    permissions:
+      contents: write
+    outputs:
+      tag_name: ${{ steps.tag_name.outputs.TAG_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Get tag name
+        id: tag_name
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "TAG_NAME=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.tag_name.outputs.TAG_NAME }}" \
+            --title "Release ${{ steps.tag_name.outputs.TAG_NAME }}" \
+            --notes "## Changes
+
+          See the [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+
+          ## Installation
+
+          ### Download Binary
+          Download the appropriate binary for your platform from the assets below.
+
+          ### Cargo Install
+          \`\`\`bash
+          cargo install awscw
+          \`\`\`
+
+          ### Usage
+          \`\`\`bash
+          awscw --help
+          \`\`\`" \
+            ${{ contains(steps.tag_name.outputs.TAG_NAME, 'alpha') && '--prerelease' || '' }}
+
+  build:
+    name: Build for ${{ matrix.target }}
+    needs: [check-permissions, create-release]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 6  # Build all platforms simultaneously
+      matrix:
+        include:
+          # Linux targets
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            binary-suffix: ""
+            
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            binary-suffix: ""
+            
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            binary-suffix: ""
+            
+          # macOS targets
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            binary-suffix: ""
+            
+          - target: aarch64-apple-darwin
+            os: macos-latest  
+            binary-suffix: ""
+            
+          # Windows targets
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            binary-suffix: ".exe"
+            
+
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Install musl tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-
+            ${{ runner.os }}-cargo-
+      
+      - name: Cache Rust toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.rustup/toolchains
+            ~/.rustup/update-hashes
+            ~/.rustup/settings.toml
+          key: ${{ runner.os }}-${{ matrix.target }}-rust-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-rust-
+            ${{ runner.os }}-rust-
+
+      - name: Configure cross-compilation
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+          
+      - name: Build binary
+        env:
+          CARGO_INCREMENTAL: 0  # Disable incremental compilation for releases
+          CARGO_NET_RETRY: 10   # Increase network retry attempts
+          RUST_BACKTRACE: 1     # Enable backtraces for debugging
+        run: |
+          # Use multiple CPU cores for compilation
+          export CARGO_BUILD_JOBS=$(nproc)
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Strip binary (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          case "${{ matrix.target }}" in
+            *musl*) ;;
+            aarch64-unknown-linux-gnu) aarch64-linux-gnu-strip target/${{ matrix.target }}/release/awscw ;;
+            *) strip target/${{ matrix.target }}/release/awscw ;;
+          esac
+
+      - name: Create archive
+        shell: bash
+        run: |
+          binary_name="awscw${{ matrix.binary-suffix }}"
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            binary_path="target/${{ matrix.target }}/release/${binary_name}"
+            archive_name="awscw-${{ matrix.target }}.zip"
+            7z a "${archive_name}" "${binary_path}"
+            echo "ARCHIVE_NAME=${archive_name}" >> $GITHUB_ENV
+            echo "ARCHIVE_PATH=${archive_name}" >> $GITHUB_ENV
+          else
+            binary_path="target/${{ matrix.target }}/release/${binary_name}"
+            archive_name="awscw-${{ matrix.target }}.tar.gz"
+            tar -czf "${archive_name}" -C "target/${{ matrix.target }}/release" "${binary_name}"
+            echo "ARCHIVE_NAME=${archive_name}" >> $GITHUB_ENV
+            echo "ARCHIVE_PATH=${archive_name}" >> $GITHUB_ENV
+          fi
+
+      - name: Upload Release Asset
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ needs.create-release.outputs.tag_name }}" "${{ env.ARCHIVE_PATH }}"
+
+  checksums:
+    name: Generate checksums
+    needs: [check-permissions, create-release, build]
+    if: needs.check-permissions.outputs.authorized == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "${{ needs.create-release.outputs.tag_name }}" -R "${{ github.repository }}"
+
+      - name: Generate checksums
+        run: |
+          find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec sha256sum {} \; > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload checksums
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ needs.create-release.outputs.tag_name }}" SHA256SUMS
+
+  publish-crate:
+    name: Publish to crates.io
+    needs: [check-permissions, create-release, build]
+    runs-on: ubuntu-latest
+    if: needs.check-permissions.outputs.authorized == 'true' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'alpha')
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish to crates.io
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true  # Don't fail the release if publishing fails

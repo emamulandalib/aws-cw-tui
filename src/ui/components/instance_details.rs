@@ -1,3 +1,5 @@
+use super::super::charts::metrics_chart::render_metrics;
+use crate::models::App;
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
@@ -5,8 +7,6 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
-use crate::models::App;
-use super::super::charts::metrics_chart::render_metrics;
 
 pub fn render_instance_details(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
@@ -17,18 +17,47 @@ pub fn render_instance_details(f: &mut Frame, app: &mut App) {
         ])
         .split(f.area());
 
-    let instance = &app.rds_instances[app.selected_instance.unwrap()];
+    let instance = match app.get_selected_rds_instance() {
+        Some(instance) => instance,
+        None => {
+            // This should not happen in normal flow, but handle gracefully
+            render_error_message(f, chunks[0], "No instance selected");
+            return;
+        }
+    };
 
     render_instance_info(f, chunks[0], instance);
 
     if app.metrics_loading {
         render_metrics_loading(f, chunks[1]);
     } else {
-        render_metrics(f, chunks[1], &app.metrics, app.scroll_offset, app.metrics_per_screen);
+        // For the detailed chart view, we want to show 1 metric per screen for maximum chart size
+        // Don't use the app's metrics_per_screen as it's been adjusted for the list view
+        let chart_metrics_per_screen = 1;
+
+        // Get available metrics and calculate proper scroll offset
+        let available_metrics_count = app.metrics.count_available_metrics();
+
+        // Ensure scroll_offset doesn't exceed available metrics for chart view
+        let effective_scroll_offset = app
+            .scroll_offset
+            .min(available_metrics_count.saturating_sub(1));
+
+        render_metrics(
+            f,
+            chunks[1],
+            &app.metrics,
+            effective_scroll_offset,
+            chart_metrics_per_screen,
+        );
     }
 }
 
-fn render_instance_info(f: &mut Frame, area: ratatui::layout::Rect, instance: &crate::models::RdsInstance) {
+fn render_instance_info(
+    f: &mut Frame,
+    area: ratatui::layout::Rect,
+    instance: &crate::models::RdsInstance,
+) {
     let na_string = "N/A".to_string();
     let info_text = vec![
         Line::from(vec![
@@ -51,20 +80,36 @@ fn render_instance_info(f: &mut Frame, area: ratatui::layout::Rect, instance: &c
     ];
 
     let info = Paragraph::new(info_text)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Instance Information")
-            .border_style(Style::default().fg(Color::Cyan)))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Instance Information")
+                .border_style(Style::default().fg(Color::Cyan)),
+        )
         .wrap(ratatui::widgets::Wrap { trim: false });
     f.render_widget(info, area);
 }
 
-fn render_metrics_loading(f: &mut Frame, area: ratatui::layout::Rect) {
+pub fn render_metrics_loading(f: &mut Frame, area: ratatui::layout::Rect) {
     let loading_msg = Paragraph::new("Loading metrics...")
         .style(Style::default().fg(Color::Yellow))
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("CloudWatch Metrics")
-            .border_style(Style::default().fg(Color::White)));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("CloudWatch Metrics")
+                .border_style(Style::default().fg(Color::White)),
+        );
     f.render_widget(loading_msg, area);
+}
+
+fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, message: &str) {
+    let error_msg = Paragraph::new(message)
+        .style(Style::default().fg(Color::Red))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Error")
+                .border_style(Style::default().fg(Color::Red)),
+        );
+    f.render_widget(error_msg, area);
 }
