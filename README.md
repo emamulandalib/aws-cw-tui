@@ -29,7 +29,7 @@
 
 ## Overview
 
-AWS CloudWatch TUI is a comprehensive terminal-based monitoring solution that provides real-time visualization of AWS CloudWatch metrics. Built with modern Rust technologies, it offers an intuitive interface for monitoring RDS instances with professional-grade charts and comprehensive metric coverage.
+AWS CloudWatch TUI is a comprehensive terminal-based monitoring solution that provides real-time visualization of AWS CloudWatch metrics. Built with modern Rust technologies, it offers an intuitive service selection interface for monitoring AWS services, starting with comprehensive RDS monitoring featuring professional-grade charts and extensive metric coverage.
 
 ## Features
 
@@ -119,8 +119,10 @@ export AWS_DEFAULT_REGION=us-east-1
 ### Run the Application
 
 ```bash
-awscw --rds
+awscw
 ```
+
+The application will start with a service selection screen where you can choose RDS monitoring.
 
 ## Installation
 
@@ -147,23 +149,36 @@ Visit our [releases page](https://github.com/emamulandalib/aws-cw-tui/releases) 
 
 ## Usage
 
-### RDS Instances
+### Getting Started
 
-To view RDS instances in your current AWS account:
+To start monitoring AWS services:
 
 ```bash
-awscw --rds
+awscw
 ```
+
+The application will start with a **service selection screen** where you can:
+1. Choose from available AWS services (currently RDS)
+2. Navigate using arrow keys
+3. Press Enter to select a service and view instances
 
 ### Navigation
 
-- **Arrow Keys (Instance List)**: Navigate through RDS instances list
-- **Enter**: Select an RDS instance to view detailed metrics
-- **Arrow Keys / k/j (Metrics View)**: Scroll through metric pairs (↑/↓ or k/j)
+**Service Selection Screen:**
+- **Arrow Keys**: Navigate through available AWS services
+- **Enter**: Select a service to view instances
+
+**Instance List Screen:**
+- **Arrow Keys**: Navigate through instances list (e.g., RDS instances)
+- **Enter**: Select an instance to view detailed metrics
+- **'b'**: Go back to service selection
+
+**Metrics View Screen:**
+- **Arrow Keys / k/j**: Scroll through metric pairs (↑/↓ or k/j)
 - **Home**: Reset scroll position to top
-- **'b'**: Go back to instance list from metrics view
+- **'b'**: Go back to instance list
 - **'r'**: Refresh metrics data (3-hour historical data collection)
-- **'q'**: Quit the application
+- **'q'**: Quit the application (available from any screen)
 
 ### Enhanced Metrics Dashboard
 
@@ -198,13 +213,13 @@ export AWS_DEFAULT_REGION=us-east-1
 **AWS Profile**
 ```bash
 export AWS_PROFILE=your-profile-name
-awscw --rds
+awscw
 ```
 
 **IAM Instance Profile** (when running on EC2)
 ```bash
 # No additional configuration needed
-awscw --rds
+awscw
 ```
 
 ### Required AWS Permissions
@@ -286,7 +301,7 @@ cargo test
 ### Development Mode
 
 ```bash
-cargo run -- --rds
+cargo run
 ```
 
 ### Project Structure

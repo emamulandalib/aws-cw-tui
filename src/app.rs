@@ -209,7 +209,7 @@ impl App {
                     Ok(())
                 }
                 Err(e) => {
-                    self.error_message = Some(format!("AWS Error: {}", e));
+                    self.error_message = Some(format!("AWS Error: {e}"));
                     self.loading = false;
                     self.instances = Vec::new();
                     self.rds_instances = Vec::new();
@@ -305,7 +305,7 @@ impl App {
             }
             Err(e) => {
                 self.metrics_loading = false;
-                self.error_message = Some(format!("CloudWatch Error: {}", e));
+                self.error_message = Some(format!("CloudWatch Error: {e}"));
                 self.metrics = crate::models::MetricData::default();
                 self.selected_metric = None;
                 self.sparkline_grid_selected_index = 0;
