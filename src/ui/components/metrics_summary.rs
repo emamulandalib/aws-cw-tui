@@ -23,12 +23,8 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
         .split(f.area());
 
     // Header - Instance Information
-    if let Some(selected_idx) = app.selected_instance {
-        if let Some(instance) = app.rds_instances.get(selected_idx) {
-            render_instance_info(f, chunks[0], app, instance);
-        } else {
-            render_default_header(f, chunks[0]);
-        }
+    if let Some(instance) = app.get_selected_rds_instance() {
+        render_instance_info(f, chunks[0], app, instance);
     } else {
         render_default_header(f, chunks[0]);
     }
@@ -53,6 +49,8 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
         render_compact_time_ranges(f, app, content_chunks[0]);
 
         // Full-height Metric List Panel
+        // Update metrics_per_screen before rendering to ensure navigation works correctly
+        app.update_metrics_per_screen(content_chunks[1].height);
         render_enhanced_metric_list(f, app, content_chunks[1]);
     }
 

@@ -42,7 +42,7 @@ pub fn render_metrics(
     render_instructions(f, main_chunks[1], available_count, scroll_offset);
 }
 
-fn collect_available_metrics(metrics: &MetricData) -> Vec<MetricTuple> {
+fn collect_available_metrics(metrics: &MetricData) -> Vec<MetricTuple<'_>> {
     let mut individual_metrics = vec![];
 
     // Use the same ordering as MetricData::get_available_metrics() to ensure consistency
@@ -358,7 +358,7 @@ fn render_large_metric_chart(
     let (name, value, history, color, _max_val, available) = metric;
 
     if area.width < 20 || area.height < 6 {
-        let simple_widget = Paragraph::new(format!("{}: {}", name, value))
+        let simple_widget = Paragraph::new(format!("{name}: {value}"))
             .style(Style::default().fg(color))
             .block(
                 Block::default()
@@ -382,7 +382,7 @@ fn render_large_metric_chart(
             .add_modifier(Modifier::DIM)
     };
 
-    let title_widget = Paragraph::new(format!("{}: {}", name, value))
+    let title_widget = Paragraph::new(format!("{name}: {value}"))
         .style(title_style)
         .alignment(ratatui::layout::Alignment::Left);
     f.render_widget(title_widget, widget_chunks[0]);
@@ -536,7 +536,7 @@ fn calculate_y_bounds(history: &[f64]) -> (f64, f64) {
     }
 }
 
-fn create_x_labels(timestamps: &[SystemTime]) -> Vec<Line> {
+fn create_x_labels(timestamps: &[SystemTime]) -> Vec<Line<'_>> {
     use chrono::{DateTime, Utc};
 
     let num_x_labels = 8.min(timestamps.len());
@@ -572,32 +572,32 @@ fn create_x_labels(timestamps: &[SystemTime]) -> Vec<Line> {
     }
 }
 
-fn create_y_labels(y_bounds: [f64; 2], metric_name: &str) -> Vec<Line> {
+fn create_y_labels(y_bounds: [f64; 2], metric_name: &str) -> Vec<Line<'_>> {
     let format_value = |v: f64| -> String {
         if metric_name.contains("Memory") || metric_name.contains("Storage") {
             let gb_value = v / (1024.0 * 1024.0 * 1024.0);
             if gb_value >= 1.0 {
-                format!("{:.1}G", gb_value)
+                format!("{gb_value:.1}G")
             } else {
                 let mb_value = v / (1024.0 * 1024.0);
-                format!("{:.0}M", mb_value)
+                format!("{mb_value:.0}M")
             }
         } else if metric_name.contains("Throughput") || metric_name.contains("Network") {
             let mb_value = v / (1024.0 * 1024.0);
             if mb_value >= 1.0 {
-                format!("{:.1}M", mb_value)
+                format!("{mb_value:.1}M")
             } else {
                 let kb_value = v / 1024.0;
-                format!("{:.0}K", kb_value)
+                format!("{kb_value:.0}K")
             }
         } else if v.abs() >= 1000000.0 {
             format!("{:.1}M", v / 1000000.0)
         } else if v.abs() >= 1000.0 {
             format!("{:.1}K", v / 1000.0)
         } else if v.abs() >= 1.0 {
-            format!("{:.1}", v)
+            format!("{v:.1}")
         } else {
-            format!("{:.2}", v)
+            format!("{v:.2}")
         }
     };
 

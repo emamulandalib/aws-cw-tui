@@ -74,14 +74,13 @@ pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     // Calculate items that can fit on screen for scrolling
-    let items_per_screen = (area.height.saturating_sub(2)) as usize; // Account for borders
+    let _items_per_screen = (area.height.saturating_sub(2)) as usize; // Account for borders
     let total_items = available_metrics.len();
     let selected_index = app.get_sparkline_grid_selected_index();
 
-    // Update app's metrics_per_screen for the navigation functions to use
-    // Each metric now takes 3 lines (top border, content, bottom border) with no spacing
-    let actual_metrics_per_screen = items_per_screen.div_ceil(3); // Each metric takes 3 lines (frame only)
-    app.metrics_per_screen = actual_metrics_per_screen;
+    // Use the pre-calculated metrics_per_screen value
+    // This should be set by calling app.update_metrics_per_screen() before rendering
+    let actual_metrics_per_screen = app.metrics_per_screen;
 
     // Use the app's scroll offset directly
     let scroll_offset = app.scroll_offset;

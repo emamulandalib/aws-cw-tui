@@ -287,7 +287,7 @@ fn render_minimal_sparkline(
     };
 
     let health_color = get_health_color(history, metric_name, color);
-    let minimal_widget = Paragraph::new(format!("{} {}", metric_name, trend_symbol))
+    let minimal_widget = Paragraph::new(format!("{metric_name} {trend_symbol}"))
         .style(Style::default().fg(health_color));
 
     f.render_widget(minimal_widget, area);

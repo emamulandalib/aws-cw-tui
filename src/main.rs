@@ -21,7 +21,7 @@ async fn validate_aws_credentials() -> Result<()> {
 
     // Display status messages
     for message in &validation_result.status_messages {
-        println!("{}", message);
+        println!("{message}");
     }
 
     if validation_result.success {
@@ -31,7 +31,7 @@ async fn validate_aws_credentials() -> Result<()> {
     } else {
         // Error case - display error guidance
         for guidance in &validation_result.error_guidance {
-            println!("{}", guidance);
+            println!("{guidance}");
         }
         println!();
 
@@ -92,7 +92,7 @@ async fn main() -> Result<()> {
 
     // Validate AWS credentials before starting the terminal UI
     if let Err(e) = validate_aws_credentials().await {
-        println!("Cannot start AWS CloudWatch TUI: {}", e);
+        println!("Cannot start AWS CloudWatch TUI: {e}");
         std::process::exit(1);
     }
 
@@ -108,7 +108,7 @@ async fn main() -> Result<()> {
     let res = run_app(terminal, app).await;
 
     if let Err(err) = res {
-        println!("{:?}", err);
+        println!("{err:?}");
     }
 
     Ok(())

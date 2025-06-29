@@ -4,6 +4,7 @@ use crate::models::{App, AppState, AwsService, FocusedPanel, MetricType, Service
 use anyhow::Result;
 use std::time::{Duration, Instant};
 
+use crate::models::RdsInstance;
 impl App {
     // ================================
     // 1. INITIALIZATION
@@ -96,6 +97,9 @@ impl App {
     // ================================
 
     pub fn service_next(&mut self) {
+        if self.available_services.is_empty() {
+            return;
+        }
         let i = match self.service_list_state.selected() {
             Some(i) => {
                 if i >= self.available_services.len() - 1 {
@@ -110,6 +114,9 @@ impl App {
     }
 
     pub fn service_previous(&mut self) {
+        if self.available_services.is_empty() {
+            return;
+        }
         let i = match self.service_list_state.selected() {
             Some(i) => {
                 if i == 0 {
@@ -208,7 +215,7 @@ impl App {
                     Ok(())
                 }
                 Err(e) => {
-                    self.error_message = Some(format!("AWS Error: {}", e));
+                    self.error_message = Some(format!("AWS Error: {e}"));
                     self.loading = false;
                     self.instances = Vec::new();
                     self.rds_instances = Vec::new();
@@ -236,6 +243,9 @@ impl App {
                 if !self.instances.is_empty() {
                     self.list_state.select(Some(0));
                 }
+
+                // Mark as refreshed to prevent continuous refresh loops
+                self.mark_refreshed();
             }
             Err(e) => {
                 self.loading = false;
@@ -268,6 +278,18 @@ impl App {
             .map(|instance| instance.as_aws_instance().id().to_string())
     }
 
+    /// Safely get the selected RDS instance with bounds checking
+    pub fn get_selected_rds_instance(&self) -> Option<&RdsInstance> {
+        self.selected_instance
+            .and_then(|index| self.rds_instances.get(index))
+    }
+
+    /// Safely get the selected RDS instance ID with bounds checking
+    pub fn get_selected_rds_instance_id(&self) -> Option<String> {
+        self.get_selected_rds_instance()
+            .map(|instance| instance.identifier.clone())
+    }
+
     // ================================
     // 6. METRICS MANAGEMENT
     // ================================
@@ -283,11 +305,13 @@ impl App {
                 self.metrics_loading = false;
                 self.clear_error();
                 self.initialize_sparkline_grid();
+                // Mark as refreshed after successful metrics load
+                self.mark_refreshed();
                 Ok(())
             }
             Err(e) => {
                 self.metrics_loading = false;
-                self.error_message = Some(format!("CloudWatch Error: {}", e));
+                self.error_message = Some(format!("CloudWatch Error: {e}"));
                 self.metrics = crate::models::MetricData::default();
                 self.selected_metric = None;
                 self.sparkline_grid_selected_index = 0;
@@ -506,6 +530,15 @@ impl App {
 
     pub fn get_focused_panel(&self) -> &FocusedPanel {
         &self.focused_panel
+    }
+
+    /// Update metrics_per_screen based on available area
+    /// This should be called before rendering to ensure navigation functions work correctly
+    pub fn update_metrics_per_screen(&mut self, area_height: u16) {
+        let items_per_screen = (area_height.saturating_sub(2)) as usize; // Account for borders
+                                                                         // Each metric takes 3 lines (frame only)
+        let actual_metrics_per_screen = items_per_screen.div_ceil(3);
+        self.metrics_per_screen = actual_metrics_per_screen;
     }
 
     // ================================

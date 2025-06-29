@@ -161,14 +161,14 @@ pub fn get_metric_colors(metric_name: &str, current_value: f64) -> (Color, Color
 pub fn format_value(value: f64, unit: &str) -> String {
     match unit {
         "Bytes" | "Bytes/Second" => format_bytes(value),
-        "Percent" => format!("{:.1}%", value),
+        "Percent" => format!("{value:.1}%"),
         "Seconds" => {
             if value < 0.001 {
                 format!("{:.2} μs", value * 1_000_000.0)
             } else if value < 1.0 {
                 format!("{:.2} ms", value * 1000.0)
             } else {
-                format!("{:.2} s", value)
+                format!("{value:.2} s")
             }
         }
         "Count" | "Count/Second" | "Credits" => {
@@ -177,10 +177,10 @@ pub fn format_value(value: f64, unit: &str) -> String {
             } else if value >= 1_000.0 {
                 format!("{:.1}K", value / 1_000.0)
             } else {
-                format!("{:.1}", value)
+                format!("{value:.1}")
             }
         }
-        _ => format!("{:.2}", value),
+        _ => format!("{value:.2}"),
     }
 }
 
@@ -199,5 +199,5 @@ pub fn format_bytes(bytes: f64) -> String {
         }
     }
 
-    format!("{:.0} B", bytes)
+    format!("{bytes:.0} B")
 }
