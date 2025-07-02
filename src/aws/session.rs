@@ -2,6 +2,7 @@ use aws_config::{BehaviorVersion, SdkConfig};
 use aws_sdk_cloudwatch::Client as CloudWatchClient;
 use aws_sdk_rds::Client as RdsClient;
 use aws_sdk_sts::Client as StsClient;
+use aws_sdk_sqs::Client as SqsClient;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -53,6 +54,12 @@ impl AwsSessionManager {
     pub async fn rds_client() -> RdsClient {
         let config = Self::get_config().await;
         RdsClient::new(&config)
+    }
+
+    /// Create a new SQS client using the shared config
+    pub async fn sqs_client() -> SqsClient {
+        let config = Self::get_config().await;
+        SqsClient::new(&config)
     }
 
     /// Create a new CloudWatch client using the shared config

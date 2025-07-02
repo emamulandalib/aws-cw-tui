@@ -22,9 +22,16 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
         ])
         .split(f.area());
 
-    // Header - Instance Information
-    if let Some(instance) = app.get_selected_rds_instance() {
-        render_instance_info(f, chunks[0], app, instance);
+    // Header - Instance Information (unified for both RDS and SQS)
+    if let Some(selected_instance) = app.get_selected_instance() {
+        match selected_instance {
+            crate::models::ServiceInstance::Rds(instance) => {
+                render_rds_instance_info(f, chunks[0], app, instance);
+            }
+            crate::models::ServiceInstance::Sqs(queue) => {
+                render_sqs_instance_info(f, chunks[0], app, queue);
+            }
+        }
     } else {
         render_default_header(f, chunks[0]);
     }
@@ -58,7 +65,7 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
     render_controls(f, chunks[2]);
 }
 
-fn render_instance_info(
+fn render_rds_instance_info(
     f: &mut Frame,
     area: ratatui::layout::Rect,
     _app: &crate::models::App,
@@ -96,13 +103,47 @@ fn render_instance_info(
     f.render_widget(info, area);
 }
 
+fn render_sqs_instance_info(
+    f: &mut Frame,
+    area: ratatui::layout::Rect,
+    _app: &crate::models::App,
+    queue: &crate::models::SqsQueue,
+) {
+    let info_text = vec![
+        Line::from(vec![
+            Span::styled("Queue: ", Style::default().fg(Color::White)),
+            Span::styled(&queue.name, Style::default().fg(Color::Green)),
+            Span::raw("  "),
+            Span::styled("Type: ", Style::default().fg(Color::White)),
+            Span::styled(&queue.queue_type, Style::default().fg(Color::Yellow)),
+        ]),
+        Line::from(vec![
+            Span::styled("URL: ", Style::default().fg(Color::White)),
+            Span::styled(
+                &queue.url,
+                Style::default().fg(Color::Cyan),
+            ),
+        ]),
+    ];
+
+    let info = Paragraph::new(info_text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Queue Information")
+                .border_style(Style::default().fg(Color::Cyan)),
+        )
+        .wrap(ratatui::widgets::Wrap { trim: false });
+    f.render_widget(info, area);
+}
+
 fn render_default_header(f: &mut Frame, area: ratatui::layout::Rect) {
     let header_block = Paragraph::new("Metrics Summary")
         .style(Style::default().fg(Color::White))
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("RDS CloudWatch TUI")
+                .title("AWS CloudWatch TUI")
                 .border_style(Style::default().fg(Color::Cyan)),
         );
     f.render_widget(header_block, area);

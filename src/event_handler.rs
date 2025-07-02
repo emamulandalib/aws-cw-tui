@@ -2,6 +2,7 @@ use crate::aws::cloudwatch_service::TimeUnit;
 use crate::models::{App, AppState};
 use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use log::{info, debug, warn};
 
 pub async fn handle_event(app: &mut App, event: Event) -> Result<bool> {
     if let Event::Key(key) = event {
@@ -28,7 +29,10 @@ async fn handle_service_list_event(app: &mut App, key: KeyCode) -> Result<bool> 
         KeyCode::Enter => {
             let selected_service = app.select_service().cloned();
             if let Some(service) = selected_service {
+                info!("User selected service: {:?}, loading instances...", service);
                 app.load_service_instances(&service).await?;
+            } else {
+                warn!("No service selected when Enter pressed");
             }
         }
         _ => {}
@@ -73,10 +77,14 @@ async fn handle_rds_list_event(app: &mut App, key_code: KeyCode) -> Result<bool>
             Ok(false)
         }
         KeyCode::Char('r') => {
+            info!("User triggered manual refresh");
             app.loading = true;
             let selected_service = app.selected_service.clone();
             if let Some(service) = selected_service {
+                debug!("Manual refresh for service: {:?}", service);
                 app.load_service_instances(&service).await?;
+            } else {
+                warn!("Manual refresh triggered but no service selected");
             }
             Ok(false)
         }
