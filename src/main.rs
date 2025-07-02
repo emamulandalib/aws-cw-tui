@@ -8,6 +8,7 @@ mod ui;
 
 use anyhow::Result;
 use clap::Command;
+use log::{info, error, debug, warn};
 use crossterm::event;
 
 use aws::session::AwsSessionManager;
@@ -70,12 +71,15 @@ async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
                 AppState::InstanceList | AppState::MetricsSummary | AppState::InstanceDetails
             )
         {
-            if let Some(service) = &app.selected_service {
-                match service {
-                    crate::models::AwsService::Rds => {
-                        app.load_rds_instances().await?;
-                    }
+            if let Some(service) = app.selected_service.clone() {
+                debug!("Auto-refresh triggered for service: {:?}, state: {:?}", service, app.state);
+                if let Err(e) = app.load_service_instances(&service).await {
+                    error!("Failed to load service instances during auto-refresh: {}", e);
+                } else {
+                    debug!("Auto-refresh completed successfully for service: {:?}", service);
                 }
+            } else {
+                warn!("Auto-refresh triggered but no service selected");
             }
         }
     }
@@ -83,18 +87,55 @@ async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
     Ok(())
 }
 
+fn init_logging() {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    
+    // Ensure /tmp directory exists and create log file
+    let log_file = "/tmp/aws-cw-tui.log";
+    
+    env_logger::Builder::from_default_env()
+        .target(env_logger::Target::Pipe(Box::new(
+            OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(log_file)
+                .expect("Failed to create log file")
+        )))
+        .filter_level(log::LevelFilter::Debug)
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "{} [{}] {} - {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+                record.level(),
+                record.target(),
+                record.args()
+            )
+        })
+        .init();
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Initialize logging to file
+    init_logging();
+    
+    info!("AWS CloudWatch TUI starting up");
+    
     Command::new("awscw")
         .version("0.1.0")
         .about("AWS CloudWatch TUI")
         .get_matches();
 
     // Validate AWS credentials before starting the terminal UI
+    info!("Validating AWS credentials...");
     if let Err(e) = validate_aws_credentials().await {
+        error!("AWS credential validation failed: {}", e);
         println!("Cannot start AWS CloudWatch TUI: {e}");
         std::process::exit(1);
     }
+    info!("AWS credentials validated successfully");
 
     println!("Starting AWS CloudWatch TUI...");
     println!("Press 'q' to quit, 'r' to refresh data");

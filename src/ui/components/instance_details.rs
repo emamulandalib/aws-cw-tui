@@ -1,4 +1,4 @@
-use super::super::charts::metrics_chart::render_metrics;
+use super::super::charts::metrics_chart::render_metrics_unified;
 use crate::models::App;
 use ratatui::{
     layout::{Constraint, Direction, Layout},
@@ -17,16 +17,29 @@ pub fn render_instance_details(f: &mut Frame, app: &mut App) {
         ])
         .split(f.area());
 
-    let instance = match app.get_selected_rds_instance() {
-        Some(instance) => instance,
-        None => {
-            // This should not happen in normal flow, but handle gracefully
-            render_error_message(f, chunks[0], "No instance selected");
-            return;
+    // Handle both RDS and SQS instances
+    match app.selected_service.as_ref().unwrap_or(&crate::models::AwsService::Rds) {
+        crate::models::AwsService::Rds => {
+            let instance = match app.get_selected_rds_instance() {
+                Some(instance) => instance,
+                None => {
+                    render_error_message(f, chunks[0], "No RDS instance selected");
+                    return;
+                }
+            };
+            render_rds_instance_info(f, chunks[0], instance);
         }
-    };
-
-    render_instance_info(f, chunks[0], instance);
+        crate::models::AwsService::Sqs => {
+            let queue = match app.get_selected_sqs_queue() {
+                Some(queue) => queue,
+                None => {
+                    render_error_message(f, chunks[0], "No SQS queue selected");
+                    return;
+                }
+            };
+            render_sqs_instance_info(f, chunks[0], queue);
+        }
+    }
 
     if app.metrics_loading {
         render_metrics_loading(f, chunks[1]);
@@ -36,24 +49,24 @@ pub fn render_instance_details(f: &mut Frame, app: &mut App) {
         let chart_metrics_per_screen = 1;
 
         // Get available metrics and calculate proper scroll offset
-        let available_metrics_count = app.metrics.count_available_metrics();
+        let available_metrics_count = app.count_available_metrics();
 
         // Ensure scroll_offset doesn't exceed available metrics for chart view
         let effective_scroll_offset = app
             .scroll_offset
             .min(available_metrics_count.saturating_sub(1));
 
-        render_metrics(
+        render_metrics_unified(
             f,
             chunks[1],
-            &app.metrics,
+            app,
             effective_scroll_offset,
             chart_metrics_per_screen,
         );
     }
 }
 
-fn render_instance_info(
+fn render_rds_instance_info(
     f: &mut Frame,
     area: ratatui::layout::Rect,
     instance: &crate::models::RdsInstance,
@@ -84,6 +97,68 @@ fn render_instance_info(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Instance Information")
+                .border_style(Style::default().fg(Color::Cyan)),
+        )
+        .wrap(ratatui::widgets::Wrap { trim: false });
+    f.render_widget(info, area);
+}
+
+fn render_sqs_instance_info(
+    f: &mut Frame,
+    area: ratatui::layout::Rect,
+    queue: &crate::models::SqsQueue,
+) {
+    // Get queue attributes for display
+    let retention_period = queue.attributes
+        .get("MessageRetentionPeriod")
+        .and_then(|p| p.parse::<u64>().ok())
+        .map(|p| format!("{}d", p / 86400))
+        .unwrap_or_else(|| "Unknown".to_string());
+    
+    let visibility_timeout = queue.attributes
+        .get("VisibilityTimeout")
+        .unwrap_or(&"30".to_string())
+        .clone();
+    
+    let max_receive_count = queue.attributes
+        .get("ApproximateNumberOfMessages")
+        .unwrap_or(&"0".to_string())
+        .clone();
+
+    let visibility_timeout_str = format!("{}s", visibility_timeout);
+
+    let info_text = vec![
+        Line::from(vec![
+            Span::styled("Type: ", Style::default().fg(Color::White)),
+            Span::styled(&queue.queue_type, Style::default().fg(Color::White)),
+            Span::raw("  "),
+            Span::styled("Messages: ", Style::default().fg(Color::White)),
+            Span::styled(&max_receive_count, Style::default().fg(Color::White)),
+            Span::raw("  "),
+            Span::styled("Retention: ", Style::default().fg(Color::White)),
+            Span::styled(&retention_period, Style::default().fg(Color::White)),
+        ]),
+        Line::from(vec![
+            Span::styled("URL: ", Style::default().fg(Color::White)),
+            Span::styled(
+                &queue.url,
+                Style::default().fg(Color::Cyan),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("Visibility Timeout: ", Style::default().fg(Color::White)),
+            Span::styled(
+                &visibility_timeout_str,
+                Style::default().fg(Color::Yellow),
+            ),
+        ]),
+    ];
+
+    let info = Paragraph::new(info_text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Queue Information")
                 .border_style(Style::default().fg(Color::Cyan)),
         )
         .wrap(ratatui::widgets::Wrap { trim: false });

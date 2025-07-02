@@ -1,6 +1,8 @@
 // AWS module exports
 pub mod cloudwatch_service;
 pub mod rds_service;
+pub mod sqs_service;
+pub mod sqs_metrics;
 
 // Error handling utilities
 pub mod error_utils;

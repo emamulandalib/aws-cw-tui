@@ -1,4 +1,4 @@
-use crate::models::{App, RdsInstance};
+use crate::models::{App, RdsInstance, SqsQueue};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
@@ -17,15 +17,15 @@ pub fn render_rds_list(f: &mut Frame, app: &mut App) {
         ])
         .split(f.area());
 
-    render_header(f, chunks[0]);
+    render_header(f, chunks[0], app);
 
     // Check for errors first
     if let Some(error_msg) = &app.error_message {
         render_error_message(f, chunks[1], error_msg);
     } else if app.loading {
-        render_loading_message(f, chunks[1]);
+        render_loading_message(f, chunks[1], app);
     } else if app.get_current_instances().is_empty() {
-        render_no_instances_message(f, chunks[1]);
+        render_no_instances_message(f, chunks[1], app);
     } else {
         render_instances_list(f, chunks[1], app);
     }
@@ -33,27 +33,44 @@ pub fn render_rds_list(f: &mut Frame, app: &mut App) {
     render_controls(f, chunks[2]);
 }
 
-fn render_header(f: &mut Frame, area: ratatui::layout::Rect) {
-    let header = Paragraph::new("AWS CloudWatch TUI - RDS Instances")
+fn render_header(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
+    let (main_title, border_title) = if let Some(service) = &app.selected_service {
+        (
+            format!("AWS CloudWatch TUI - {} Instances", service.short_name()),
+            format!("{} Instances", service.short_name()),
+        )
+    } else {
+        (
+            "AWS CloudWatch TUI - Instances".to_string(),
+            "Instances".to_string(),
+        )
+    };
+
+    let header = Paragraph::new(main_title)
         .style(Style::default().fg(Color::White))
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("RDS Instances")
+                .title(border_title)
                 .border_style(Style::default().fg(Color::Cyan)),
         );
     f.render_widget(header, area);
 }
 
-fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect) {
+fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
+    let service_name = app.selected_service.as_ref()
+        .map(|s| s.short_name())
+        .unwrap_or("Service");
+
     let loading_text = [
-        "Loading RDS instances...".to_string(),
+        format!("Loading {} instances...", service_name),
         "".to_string(),
         "Press 'q' to quit or 'Esc' to go back".to_string(),
         "Loading will timeout after 30 seconds".to_string(),
     ];
 
-    let loading_msg = Paragraph::new(loading_text.join("\n"))
+    let loading_msg = Paragraph::new(loading_text.join("
+"))
         .style(Style::default().fg(Color::Yellow))
         .alignment(ratatui::layout::Alignment::Center)
         .block(
@@ -65,13 +82,18 @@ fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect) {
     f.render_widget(loading_msg, area);
 }
 
-fn render_no_instances_message(f: &mut Frame, area: ratatui::layout::Rect) {
-    let no_instances = Paragraph::new("No RDS instances found in this account/region")
+fn render_no_instances_message(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
+    let service_name = app.selected_service.as_ref()
+        .map(|s| s.short_name())
+        .unwrap_or("Service");
+    let title = format!("{} Instances", service_name);
+
+    let no_instances = Paragraph::new(format!("No {} instances found in this account/region", service_name))
         .style(Style::default().fg(Color::Red))
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("RDS Instances")
+                .title(title)
                 .border_style(Style::default().fg(Color::White)),
         );
     f.render_widget(no_instances, area);
@@ -107,8 +129,11 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         .map(|service_instance| {
             match service_instance {
                 crate::models::ServiceInstance::Rds(instance) => {
-                    create_instance_list_item(instance)
-                } // Future service instances will be handled here
+                    create_rds_list_item(instance)
+                }
+                crate::models::ServiceInstance::Sqs(queue) => {
+                    create_sqs_list_item(queue)
+                }
             }
         })
         .collect();
@@ -130,7 +155,7 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
     f.render_stateful_widget(items_list, area, &mut app.list_state);
 }
 
-fn create_instance_list_item(instance: &RdsInstance) -> ListItem<'_> {
+fn create_rds_list_item(instance: &RdsInstance) -> ListItem<'_> {
     let lines = vec![Line::from(vec![
         Span::styled(
             instance.identifier.to_string(),
@@ -146,6 +171,45 @@ fn create_instance_list_item(instance: &RdsInstance) -> ListItem<'_> {
         Span::styled(&instance.instance_class, Style::default().fg(Color::Cyan)),
     ])];
     ListItem::new(lines)
+}
+
+fn create_sqs_list_item(queue: &SqsQueue) -> ListItem<'_> {
+    // Get queue depth from attributes if available
+    let queue_depth = queue.attributes
+        .get("ApproximateNumberOfMessages")
+        .unwrap_or(&"0".to_string())
+        .clone();
+    
+    // Get message retention period for display
+    let retention_period = queue.attributes
+        .get("MessageRetentionPeriod")
+        .and_then(|p| p.parse::<u64>().ok())
+        .map(|p| format!("{}d", p / 86400))
+        .unwrap_or_else(|| "Unknown".to_string());
+
+    let lines = vec![Line::from(vec![
+        Span::styled(
+            queue.name.to_string(),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" | "),
+        Span::styled(&queue.queue_type, get_queue_type_style(&queue.queue_type)),
+        Span::raw(" | "),
+        Span::styled(format!("Messages: {}", queue_depth), Style::default().fg(Color::Cyan)),
+        Span::raw(" | "),
+        Span::styled(format!("Retention: {}", retention_period), Style::default().fg(Color::Yellow)),
+    ])];
+    ListItem::new(lines)
+}
+
+fn get_queue_type_style(queue_type: &str) -> Style {
+    match queue_type {
+        "FIFO" => Style::default().fg(Color::Magenta),
+        "Standard" => Style::default().fg(Color::Green),
+        _ => Style::default().fg(Color::Gray),
+    }
 }
 
 fn render_controls(f: &mut Frame, area: ratatui::layout::Rect) {

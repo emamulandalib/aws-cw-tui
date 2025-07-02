@@ -3,8 +3,9 @@ use crate::aws::{cloudwatch_service::load_metrics, load_rds_instances, rds::RdsI
 use crate::models::{App, AppState, AwsService, FocusedPanel, MetricType, ServiceInstance};
 use anyhow::Result;
 use std::time::{Duration, Instant};
+use log::info;
 
-use crate::models::RdsInstance;
+use crate::models::{RdsInstance, SqsQueue};
 impl App {
     // ================================
     // 1. INITIALIZATION
@@ -13,18 +14,20 @@ impl App {
     pub fn new() -> App {
         let mut app = App {
             // Service selection initialization (RDS-focused for now)
-            available_services: vec![AwsService::Rds], // Focus on RDS only
+            available_services: vec![AwsService::Rds, AwsService::Sqs], // Support both RDS and SQS
             service_list_state: ratatui::widgets::ListState::default(),
             selected_service: None, // No service selected initially
 
             // Instance list initialization
             instances: Vec::new(),
             rds_instances: Vec::new(),
+            sqs_queues: Vec::new(),
             list_state: ratatui::widgets::ListState::default(),
             loading: false,
             state: AppState::ServiceList, // Start with service selection
             selected_instance: None,
             metrics: crate::models::MetricData::default(),
+            sqs_metrics: crate::models::SqsMetricData::default(),
             metrics_loading: false,
             last_refresh: None,
             auto_refresh_enabled: true,
@@ -189,6 +192,7 @@ impl App {
     }
 
     pub async fn load_service_instances(&mut self, service: &AwsService) -> Result<()> {
+        info!("Loading service instances for: {:?}", service);
         match service {
             AwsService::Rds => match load_rds_instances().await {
                 Ok(rds_instances) => {
@@ -223,6 +227,42 @@ impl App {
                     Ok(())
                 }
             },
+            AwsService::Sqs => {
+                // Load SQS queues
+                match crate::aws::sqs_service::load_sqs_queues().await {
+                    Ok(sqs_queues) => {
+                        self.sqs_queues = sqs_queues.clone();
+                        self.instances = sqs_queues
+                            .into_iter()
+                            .map(ServiceInstance::Sqs)
+                            .collect();
+                        self.clear_error();
+                        self.loading = false;
+                        self.mark_refreshed();
+
+                        if !self.instances.is_empty() {
+                            let current_selection = self.list_state.selected().unwrap_or(0);
+                            let new_selection = if current_selection < self.instances.len() {
+                                current_selection
+                            } else {
+                                0
+                            };
+                            self.list_state.select(Some(new_selection));
+                        } else {
+                            self.list_state.select(None);
+                        }
+                        Ok(())
+                    }
+                    Err(e) => {
+                        self.error_message = Some(format!("AWS SQS Error: {e}"));
+                        self.loading = false;
+                        self.instances = Vec::new();
+                        self.sqs_queues = Vec::new();
+                        self.list_state.select(None);
+                        Ok(())
+                    }
+                }
+            }
         }
     }
 
@@ -280,8 +320,14 @@ impl App {
 
     /// Safely get the selected RDS instance with bounds checking
     pub fn get_selected_rds_instance(&self) -> Option<&RdsInstance> {
-        self.selected_instance
-            .and_then(|index| self.rds_instances.get(index))
+        if let Some(instance) = self.get_selected_instance() {
+            match instance {
+                ServiceInstance::Rds(rds) => Some(rds),
+                _ => None,
+            }
+        } else {
+            None
+        }
     }
 
     /// Safely get the selected RDS instance ID with bounds checking
@@ -290,53 +336,160 @@ impl App {
             .map(|instance| instance.identifier.clone())
     }
 
+    /// Safely get the selected SQS queue with bounds checking
+    pub fn get_selected_sqs_queue(&self) -> Option<&SqsQueue> {
+        if let Some(instance) = self.get_selected_instance() {
+            match instance {
+                ServiceInstance::Sqs(queue) => Some(queue),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Count available metrics based on the current service
+    pub fn count_available_metrics(&self) -> usize {
+        match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+            AwsService::Rds => self.metrics.get_available_metrics().len(),
+            AwsService::Sqs => self.sqs_metrics.get_available_metrics().len(),
+        }
+    }
+
     // ================================
     // 6. METRICS MANAGEMENT
     // ================================
 
     pub async fn load_metrics(&mut self, instance_id: &str) -> Result<()> {
-        self.metrics_loading = true;
+    self.metrics_loading = true;
 
-        let _service = self.selected_service.as_ref().unwrap_or(&AwsService::Rds);
+    let service = self.selected_service.as_ref().unwrap_or(&AwsService::Rds);
 
-        match load_metrics(instance_id, self.time_range).await {
-            Ok(metrics) => {
-                self.metrics = metrics;
-                self.metrics_loading = false;
-                self.clear_error();
-                self.initialize_sparkline_grid();
-                // Mark as refreshed after successful metrics load
-                self.mark_refreshed();
-                Ok(())
+    match service {
+        AwsService::Rds => {
+            // Load RDS metrics
+            match load_metrics(instance_id, self.time_range).await {
+                Ok(metrics) => {
+                    self.metrics = metrics;
+                    self.metrics_loading = false;
+                    self.clear_error();
+                    self.initialize_sparkline_grid();
+                    self.mark_refreshed();
+                    Ok(())
+                }
+                Err(e) => {
+                    self.metrics_loading = false;
+                    self.error_message = Some(format!("CloudWatch Error: {e}"));
+                    self.metrics = crate::models::MetricData::default();
+                    self.selected_metric = None;
+                    self.sparkline_grid_selected_index = 0;
+                    Ok(())
+                }
             }
-            Err(e) => {
+        }
+        AwsService::Sqs => {
+            // Load SQS metrics
+            if let Some(queue) = self.get_selected_sqs_queue() {
+                match crate::aws::sqs_metrics::fetch_sqs_metrics(queue, &self.time_range).await {
+                    Ok(sqs_metrics) => {
+                        self.sqs_metrics = sqs_metrics;
+                        self.metrics_loading = false;
+                        self.clear_error();
+                        self.initialize_sparkline_grid_for_sqs();
+                        self.mark_refreshed();
+                        Ok(())
+                    }
+                    Err(e) => {
+                        self.metrics_loading = false;
+                        self.error_message = Some(format!("CloudWatch SQS Error: {e}"));
+                        self.sqs_metrics = crate::models::SqsMetricData::default();
+                        self.selected_metric = None;
+                        self.sparkline_grid_selected_index = 0;
+                        Ok(())
+                    }
+                }
+            } else {
                 self.metrics_loading = false;
-                self.error_message = Some(format!("CloudWatch Error: {e}"));
-                self.metrics = crate::models::MetricData::default();
-                self.selected_metric = None;
-                self.sparkline_grid_selected_index = 0;
+                self.error_message = Some("No SQS queue selected".to_string());
                 Ok(())
             }
         }
     }
+}
 
     pub fn get_available_metrics(&self) -> Vec<MetricType> {
-        self.metrics.get_available_metrics()
+    match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+        AwsService::Rds => self.metrics.get_available_metrics(),
+        AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
     }
+}
 
     pub fn get_sparkline_grid_selected_index(&self) -> usize {
         self.sparkline_grid_selected_index
     }
 
     pub fn update_selected_metric(&mut self) {
-        let available_metrics = self.metrics.get_available_metrics();
-        if let Some(metric) = available_metrics.get(self.sparkline_grid_selected_index) {
-            self.selected_metric = Some(metric.clone());
+    match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+        AwsService::Rds => {
+            let available_metrics = self.metrics.get_available_metrics();
+            if let Some(metric) = available_metrics.get(self.sparkline_grid_selected_index) {
+                self.selected_metric = Some(metric.clone());
+            }
+        }
+        AwsService::Sqs => {
+            let available_metrics = self.sqs_metrics.get_available_metrics();
+            if let Some(metric) = available_metrics.get(self.sparkline_grid_selected_index) {
+                self.selected_metric = Some(metric.clone());
+            }
         }
     }
+}
 
     pub fn initialize_sparkline_grid(&mut self) {
-        let available_metrics = self.metrics.get_available_metrics();
+    match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+        AwsService::Rds => {
+            let available_metrics = self.metrics.get_available_metrics();
+            if !available_metrics.is_empty() {
+                if self.selected_metric.is_none() {
+                    self.selected_metric = Some(available_metrics[0].clone());
+                    self.sparkline_grid_selected_index = 0;
+                } else if let Some(ref current_metric) = self.selected_metric {
+                    if let Some(index) = available_metrics.iter().position(|m| m == current_metric) {
+                        self.sparkline_grid_selected_index = index;
+                    } else {
+                        self.selected_metric = Some(available_metrics[0].clone());
+                        self.sparkline_grid_selected_index = 0;
+                    }
+                }
+            } else {
+                self.selected_metric = None;
+                self.sparkline_grid_selected_index = 0;
+            }
+        }
+        AwsService::Sqs => {
+            let available_metrics = self.sqs_metrics.get_available_metrics();
+            if !available_metrics.is_empty() {
+                if self.selected_metric.is_none() {
+                    self.selected_metric = Some(available_metrics[0].clone());
+                    self.sparkline_grid_selected_index = 0;
+                } else if let Some(ref current_metric) = self.selected_metric {
+                    if let Some(index) = available_metrics.iter().position(|m| m == current_metric) {
+                        self.sparkline_grid_selected_index = index;
+                    } else {
+                        self.selected_metric = Some(available_metrics[0].clone());
+                        self.sparkline_grid_selected_index = 0;
+                    }
+                }
+            } else {
+                self.selected_metric = None;
+                self.sparkline_grid_selected_index = 0;
+            }
+        }
+    }
+}
+
+    pub fn initialize_sparkline_grid_for_sqs(&mut self) {
+        let available_metrics = self.sqs_metrics.get_available_metrics();
         if !available_metrics.is_empty() {
             if self.selected_metric.is_none() {
                 self.selected_metric = Some(available_metrics[0].clone());
@@ -437,19 +590,23 @@ impl App {
     }
 
     pub fn enter_instance_details(&mut self) {
-        if let Some(i) = self.list_state.selected() {
-            self.selected_instance = Some(i);
-            self.state = AppState::InstanceDetails;
-            self.metrics_summary_scroll = self.scroll_offset;
-            self.saved_focused_panel = self.focused_panel.clone();
-            self.saved_sparkline_grid_selected_index = self.sparkline_grid_selected_index;
+    if let Some(i) = self.list_state.selected() {
+        self.selected_instance = Some(i);
+        self.state = AppState::InstanceDetails;
+        self.metrics_summary_scroll = self.scroll_offset;
+        self.saved_focused_panel = self.focused_panel.clone();
+        self.saved_sparkline_grid_selected_index = self.sparkline_grid_selected_index;
 
-            let available_metrics_count = self.metrics.count_available_metrics();
-            self.scroll_offset = self
-                .sparkline_grid_selected_index
-                .min(available_metrics_count.saturating_sub(1));
-        }
+        let available_metrics_count = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+            AwsService::Rds => self.metrics.count_available_metrics(),
+            AwsService::Sqs => self.sqs_metrics.count_available_metrics(),
+        };
+        
+        self.scroll_offset = self
+            .sparkline_grid_selected_index
+            .min(available_metrics_count.saturating_sub(1));
     }
+}
 
     pub fn back_to_list(&mut self) {
         self.state = AppState::InstanceList;
@@ -481,25 +638,28 @@ impl App {
     }
 
     pub fn scroll_down(&mut self) {
-        match self.state {
-            AppState::MetricsSummary => match self.focused_panel {
-                FocusedPanel::TimeRanges => {
-                    self.time_range_scroll_down();
-                }
-                FocusedPanel::SparklineGrid => {
-                    self.sparkline_grid_scroll_down();
-                }
-            },
-            AppState::InstanceDetails => {
-                let total_individual_metrics = self.metrics.count_available_metrics();
-                let max_offset = total_individual_metrics.saturating_sub(1);
-                if self.scroll_offset < max_offset {
-                    self.scroll_offset += 1;
-                }
+    match self.state {
+        AppState::MetricsSummary => match self.focused_panel {
+            FocusedPanel::TimeRanges => {
+                self.time_range_scroll_down();
             }
-            _ => {}
+            FocusedPanel::SparklineGrid => {
+                self.sparkline_grid_scroll_down();
+            }
+        },
+        AppState::InstanceDetails => {
+            let total_individual_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+                AwsService::Rds => self.metrics.count_available_metrics(),
+                AwsService::Sqs => self.sqs_metrics.count_available_metrics(),
+            };
+            let max_offset = total_individual_metrics.saturating_sub(1);
+            if self.scroll_offset < max_offset {
+                self.scroll_offset += 1;
+            }
         }
+        _ => {}
     }
+}
 
     pub fn reset_scroll(&mut self) {
         match self.state {
@@ -558,18 +718,22 @@ impl App {
     }
 
     pub fn sparkline_grid_scroll_down(&mut self) {
-        let available_metrics = self.metrics.get_available_metrics();
-        if self.sparkline_grid_selected_index < available_metrics.len().saturating_sub(1) {
-            self.sparkline_grid_selected_index += 1;
-            self.update_selected_metric();
+    let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+        AwsService::Rds => self.metrics.get_available_metrics(),
+        AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
+    };
+    
+    if self.sparkline_grid_selected_index < available_metrics.len().saturating_sub(1) {
+        self.sparkline_grid_selected_index += 1;
+        self.update_selected_metric();
 
-            let max_visible_index = self.scroll_offset + self.metrics_per_screen.saturating_sub(1);
-            if self.sparkline_grid_selected_index > max_visible_index {
-                self.scroll_offset = self
-                    .sparkline_grid_selected_index
-                    .saturating_sub(self.metrics_per_screen.saturating_sub(1));
-                self.metrics_summary_scroll = self.scroll_offset;
-            }
+        let max_visible_index = self.scroll_offset + self.metrics_per_screen.saturating_sub(1);
+        if self.sparkline_grid_selected_index > max_visible_index {
+            self.scroll_offset = self
+                .sparkline_grid_selected_index
+                .saturating_sub(self.metrics_per_screen.saturating_sub(1));
+            self.metrics_summary_scroll = self.scroll_offset;
         }
     }
+}
 }

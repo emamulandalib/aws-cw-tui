@@ -1,4 +1,4 @@
-use crate::models::{MetricData, MetricType};
+use crate::models::{App, MetricData, MetricType, SqsMetricData};
 use ratatui::style::Color;
 
 /// Get the unit string for a given metric type
@@ -29,10 +29,34 @@ pub fn get_metric_unit(metric_type: &MetricType) -> &'static str {
         | MetricType::NetworkTransmitThroughput
         | MetricType::TransactionLogsGeneration => "Bytes/Second",
         MetricType::CpuCreditUsage | MetricType::CpuCreditBalance => "Credits",
+        // SQS Metrics
+        MetricType::NumberOfMessagesSent
+        | MetricType::NumberOfMessagesReceived
+        | MetricType::NumberOfMessagesDeleted
+        | MetricType::ApproximateNumberOfMessages
+        | MetricType::ApproximateNumberOfMessagesVisible
+        | MetricType::ApproximateNumberOfMessagesNotVisible
+        | MetricType::NumberOfEmptyReceives
+        | MetricType::ApproximateNumberOfMessagesDelayed
+        | MetricType::NumberOfMessagesInDlq
+        | MetricType::ApproximateNumberOfGroupsWithInflightMessages
+        | MetricType::NumberOfDeduplicatedSentMessages => "Count",
+        MetricType::ApproximateAgeOfOldestMessage => "Seconds",
+        MetricType::SentMessageSize => "Bytes",
     }
 }
 
-/// Get metrics data with history for enhanced display
+/// Get metrics data with history for enhanced display (unified for all services)
+pub fn get_available_metrics_with_history_unified(
+    app: &App,
+) -> Vec<(&'static str, f64, &Vec<f64>, &'static str)> {
+    match app.selected_service.as_ref().unwrap_or(&crate::models::AwsService::Rds) {
+        crate::models::AwsService::Rds => get_available_metrics_with_history(&app.metrics),
+        crate::models::AwsService::Sqs => get_available_sqs_metrics_with_history(&app.sqs_metrics),
+    }
+}
+
+/// Get metrics data with history for enhanced display (RDS)
 pub fn get_available_metrics_with_history(
     metrics: &MetricData,
 ) -> Vec<(&'static str, f64, &Vec<f64>, &'static str)> {
@@ -75,6 +99,20 @@ pub fn get_available_metrics_with_history(
             MetricType::FailedSqlServerAgentJobsCount => metrics.failed_sql_server_agent_jobs_count,
             MetricType::CheckpointLag => metrics.checkpoint_lag,
             MetricType::ConnectionAttempts => metrics.connection_attempts,
+            // SQS Metrics - return 0.0 for RDS metrics function
+            MetricType::NumberOfMessagesSent => 0.0,
+            MetricType::NumberOfMessagesReceived => 0.0,
+            MetricType::NumberOfMessagesDeleted => 0.0,
+            MetricType::ApproximateNumberOfMessages => 0.0,
+            MetricType::ApproximateNumberOfMessagesVisible => 0.0,
+            MetricType::ApproximateNumberOfMessagesNotVisible => 0.0,
+            MetricType::ApproximateAgeOfOldestMessage => 0.0,
+            MetricType::NumberOfEmptyReceives => 0.0,
+            MetricType::ApproximateNumberOfMessagesDelayed => 0.0,
+            MetricType::SentMessageSize => 0.0,
+            MetricType::NumberOfMessagesInDlq => 0.0,
+            MetricType::ApproximateNumberOfGroupsWithInflightMessages => 0.0,
+            MetricType::NumberOfDeduplicatedSentMessages => 0.0,
         };
 
         available.push((metric_name, current_value, history, unit));
@@ -200,4 +238,43 @@ pub fn format_bytes(bytes: f64) -> String {
     }
 
     format!("{bytes:.0} B")
+}
+
+/// Get SQS metrics data with history for enhanced display
+pub fn get_available_sqs_metrics_with_history(
+    metrics: &SqsMetricData,
+) -> Vec<(&'static str, f64, &Vec<f64>, &'static str)> {
+    let mut available = Vec::new();
+
+    // Use the same logic as SqsMetricData.get_available_metrics() for consistency
+    let available_metric_types = metrics.get_available_metrics();
+
+    for metric_type in available_metric_types {
+        let metric_name = metric_type.display_name();
+        let history = metrics.get_metric_history(&metric_type);
+        let unit = get_metric_unit(&metric_type);
+
+        // Get current value based on metric type
+        let current_value = match metric_type {
+            MetricType::NumberOfMessagesSent => metrics.number_of_messages_sent,
+            MetricType::NumberOfMessagesReceived => metrics.number_of_messages_received,
+            MetricType::NumberOfMessagesDeleted => metrics.number_of_messages_deleted,
+            MetricType::ApproximateNumberOfMessages => metrics.approximate_number_of_messages,
+            MetricType::ApproximateNumberOfMessagesVisible => metrics.approximate_number_of_messages_visible,
+            MetricType::ApproximateNumberOfMessagesNotVisible => metrics.approximate_number_of_messages_not_visible,
+            MetricType::ApproximateAgeOfOldestMessage => metrics.approximate_age_of_oldest_message,
+            MetricType::NumberOfEmptyReceives => metrics.number_of_empty_receives,
+            MetricType::ApproximateNumberOfMessagesDelayed => metrics.approximate_number_of_messages_delayed,
+            MetricType::SentMessageSize => metrics.sent_message_size,
+            MetricType::NumberOfMessagesInDlq => metrics.number_of_messages_in_dlq,
+            MetricType::ApproximateNumberOfGroupsWithInflightMessages => metrics.approximate_number_of_groups_with_inflight_messages,
+            MetricType::NumberOfDeduplicatedSentMessages => metrics.number_of_deduplicated_sent_messages,
+            // RDS Metrics - return 0.0 for SQS metrics function
+            _ => 0.0,
+        };
+
+        available.push((metric_name, current_value, history, unit));
+    }
+
+    available
 }

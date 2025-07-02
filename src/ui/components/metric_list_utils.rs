@@ -15,7 +15,7 @@ use ratatui::{layout::Rect, Frame};
 /// Render the enhanced metric list with full functionality
 pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
     use super::{
-        metric_utils::{format_value, get_available_metrics_with_history, get_metric_colors},
+        metric_utils::{format_value, get_available_metrics_with_history_unified, get_metric_colors},
         sparkline_utils::generate_inline_sparkline,
         visual_utils::{create_metric_block, MetricBlockParams},
     };
@@ -57,7 +57,7 @@ pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     // Get metrics with current values and history for enhanced display
-    let metrics_with_data = get_available_metrics_with_history(&app.metrics);
+    let metrics_with_data = get_available_metrics_with_history_unified(app);
 
     if metrics_with_data.is_empty() {
         let no_data = Paragraph::new("No metric data available")

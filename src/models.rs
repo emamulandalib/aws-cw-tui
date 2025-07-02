@@ -2,6 +2,7 @@ use crate::aws::cloudwatch_service::TimeRange;
 use ratatui::widgets::ListState;
 use std::time::{Instant, SystemTime};
 
+
 #[derive(Debug, Clone)]
 pub struct RdsInstance {
     pub identifier: String,
@@ -11,6 +12,13 @@ pub struct RdsInstance {
     pub endpoint: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct SqsQueue {
+    pub url: String,
+    pub name: String,
+    pub queue_type: String, // "Standard" or "FIFO"
+    pub attributes: std::collections::HashMap<String, String>,
+}
 impl AwsInstance for RdsInstance {
     fn id(&self) -> &str {
         &self.identifier
@@ -26,6 +34,23 @@ impl AwsInstance for RdsInstance {
 
     fn service_type(&self) -> AwsService {
         AwsService::Rds
+    }
+}
+impl AwsInstance for SqsQueue {
+    fn id(&self) -> &str {
+        &self.url
+    }
+
+    fn name(&self) -> Option<&str> {
+        Some(&self.name)
+    }
+
+    fn status(&self) -> &str {
+        &self.queue_type
+    }
+
+    fn service_type(&self) -> AwsService {
+        AwsService::Sqs
     }
 }
 #[derive(Debug)]
@@ -94,6 +119,190 @@ pub struct MetricData {
     pub failed_sql_server_agent_jobs_count_history: Vec<f64>,
     pub checkpoint_lag_history: Vec<f64>,
     pub connection_attempts_history: Vec<f64>,
+}
+
+#[derive(Debug)]
+pub struct SqsMetricData {
+    // Message Flow Metrics
+    pub number_of_messages_sent: f64,
+    pub number_of_messages_received: f64,
+    pub number_of_messages_deleted: f64,
+    pub approximate_number_of_messages: f64, // Queue depth (not visible)
+    pub approximate_number_of_messages_visible: f64, // Currently available messages
+    pub approximate_number_of_messages_not_visible: f64,
+
+    // Queue Performance Metrics
+    pub approximate_age_of_oldest_message: f64,
+    pub number_of_empty_receives: f64,
+    pub approximate_number_of_messages_delayed: f64, // FIFO only
+    pub sent_message_size: f64, // Message size in bytes
+
+    // Dead Letter Queue Metrics
+    pub number_of_messages_in_dlq: f64,
+
+    // FIFO-specific Metrics
+    pub approximate_number_of_groups_with_inflight_messages: f64, // FIFO only
+    pub number_of_deduplicated_sent_messages: f64, // FIFO only
+
+    // Historical data for 3 hours (36 data points at 5min intervals)
+    pub timestamps: Vec<SystemTime>,
+    pub messages_sent_history: Vec<f64>,
+    pub messages_received_history: Vec<f64>,
+    pub messages_deleted_history: Vec<f64>,
+    pub queue_depth_history: Vec<f64>, // approximate_number_of_messages
+    pub messages_visible_history: Vec<f64>, // approximate_number_of_messages_visible
+    pub messages_not_visible_history: Vec<f64>,
+    pub oldest_message_age_history: Vec<f64>,
+    pub empty_receives_history: Vec<f64>,
+    pub messages_delayed_history: Vec<f64>,
+    pub sent_message_size_history: Vec<f64>,
+    pub dlq_messages_history: Vec<f64>,
+    pub groups_with_inflight_messages_history: Vec<f64>, // FIFO only
+    pub deduplicated_sent_messages_history: Vec<f64>, // FIFO only
+}
+
+impl Default for SqsMetricData {
+    fn default() -> Self {
+        Self {
+            // Current metrics
+            number_of_messages_sent: 0.0,
+            number_of_messages_received: 0.0,
+            number_of_messages_deleted: 0.0,
+            approximate_number_of_messages: 0.0,
+            approximate_number_of_messages_visible: 0.0,
+            approximate_number_of_messages_not_visible: 0.0,
+            approximate_age_of_oldest_message: 0.0,
+            number_of_empty_receives: 0.0,
+            approximate_number_of_messages_delayed: 0.0,
+            sent_message_size: 0.0,
+            number_of_messages_in_dlq: 0.0,
+            
+            // FIFO-specific metrics
+            approximate_number_of_groups_with_inflight_messages: 0.0,
+            number_of_deduplicated_sent_messages: 0.0,
+
+            // Historical data
+            timestamps: Vec::new(),
+            messages_sent_history: Vec::new(),
+            messages_received_history: Vec::new(),
+            messages_deleted_history: Vec::new(),
+            queue_depth_history: Vec::new(),
+            messages_visible_history: Vec::new(),
+            messages_not_visible_history: Vec::new(),
+            oldest_message_age_history: Vec::new(),
+            empty_receives_history: Vec::new(),
+            messages_delayed_history: Vec::new(),
+            sent_message_size_history: Vec::new(),
+            dlq_messages_history: Vec::new(),
+            groups_with_inflight_messages_history: Vec::new(),
+            deduplicated_sent_messages_history: Vec::new(),
+        }
+    }
+}
+
+impl SqsMetricData {
+    pub fn count_available_metrics(&self) -> usize {
+        let mut count = 0;
+
+        let histories = [
+            &self.messages_sent_history,
+            &self.messages_received_history,
+            &self.messages_deleted_history,
+            &self.queue_depth_history,
+            &self.messages_visible_history,
+            &self.messages_not_visible_history,
+            &self.oldest_message_age_history,
+            &self.empty_receives_history,
+            &self.messages_delayed_history,
+            &self.sent_message_size_history,
+            &self.dlq_messages_history,
+            &self.groups_with_inflight_messages_history,
+            &self.deduplicated_sent_messages_history,
+        ];
+
+        for history in histories.iter() {
+            if !history.is_empty() {
+                count += 1;
+            }
+        }
+
+        count
+    }
+
+    pub fn get_available_metrics(&self) -> Vec<MetricType> {
+        let mut available_metrics = Vec::new();
+
+        if !self.messages_sent_history.is_empty() {
+            available_metrics.push(MetricType::NumberOfMessagesSent);
+        }
+        if !self.messages_received_history.is_empty() {
+            available_metrics.push(MetricType::NumberOfMessagesReceived);
+        }
+        if !self.messages_deleted_history.is_empty() {
+            available_metrics.push(MetricType::NumberOfMessagesDeleted);
+        }
+        if !self.queue_depth_history.is_empty() {
+            available_metrics.push(MetricType::ApproximateNumberOfMessages);
+        }
+        if !self.messages_visible_history.is_empty() {
+            available_metrics.push(MetricType::ApproximateNumberOfMessagesVisible);
+        }
+        if !self.messages_not_visible_history.is_empty() {
+            available_metrics.push(MetricType::ApproximateNumberOfMessagesNotVisible);
+        }
+        if !self.oldest_message_age_history.is_empty() {
+            available_metrics.push(MetricType::ApproximateAgeOfOldestMessage);
+        }
+        if !self.empty_receives_history.is_empty() {
+            available_metrics.push(MetricType::NumberOfEmptyReceives);
+        }
+        if !self.messages_delayed_history.is_empty() {
+            available_metrics.push(MetricType::ApproximateNumberOfMessagesDelayed);
+        }
+        if !self.sent_message_size_history.is_empty() {
+            available_metrics.push(MetricType::SentMessageSize);
+        }
+        if !self.dlq_messages_history.is_empty() {
+            available_metrics.push(MetricType::NumberOfMessagesInDlq);
+        }
+        
+        // FIFO-specific metrics
+        if !self.groups_with_inflight_messages_history.is_empty() {
+            available_metrics.push(MetricType::ApproximateNumberOfGroupsWithInflightMessages);
+        }
+        if !self.deduplicated_sent_messages_history.is_empty() {
+            available_metrics.push(MetricType::NumberOfDeduplicatedSentMessages);
+        }
+
+        available_metrics
+    }
+
+    pub fn get_metric_history(&self, metric_type: &MetricType) -> &Vec<f64> {
+        match metric_type {
+            MetricType::NumberOfMessagesSent => &self.messages_sent_history,
+            MetricType::NumberOfMessagesReceived => &self.messages_received_history,
+            MetricType::NumberOfMessagesDeleted => &self.messages_deleted_history,
+            MetricType::ApproximateNumberOfMessages => &self.queue_depth_history,
+            MetricType::ApproximateNumberOfMessagesVisible => &self.messages_visible_history,
+            MetricType::ApproximateNumberOfMessagesNotVisible => &self.messages_not_visible_history,
+            MetricType::ApproximateAgeOfOldestMessage => &self.oldest_message_age_history,
+            MetricType::NumberOfEmptyReceives => &self.empty_receives_history,
+            MetricType::ApproximateNumberOfMessagesDelayed => &self.messages_delayed_history,
+            MetricType::SentMessageSize => &self.sent_message_size_history,
+            MetricType::NumberOfMessagesInDlq => &self.dlq_messages_history,
+            
+            // FIFO-specific metrics
+            MetricType::ApproximateNumberOfGroupsWithInflightMessages => &self.groups_with_inflight_messages_history,
+            MetricType::NumberOfDeduplicatedSentMessages => &self.deduplicated_sent_messages_history,
+            
+            // RDS metrics - return empty for SQS MetricData
+            _ => {
+                // Use a static empty vector to avoid temporary value issues
+                static EMPTY_VEC: Vec<f64> = Vec::new();
+                &EMPTY_VEC
+            }
+        }
+    }
 }
 
 impl Default for MetricData {
@@ -372,20 +581,37 @@ impl MetricData {
             }
             MetricType::CheckpointLag => &self.checkpoint_lag_history,
             MetricType::ConnectionAttempts => &self.connection_attempts_history,
+            // SQS metrics - return empty for RDS MetricData
+            MetricType::NumberOfMessagesSent |
+            MetricType::NumberOfMessagesReceived |
+            MetricType::NumberOfMessagesDeleted |
+            MetricType::ApproximateNumberOfMessages |
+            MetricType::ApproximateNumberOfMessagesVisible |
+            MetricType::ApproximateNumberOfMessagesNotVisible |
+            MetricType::ApproximateAgeOfOldestMessage |
+            MetricType::NumberOfEmptyReceives |
+            MetricType::ApproximateNumberOfMessagesDelayed |
+            MetricType::SentMessageSize |
+            MetricType::NumberOfMessagesInDlq |
+            MetricType::ApproximateNumberOfGroupsWithInflightMessages |
+            MetricType::NumberOfDeduplicatedSentMessages => {
+                static EMPTY_VEC: Vec<f64> = Vec::new();
+                &EMPTY_VEC
+            }
         }
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AwsService {
     Rds,
-    // Future services can be added here when needed
-    // Sqs,
+    Sqs,
 }
 
 impl AwsService {
     pub fn display_name(&self) -> &'static str {
         match self {
             AwsService::Rds => "RDS (Relational Database Service)",
+            AwsService::Sqs => "SQS (Simple Queue Service)",
         }
     }
 
@@ -393,17 +619,18 @@ impl AwsService {
     pub fn short_name(&self) -> &'static str {
         match self {
             AwsService::Rds => "RDS",
+            AwsService::Sqs => "SQS",
         }
     }
 }
 
 // Generic instance container to hold different service instances
-// Currently RDS-focused, easily extensible for future services
+// Currently supports RDS and SQS, easily extensible for future services
 #[derive(Debug, Clone)]
 pub enum ServiceInstance {
     Rds(RdsInstance),
+    Sqs(SqsQueue),
     // Future services will be added here when needed
-    // Sqs(SqsQueue),
     // Ec2(Ec2Instance),
 }
 
@@ -411,6 +638,7 @@ impl ServiceInstance {
     pub fn as_aws_instance(&self) -> &dyn AwsInstance {
         match self {
             ServiceInstance::Rds(instance) => instance,
+            ServiceInstance::Sqs(queue) => queue,
         }
     }
 }
@@ -440,6 +668,7 @@ pub enum FocusedPanel {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MetricType {
+    // RDS Metrics
     CpuUtilization,
     DatabaseConnections,
     FreeStorageSpace,
@@ -467,11 +696,29 @@ pub enum MetricType {
     FailedSqlServerAgentJobsCount,
     CheckpointLag,
     ConnectionAttempts,
+
+    // SQS Metrics (11 total)
+    NumberOfMessagesSent,
+    NumberOfMessagesReceived,
+    NumberOfMessagesDeleted,
+    ApproximateNumberOfMessages,               // Queue depth (not visible)
+    ApproximateNumberOfMessagesVisible,        // Currently available messages
+    ApproximateNumberOfMessagesNotVisible,
+    ApproximateAgeOfOldestMessage,
+    NumberOfEmptyReceives,
+    ApproximateNumberOfMessagesDelayed,
+    NumberOfMessagesInDlq,
+    SentMessageSize,                          // Message size in bytes
+
+    // FIFO-specific SQS Metrics
+    ApproximateNumberOfGroupsWithInflightMessages,  // FIFO only
+    NumberOfDeduplicatedSentMessages,               // FIFO only
 }
 
 impl MetricType {
     pub fn display_name(&self) -> &'static str {
         match self {
+            // RDS Metrics
             MetricType::CpuUtilization => "CPU Utilization",
             MetricType::DatabaseConnections => "Database Connections",
             MetricType::FreeStorageSpace => "Free Storage Space",
@@ -499,6 +746,23 @@ impl MetricType {
             MetricType::FailedSqlServerAgentJobsCount => "Failed SQL Server Agent Jobs",
             MetricType::CheckpointLag => "Checkpoint Lag",
             MetricType::ConnectionAttempts => "Connection Attempts",
+
+            // SQS Metrics (11 total)
+            MetricType::NumberOfMessagesSent => "Messages Sent",
+            MetricType::NumberOfMessagesReceived => "Messages Received",
+            MetricType::NumberOfMessagesDeleted => "Messages Deleted",
+            MetricType::ApproximateNumberOfMessages => "Queue Depth (Not Visible)",
+            MetricType::ApproximateNumberOfMessagesVisible => "Messages Visible",
+            MetricType::ApproximateNumberOfMessagesNotVisible => "Messages Not Visible",
+            MetricType::ApproximateAgeOfOldestMessage => "Oldest Message Age",
+            MetricType::NumberOfEmptyReceives => "Empty Receives",
+            MetricType::ApproximateNumberOfMessagesDelayed => "Messages Delayed",
+            MetricType::SentMessageSize => "Message Size",
+            MetricType::NumberOfMessagesInDlq => "DLQ Messages",
+            
+            // FIFO-specific SQS Metrics
+            MetricType::ApproximateNumberOfGroupsWithInflightMessages => "Groups with In-flight Messages",
+            MetricType::NumberOfDeduplicatedSentMessages => "Deduplicated Messages",
         }
     }
 }
@@ -512,11 +776,13 @@ pub struct App {
     // Instance list state (generic for all services, but RDS-focused)
     pub instances: Vec<ServiceInstance>,
     pub rds_instances: Vec<RdsInstance>, // Keep for backward compatibility during transition
+    pub sqs_queues: Vec<SqsQueue>, // SQS queues for the selected service
     pub list_state: ListState,
     pub loading: bool,
     pub state: AppState,
     pub selected_instance: Option<usize>,
     pub metrics: MetricData,
+    pub sqs_metrics: SqsMetricData,
     pub metrics_loading: bool,
     pub last_refresh: Option<Instant>,
     pub auto_refresh_enabled: bool,
