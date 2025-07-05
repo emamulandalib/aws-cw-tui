@@ -581,7 +581,7 @@ fn get_sqs_metric_display_info<'a>(metric_type: &crate::models::MetricType, metr
             1000.0,
         ),
         crate::models::MetricType::ApproximateNumberOfMessages => (
-            "Queue Depth (Not Visible)",
+            "Total Queue Depth",
             format!("{:.0}", metrics.approximate_number_of_messages),
             &metrics.queue_depth_history,
             ratatui::style::Color::Cyan,

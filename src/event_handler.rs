@@ -103,6 +103,28 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
             app.scroll_up();
             Ok(false)
         }
+        (KeyCode::Left, _) => {
+            match app.get_focused_panel() {
+                crate::models::FocusedPanel::TimeRanges => {
+                    app.time_range_scroll_left();
+                }
+                crate::models::FocusedPanel::SparklineGrid => {
+                    app.switch_panel(); // Switch to TimeRanges panel
+                }
+            }
+            Ok(false)
+        }
+        (KeyCode::Right, _) => {
+            match app.get_focused_panel() {
+                crate::models::FocusedPanel::TimeRanges => {
+                    app.time_range_scroll_right();
+                }
+                crate::models::FocusedPanel::SparklineGrid => {
+                    app.switch_panel(); // Switch to TimeRanges panel
+                }
+            }
+            Ok(false)
+        }
         (KeyCode::Enter, _) => {
             match app.get_focused_panel() {
                 crate::models::FocusedPanel::TimeRanges => {
@@ -118,6 +140,11 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
                     app.enter_instance_details();
                 }
             }
+            Ok(false)
+        }
+        (KeyCode::Char('t'), _) => {
+            // Toggle between absolute and relative time range modes
+            app.toggle_time_range_mode();
             Ok(false)
         }
         (KeyCode::Tab, _) => {
@@ -180,11 +207,7 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
             app.scroll_down();
             Ok(false)
         }
-        (KeyCode::Left, _) | (KeyCode::Right, _) => {
-            // Left/Right arrows also cycle through panels
-            app.switch_panel();
-            Ok(false)
-        }
+
         (KeyCode::Home, _) => {
             app.reset_scroll();
             Ok(false)

@@ -1,6 +1,6 @@
 use super::{
     display_utils::calculate_time_panel_width, instance_details::render_metrics_loading,
-    metric_list_utils::render_enhanced_metric_list, time_range_utils::render_time_range_panel,
+    metric_list_utils::render_enhanced_metric_list, time_range_utils::render_aws_console_time_range_panel,
 };
 use crate::models::App;
 
@@ -42,20 +42,19 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
     } else if app.metrics_loading {
         render_metrics_loading(f, chunks[1]);
     } else {
-        // Two-panel layout: Time ranges (left), Full-height metric list (right)
-        let time_panel_width = calculate_time_panel_width(chunks[1].width);
+        // Two-panel layout: AWS Console Time Range Panel (left), Metrics (right)
         let content_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Length(time_panel_width), // Compact Time Panel (responsive width)
-                Constraint::Min(0),                   // Right panel for full-height metric list
+                Constraint::Percentage(60), // AWS Console Time Range Panel - wider for better display
+                Constraint::Percentage(40), // Metrics panel - narrower but still functional
             ])
             .split(chunks[1]);
 
-        // Compact Time Range Panel
-        render_compact_time_ranges(f, app, content_chunks[0]);
+        // AWS Console-style Time Range Panel
+        render_aws_console_time_range_panel(f, app, content_chunks[0]);
 
-        // Full-height Metric List Panel
+        // Metrics Panel
         // Update metrics_per_screen before rendering to ensure navigation works correctly
         app.update_metrics_per_screen(content_chunks[1].height);
         render_enhanced_metric_list(f, app, content_chunks[1]);
@@ -151,13 +150,9 @@ fn render_default_header(f: &mut Frame, area: ratatui::layout::Rect) {
 
 fn render_controls(f: &mut Frame, area: ratatui::layout::Rect) {
     let controls = Paragraph::new(
-        "↑/↓: Navigate • Tab: Switch Panels (Time/Sparklines) • Enter: Select • r: Refresh • b/Esc: Back • q: Quit")
+        "↑/↓: Navigate • ←/→: Category • Tab: Switch Panels • t: Toggle Absolute/Relative • Enter: Select • r: Refresh • b/Esc: Back • q: Quit")
         .style(Style::default().fg(Color::Gray));
     f.render_widget(controls, area);
-}
-
-fn render_compact_time_ranges(f: &mut Frame, app: &mut App, area: Rect) {
-    render_time_range_panel(f, app, area);
 }
 
 fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, error_msg: &str) {

@@ -92,11 +92,25 @@ fn calculate_sparkline_y_bounds(history: &[f64]) -> (f64, f64) {
 
     if min_val.is_finite() && max_val.is_finite() {
         if min_val == max_val {
-            (min_val, max_val)
+            // All values are the same - create small range for better visualization
+            if min_val == 0.0 {
+                (0.0, 1.0)
+            } else {
+                let margin = min_val.abs() * 0.1;
+                (min_val - margin, min_val + margin)
+            }
         } else {
             let range = max_val - min_val;
             let padding = range * 0.05; // Smaller padding for compact display
-            (min_val - padding, max_val + padding)
+            
+            // For SQS metrics, ensure minimum bound doesn't go below 0 for count metrics
+            let y_min = if min_val >= 0.0 {
+                (min_val - padding).max(0.0)
+            } else {
+                min_val - padding
+            };
+            
+            (y_min, max_val + padding)
         }
     } else {
         (0.0, 1.0)

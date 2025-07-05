@@ -189,6 +189,76 @@ pub fn get_metric_colors(metric_name: &str, current_value: f64) -> (Color, Color
                 (Color::Green, Color::Green)
             }
         }
+        // SQS-specific metrics
+        "Messages Visible" => {
+            if current_value > 1000.0 {
+                (Color::Red, Color::Red)
+            } else if current_value > 100.0 {
+                (Color::Yellow, Color::Yellow)
+            } else if current_value > 0.0 {
+                (Color::Green, Color::Green)
+            } else {
+                (Color::Gray, Color::Gray)
+            }
+        }
+        "Messages Sent" | "Messages Received" | "Messages Deleted" => {
+            // For throughput metrics, any activity is good
+            if current_value > 0.0 {
+                (Color::Green, Color::Green)
+            } else {
+                (Color::Gray, Color::Gray)
+            }
+        }
+        "Messages Not Visible" => {
+            // In-flight messages - too many might indicate processing issues
+            if current_value > 500.0 {
+                (Color::Red, Color::Red)
+            } else if current_value > 50.0 {
+                (Color::Yellow, Color::Yellow)
+            } else {
+                (Color::Green, Color::Green)
+            }
+        }
+        "Oldest Message Age" => {
+            // Age in seconds - older messages indicate processing delays
+            if current_value > 3600.0 {
+                (Color::Red, Color::Red)
+            } // > 1 hour
+            else if current_value > 300.0 {
+                (Color::Yellow, Color::Yellow)
+            } // > 5 minutes
+            else {
+                (Color::Green, Color::Green)
+            }
+        }
+        "Empty Receives" => {
+            // Too many empty receives might indicate polling issues
+            if current_value > 100.0 {
+                (Color::Yellow, Color::Yellow)
+            } else {
+                (Color::Green, Color::Green)
+            }
+        }
+        "DLQ Messages" => {
+            // Any messages in DLQ is concerning
+            if current_value > 10.0 {
+                (Color::Red, Color::Red)
+            } else if current_value > 0.0 {
+                (Color::Yellow, Color::Yellow)
+            } else {
+                (Color::Green, Color::Green)
+            }
+        }
+        "Messages Delayed" => {
+            // Delayed messages might indicate processing issues
+            if current_value > 100.0 {
+                (Color::Red, Color::Red)
+            } else if current_value > 10.0 {
+                (Color::Yellow, Color::Yellow)
+            } else {
+                (Color::Green, Color::Green)
+            }
+        }
         _ => (Color::Cyan, Color::Cyan), // Default neutral color
     };
 
@@ -255,7 +325,7 @@ pub fn get_available_sqs_metrics_with_history(
         let unit = get_metric_unit(&metric_type);
 
         // Get current value based on metric type
-        let current_value = match metric_type {
+        let stored_current_value = match metric_type {
             MetricType::NumberOfMessagesSent => metrics.number_of_messages_sent,
             MetricType::NumberOfMessagesReceived => metrics.number_of_messages_received,
             MetricType::NumberOfMessagesDeleted => metrics.number_of_messages_deleted,
@@ -271,6 +341,21 @@ pub fn get_available_sqs_metrics_with_history(
             MetricType::NumberOfDeduplicatedSentMessages => metrics.number_of_deduplicated_sent_messages,
             // RDS Metrics - return 0.0 for SQS metrics function
             _ => 0.0,
+        };
+
+        // For SQS metrics, use the historical data's last value if it's more recent or reliable
+        // This ensures consistency between the displayed value and the sparkline
+        let current_value = if !history.is_empty() {
+            let history_last = history.last().copied().unwrap_or(0.0);
+            // Use the history's last value if it's different from stored value
+            // This helps with metrics that might have fresher data in history
+            if history_last != stored_current_value && history_last > 0.0 {
+                history_last
+            } else {
+                stored_current_value
+            }
+        } else {
+            stored_current_value
         };
 
         available.push((metric_name, current_value, history, unit));
