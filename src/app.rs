@@ -1,6 +1,6 @@
 use crate::aws::time_range::{TimeRange, TimeUnit};
 use crate::aws::{cloudwatch_service::load_metrics, load_rds_instances, rds::RdsInstanceManager};
-use crate::models::{App, AppState, AwsService, FocusedPanel, MetricType, ServiceInstance};
+use crate::models::{App, AppState, AwsService, FocusedPanel, MetricType, ServiceInstance, TimeRangeMode};
 use anyhow::Result;
 use std::time::{Duration, Instant};
 use log::info;
@@ -34,7 +34,7 @@ impl App {
             scroll_offset: 0,
             metrics_per_screen: 1,
             metrics_summary_scroll: 0,
-            time_range_scroll: 2,
+            time_range_scroll: 8, // Default to "3 hours" in the new extended options
             focused_panel: FocusedPanel::TimeRanges,
             saved_focused_panel: FocusedPanel::TimeRanges,
             time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(),
@@ -50,6 +50,9 @@ impl App {
 
             // Initialize loading timeout
             loading_start_time: None,
+            
+            // Initialize time range mode
+            time_range_mode: TimeRangeMode::Relative,
         };
         app.service_list_state.select(Some(0));
         app
@@ -524,16 +527,41 @@ impl App {
 
     pub fn get_time_range_options() -> Vec<(&'static str, u32, TimeUnit, u32)> {
         vec![
+            // Minutes
+            ("1 minute", 1, TimeUnit::Minutes, 1),
+            ("3 minutes", 3, TimeUnit::Minutes, 1),
             ("5 minutes", 5, TimeUnit::Minutes, 1),
+            ("15 minutes", 15, TimeUnit::Minutes, 1),
+            ("30 minutes", 30, TimeUnit::Minutes, 1),
+            ("45 minutes", 45, TimeUnit::Minutes, 1),
+            
+            // Hours
             ("1 hour", 1, TimeUnit::Hours, 1),
+            ("2 hours", 2, TimeUnit::Hours, 1),
             ("3 hours", 3, TimeUnit::Hours, 1),
             ("6 hours", 6, TimeUnit::Hours, 1),
+            ("8 hours", 8, TimeUnit::Hours, 1),
             ("12 hours", 12, TimeUnit::Hours, 1),
+            
+            // Days
             ("1 day", 1, TimeUnit::Days, 1),
+            ("2 days", 2, TimeUnit::Days, 1),
             ("3 days", 3, TimeUnit::Days, 1),
+            ("4 days", 4, TimeUnit::Days, 1),
+            ("5 days", 5, TimeUnit::Days, 1),
+            ("6 days", 6, TimeUnit::Days, 1),
+            
+            // Weeks
             ("1 week", 1, TimeUnit::Weeks, 7),
             ("2 weeks", 2, TimeUnit::Weeks, 14),
-            ("1 month", 1, TimeUnit::Months, 30),
+            ("4 weeks", 4, TimeUnit::Weeks, 28),
+            ("6 weeks", 6, TimeUnit::Weeks, 42),
+            
+            // Months
+            ("3 months", 3, TimeUnit::Months, 90),
+            ("6 months", 6, TimeUnit::Months, 180),
+            ("12 months", 12, TimeUnit::Months, 365),
+            ("15 months", 15, TimeUnit::Months, 455),
         ]
     }
 
@@ -563,6 +591,77 @@ impl App {
         if self.time_range_scroll < options.len() - 1 {
             self.time_range_scroll += 1;
         }
+    }
+    
+    pub fn time_range_scroll_left(&mut self) {
+        // Move to previous category
+        let categories = [
+            (0..6),   // Minutes
+            (6..12),  // Hours
+            (12..18), // Days
+            (18..22), // Weeks
+            (22..26), // Months
+        ];
+        
+        let current_index = self.time_range_scroll;
+        let mut current_category = 0;
+        
+        // Find current category
+        for (i, range) in categories.iter().enumerate() {
+            if range.contains(&current_index) {
+                current_category = i;
+                break;
+            }
+        }
+        
+        // Move to previous category if possible
+        if current_category > 0 {
+            let prev_category = current_category - 1;
+            let prev_range = &categories[prev_category];
+            // Move to the first item in the previous category
+            self.time_range_scroll = prev_range.start;
+        }
+    }
+    
+    pub fn time_range_scroll_right(&mut self) {
+        // Move to next category
+        let categories = [
+            (0..6),   // Minutes
+            (6..12),  // Hours
+            (12..18), // Days
+            (18..22), // Weeks
+            (22..26), // Months
+        ];
+        
+        let current_index = self.time_range_scroll;
+        let mut current_category = 0;
+        
+        // Find current category
+        for (i, range) in categories.iter().enumerate() {
+            if range.contains(&current_index) {
+                current_category = i;
+                break;
+            }
+        }
+        
+        // Move to next category if possible
+        if current_category < categories.len() - 1 {
+            let next_category = current_category + 1;
+            let next_range = &categories[next_category];
+            // Move to the first item in the next category
+            self.time_range_scroll = next_range.start;
+        }
+    }
+    
+    pub fn toggle_time_range_mode(&mut self) {
+        self.time_range_mode = match self.time_range_mode {
+            TimeRangeMode::Absolute => TimeRangeMode::Relative,
+            TimeRangeMode::Relative => TimeRangeMode::Absolute,
+        };
+    }
+    
+    pub fn get_time_range_mode(&self) -> &TimeRangeMode {
+        &self.time_range_mode
     }
 
     // ================================

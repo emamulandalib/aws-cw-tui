@@ -127,7 +127,7 @@ pub struct SqsMetricData {
     pub number_of_messages_sent: f64,
     pub number_of_messages_received: f64,
     pub number_of_messages_deleted: f64,
-    pub approximate_number_of_messages: f64, // Queue depth (not visible)
+    pub approximate_number_of_messages: f64, // Total queue depth (visible + not visible)
     pub approximate_number_of_messages_visible: f64, // Currently available messages
     pub approximate_number_of_messages_not_visible: f64,
 
@@ -701,7 +701,7 @@ pub enum MetricType {
     NumberOfMessagesSent,
     NumberOfMessagesReceived,
     NumberOfMessagesDeleted,
-    ApproximateNumberOfMessages,               // Queue depth (not visible)
+    ApproximateNumberOfMessages,               // Total queue depth (visible + not visible)
     ApproximateNumberOfMessagesVisible,        // Currently available messages
     ApproximateNumberOfMessagesNotVisible,
     ApproximateAgeOfOldestMessage,
@@ -751,7 +751,7 @@ impl MetricType {
             MetricType::NumberOfMessagesSent => "Messages Sent",
             MetricType::NumberOfMessagesReceived => "Messages Received",
             MetricType::NumberOfMessagesDeleted => "Messages Deleted",
-            MetricType::ApproximateNumberOfMessages => "Queue Depth (Not Visible)",
+            MetricType::ApproximateNumberOfMessages => "Total Queue Depth",
             MetricType::ApproximateNumberOfMessagesVisible => "Messages Visible",
             MetricType::ApproximateNumberOfMessagesNotVisible => "Messages Not Visible",
             MetricType::ApproximateAgeOfOldestMessage => "Oldest Message Age",
@@ -805,4 +805,13 @@ pub struct App {
 
     // Loading timeout management
     pub loading_start_time: Option<Instant>, // Track when loading started
+    
+    // Time range display mode
+    pub time_range_mode: TimeRangeMode, // Toggle between absolute and relative
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TimeRangeMode {
+    Absolute,
+    Relative,
 }
