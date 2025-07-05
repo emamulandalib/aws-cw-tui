@@ -74,25 +74,28 @@ pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     // Calculate items that can fit on screen for scrolling
-    let _items_per_screen = (area.height.saturating_sub(2)) as usize; // Account for borders
+    let items_per_screen = (area.height.saturating_sub(2)) as usize; // Account for borders
     let total_items = available_metrics.len();
     let selected_index = app.get_sparkline_grid_selected_index();
 
-    // Use the pre-calculated metrics_per_screen value
-    // This should be set by calling app.update_metrics_per_screen() before rendering
-    let actual_metrics_per_screen = app.metrics_per_screen;
+    // Each metric is now only 1 line (not 3 lines like before)
+    let actual_metrics_per_screen = items_per_screen;
 
     // Use the app's scroll offset directly
     let scroll_offset = app.scroll_offset;
 
     // Calculate responsive widths to fill the terminal width
-    let total_width = area.width.saturating_sub(4) as usize; // Account for borders
+    // Don't subtract borders here since visual_utils will handle the final layout
+    let total_width = area.width as usize; // Use full area width for calculation
+    let border_and_padding = 6; // Account for borders (2) and padding (4) in visual_utils
+    let available_width = total_width.saturating_sub(border_and_padding);
+    
     let value_width = 12; // Fixed width for values
-    let separators_width = 8; // Space for separators and padding
-    let name_width = (total_width * 30 / 100).clamp(18, 30); // 30% of width for names
-    let sparkline_width = total_width
+    let separators_width = 4; // Space for separators between columns
+    let name_width = (available_width * 30 / 100).clamp(18, 30); // 30% of available width for names
+    let sparkline_width = available_width
         .saturating_sub(name_width + value_width + separators_width)
-        .max(20); // Rest for sparkline
+        .max(15); // Rest for sparkline, minimum 15 chars
 
     // Create enhanced metric blocks with distinct visual separation and spacing
     let empty_history = Vec::new();
@@ -107,8 +110,8 @@ pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
     {
         let is_selected = original_index == selected_index;
 
-        // Track the position of this metric in the items list (content line is the middle line)
-        let metric_position = items.len() + 1; // +1 because content is the second line of the frame
+        // Track the position of this metric in the items list (single line per metric)
+        let metric_position = items.len(); // Current position in the items list
         metric_positions.push(metric_position);
 
         // Find corresponding data for this metric
@@ -129,7 +132,7 @@ pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
         let formatted_value = format_value(current_value, unit);
         let (value_color, sparkline_color) = get_metric_colors(metric_name, current_value);
 
-        // Create distinct visual block for each metric (returns multiple lines for frame)
+        // Create compact single-line metric item 
         let content_lines = create_metric_block(MetricBlockParams {
             metric_name: metric_name.to_string(),
             sparkline,
@@ -141,12 +144,10 @@ pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
             sparkline_width,
         });
 
-        // Add each line of the framed metric block as separate list items
+        // Add the metric line as a list item (now single line per metric)
         for line in content_lines {
             items.push(ListItem::new(line));
         }
-
-        // No additional spacing between metrics - frames provide sufficient visual separation
     }
 
     // Create list state for navigation and scrolling
