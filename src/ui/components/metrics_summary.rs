@@ -1,11 +1,11 @@
 use super::{
     display_utils::calculate_time_panel_width, instance_details::render_metrics_loading,
-    metric_list_utils::render_enhanced_metric_list, time_range_utils::render_aws_console_time_range_panel,
+    metric_list_utils::render_enhanced_metric_list, time_range_utils::{render_aws_console_time_range_panel, render_period_selection_panel, render_timezone_selection_panel},
 };
-use crate::models::App;
+use crate::models::{App, TimeRangeMode};
 
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout},
     style::{Color, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
@@ -42,17 +42,34 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
     } else if app.metrics_loading {
         render_metrics_loading(f, chunks[1]);
     } else {
-        // Two-panel layout: AWS Console Time Range Panel (left), Metrics (right)
+        // Two-panel layout: Time Range Panel (left), Metrics (right) - like original
+        let time_panel_width = calculate_time_panel_width(chunks[1].width);
         let content_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(60), // AWS Console Time Range Panel - wider for better display
-                Constraint::Percentage(40), // Metrics panel - narrower but still functional
+                Constraint::Length(time_panel_width), // Compact Time Panel (responsive width)
+                Constraint::Min(0),                   // Metrics panel takes remaining space
             ])
             .split(chunks[1]);
 
-        // AWS Console-style Time Range Panel
-        render_aws_console_time_range_panel(f, app, content_chunks[0]);
+        // Split the time panel into timezone, period and time range sections
+        let time_panel_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(6),  // Timezone selection panel
+                Constraint::Length(10), // Period selection panel
+                Constraint::Min(0),     // Time range panel
+            ])
+            .split(content_chunks[0]);
+        
+        // Render timezone selection panel
+        render_timezone_selection_panel(f, app, time_panel_chunks[0]);
+        
+        // Render period selection panel
+        render_period_selection_panel(f, app, time_panel_chunks[1]);
+        
+        // Render time range panel
+        render_aws_console_time_range_panel(f, app, time_panel_chunks[2]);
 
         // Metrics Panel
         // Update metrics_per_screen before rendering to ensure navigation works correctly
@@ -61,7 +78,7 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
     }
 
     // Controls
-    render_controls(f, chunks[2]);
+    render_controls(f, chunks[2], app);
 }
 
 fn render_rds_instance_info(
@@ -148,9 +165,16 @@ fn render_default_header(f: &mut Frame, area: ratatui::layout::Rect) {
     f.render_widget(header_block, area);
 }
 
-fn render_controls(f: &mut Frame, area: ratatui::layout::Rect) {
-    let controls = Paragraph::new(
-        "↑/↓: Navigate • ←/→: Category • Tab: Switch Panels • t: Toggle Absolute/Relative • Enter: Select • r: Refresh • b/Esc: Back • q: Quit")
+fn render_controls(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
+    let mode_text = match app.get_time_range_mode() {
+        TimeRangeMode::Absolute => "Absolute",
+        TimeRangeMode::Relative => "Relative",
+    };
+    
+    let controls = Paragraph::new(format!(
+        "↑/↓: Navigate • Tab: Switch Panels • t: Toggle Mode ({}) • Enter: Select • r: Refresh • b/Esc: Back • q: Quit", 
+        mode_text
+    ))
         .style(Style::default().fg(Color::Gray));
     f.render_widget(controls, area);
 }

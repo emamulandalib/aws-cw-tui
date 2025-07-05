@@ -1,6 +1,6 @@
 use crate::aws::time_range::{TimeRange, TimeUnit};
 use crate::aws::{cloudwatch_service::load_metrics, load_rds_instances, rds::RdsInstanceManager};
-use crate::models::{App, AppState, AwsService, FocusedPanel, MetricType, ServiceInstance, TimeRangeMode};
+use crate::models::{App, AppState, AwsService, FocusedPanel, MetricType, ServiceInstance, TimeRangeMode, Timezone};
 use anyhow::Result;
 use std::time::{Duration, Instant};
 use log::info;
@@ -35,8 +35,8 @@ impl App {
             metrics_per_screen: 1,
             metrics_summary_scroll: 0,
             time_range_scroll: 8, // Default to "3 hours" in the new extended options
-            focused_panel: FocusedPanel::TimeRanges,
-            saved_focused_panel: FocusedPanel::TimeRanges,
+            focused_panel: FocusedPanel::Timezone,
+            saved_focused_panel: FocusedPanel::Timezone,
             time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(),
 
             // Initialize sparkline grid state
@@ -53,6 +53,13 @@ impl App {
             
             // Initialize time range mode
             time_range_mode: TimeRangeMode::Relative,
+            
+            // Initialize period selection
+            period_scroll: 2, // Default to a reasonable period option
+            
+            // Initialize timezone selection
+            timezone: Timezone::Utc, // Default to UTC timezone
+            timezone_scroll: 1, // Default to UTC (index 1 in the options)
         };
         app.service_list_state.select(Some(0));
         app
@@ -594,63 +601,13 @@ impl App {
     }
     
     pub fn time_range_scroll_left(&mut self) {
-        // Move to previous category
-        let categories = [
-            (0..6),   // Minutes
-            (6..12),  // Hours
-            (12..18), // Days
-            (18..22), // Weeks
-            (22..26), // Months
-        ];
-        
-        let current_index = self.time_range_scroll;
-        let mut current_category = 0;
-        
-        // Find current category
-        for (i, range) in categories.iter().enumerate() {
-            if range.contains(&current_index) {
-                current_category = i;
-                break;
-            }
-        }
-        
-        // Move to previous category if possible
-        if current_category > 0 {
-            let prev_category = current_category - 1;
-            let prev_range = &categories[prev_category];
-            // Move to the first item in the previous category
-            self.time_range_scroll = prev_range.start;
-        }
+        // In simple vertical list, left arrow acts like up arrow (previous item)
+        self.time_range_scroll_up();
     }
     
     pub fn time_range_scroll_right(&mut self) {
-        // Move to next category
-        let categories = [
-            (0..6),   // Minutes
-            (6..12),  // Hours
-            (12..18), // Days
-            (18..22), // Weeks
-            (22..26), // Months
-        ];
-        
-        let current_index = self.time_range_scroll;
-        let mut current_category = 0;
-        
-        // Find current category
-        for (i, range) in categories.iter().enumerate() {
-            if range.contains(&current_index) {
-                current_category = i;
-                break;
-            }
-        }
-        
-        // Move to next category if possible
-        if current_category < categories.len() - 1 {
-            let next_category = current_category + 1;
-            let next_range = &categories[next_category];
-            // Move to the first item in the next category
-            self.time_range_scroll = next_range.start;
-        }
+        // In simple vertical list, right arrow acts like down arrow (next item)  
+        self.time_range_scroll_down();
     }
     
     pub fn toggle_time_range_mode(&mut self) {
@@ -664,6 +621,74 @@ impl App {
         &self.time_range_mode
     }
 
+    // Period selection methods
+    pub fn get_period_options() -> Vec<(&'static str, i32)> {
+        vec![
+            ("5 seconds", 5),
+            ("10 seconds", 10),
+            ("20 seconds", 20),
+            ("30 seconds", 30),
+            ("1 minute", 60),
+            ("5 minutes", 300),
+            ("15 minutes", 900),
+            ("1 hour", 3600),
+            ("6 hours", 21600),
+            ("1 day", 86400),
+            ("7 days", 604800),
+            ("30 days", 2592000),
+        ]
+    }
+
+    pub fn get_current_period_index(&self) -> usize {
+        self.period_scroll
+    }
+
+    pub fn period_scroll_up(&mut self) {
+        if self.period_scroll > 0 {
+            self.period_scroll -= 1;
+        }
+    }
+
+    pub fn period_scroll_down(&mut self) {
+        let options = Self::get_period_options();
+        if self.period_scroll < options.len() - 1 {
+            self.period_scroll += 1;
+        }
+    }
+    
+    // Timezone selection methods
+    pub fn get_timezone_options() -> Vec<Timezone> {
+        Timezone::get_timezone_options()
+    }
+    
+    pub fn get_current_timezone(&self) -> &Timezone {
+        &self.timezone
+    }
+    
+    pub fn get_current_timezone_index(&self) -> usize {
+        self.timezone_scroll
+    }
+    
+    pub fn timezone_scroll_up(&mut self) {
+        if self.timezone_scroll > 0 {
+            self.timezone_scroll -= 1;
+            let options = Self::get_timezone_options();
+            if let Some(timezone) = options.get(self.timezone_scroll) {
+                self.timezone = timezone.clone();
+            }
+        }
+    }
+    
+    pub fn timezone_scroll_down(&mut self) {
+        let options = Self::get_timezone_options();
+        if self.timezone_scroll < options.len() - 1 {
+            self.timezone_scroll += 1;
+            if let Some(timezone) = options.get(self.timezone_scroll) {
+                self.timezone = timezone.clone();
+            }
+        }
+    }
+
     // ================================
     // 8. SCREEN NAVIGATION & STATE TRANSITIONS
     // ================================
@@ -674,7 +699,7 @@ impl App {
             self.state = AppState::MetricsSummary;
             self.metrics_summary_scroll = 0;
             self.scroll_offset = 0;
-            self.focused_panel = FocusedPanel::TimeRanges;
+            self.focused_panel = FocusedPanel::Timezone;
             self.sparkline_grid_selected_index = 0;
             self.initialize_sparkline_grid();
         }
@@ -721,6 +746,12 @@ impl App {
     pub fn scroll_up(&mut self) {
         match self.state {
             AppState::MetricsSummary => match self.focused_panel {
+                FocusedPanel::Timezone => {
+                    self.timezone_scroll_up();
+                }
+                FocusedPanel::Period => {
+                    self.period_scroll_up();
+                }
                 FocusedPanel::TimeRanges => {
                     self.time_range_scroll_up();
                 }
@@ -739,6 +770,12 @@ impl App {
     pub fn scroll_down(&mut self) {
     match self.state {
         AppState::MetricsSummary => match self.focused_panel {
+            FocusedPanel::Timezone => {
+                self.timezone_scroll_down();
+            }
+            FocusedPanel::Period => {
+                self.period_scroll_down();
+            }
             FocusedPanel::TimeRanges => {
                 self.time_range_scroll_down();
             }
@@ -765,8 +802,8 @@ impl App {
             AppState::MetricsSummary => {
                 self.metrics_summary_scroll = 0;
                 self.scroll_offset = 0;
-                self.focused_panel = FocusedPanel::TimeRanges;
-                self.saved_focused_panel = FocusedPanel::TimeRanges;
+                self.focused_panel = FocusedPanel::Timezone;
+                self.saved_focused_panel = FocusedPanel::Timezone;
                 self.sparkline_grid_scroll = 0;
                 self.sparkline_grid_selected_index = 0;
                 self.saved_sparkline_grid_selected_index = 0;
@@ -782,8 +819,10 @@ impl App {
 
     pub fn switch_panel(&mut self) {
         self.focused_panel = match self.focused_panel {
+            FocusedPanel::Timezone => FocusedPanel::Period,
+            FocusedPanel::Period => FocusedPanel::TimeRanges,
             FocusedPanel::TimeRanges => FocusedPanel::SparklineGrid,
-            FocusedPanel::SparklineGrid => FocusedPanel::TimeRanges,
+            FocusedPanel::SparklineGrid => FocusedPanel::Timezone,
         };
     }
 
@@ -794,9 +833,9 @@ impl App {
     /// Update metrics_per_screen based on available area
     /// This should be called before rendering to ensure navigation functions work correctly
     pub fn update_metrics_per_screen(&mut self, area_height: u16) {
-        let items_per_screen = (area_height.saturating_sub(2)) as usize; // Account for borders
-                                                                         // Each metric takes 3 lines (frame only)
-        let actual_metrics_per_screen = items_per_screen.div_ceil(3);
+        let available_lines = (area_height.saturating_sub(2)) as usize; // Account for borders
+        // Each metric now takes 3 lines (top border, content, bottom border)
+        let actual_metrics_per_screen = (available_lines / 3).max(1);
         self.metrics_per_screen = actual_metrics_per_screen;
     }
 

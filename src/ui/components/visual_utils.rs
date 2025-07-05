@@ -18,16 +18,8 @@ pub struct MetricBlockParams {
 
 /// Creates a distinct visual block for each metric item with proper spacing and styling
 pub fn create_metric_block(params: MetricBlockParams) -> Vec<Line<'static>> {
-    let content = format!(
-        " {:<name_width$}  {:<sparkline_width$}  {:>12} ",
-        truncate_string(&params.metric_name, params.name_width),
-        params.sparkline,
-        params.formatted_value,
-        name_width = params.name_width,
-        sparkline_width = params.sparkline_width,
-    );
-
-    let total_width = content.chars().count();
+    // Calculate total width based on actual content structure
+    let total_width = params.name_width + params.sparkline_width + 12 + 4; // name + sparkline + value + spaces
 
     // Create the frame characters
     let top_border = format!("┌{}┐", "─".repeat(total_width));
@@ -67,7 +59,7 @@ fn create_selected_metric_block(
                     .bg(Color::DarkGray)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled("  ", Style::default().bg(Color::DarkGray)),
+            Span::styled(" ", Style::default().bg(Color::DarkGray)),
             Span::styled(
                 format!(
                     "{:<width$}",
@@ -79,7 +71,7 @@ fn create_selected_metric_block(
                     .bg(Color::DarkGray)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled("  ", Style::default().bg(Color::DarkGray)),
+            Span::styled(" ", Style::default().bg(Color::DarkGray)),
             Span::styled(
                 format!("{:>12}", params.formatted_value),
                 Style::default()
@@ -119,7 +111,7 @@ fn create_regular_metric_block(
                 ),
                 Style::default().fg(Color::Cyan),
             ),
-            Span::styled("  ", Style::default()),
+            Span::styled(" ", Style::default()),
             Span::styled(
                 format!(
                     "{:<width$}",
@@ -128,7 +120,7 @@ fn create_regular_metric_block(
                 ),
                 Style::default().fg(params.sparkline_color),
             ),
-            Span::styled("  ", Style::default()),
+            Span::styled(" ", Style::default()),
             Span::styled(
                 format!("{:>12}", params.formatted_value),
                 Style::default().fg(params.value_color),
@@ -142,3 +134,5 @@ fn create_regular_metric_block(
         )]),
     ]
 }
+
+

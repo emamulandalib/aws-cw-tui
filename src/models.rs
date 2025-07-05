@@ -662,6 +662,8 @@ pub enum AppState {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum FocusedPanel {
+    Timezone,
+    Period,
     TimeRanges,
     SparklineGrid,
 }
@@ -808,10 +810,36 @@ pub struct App {
     
     // Time range display mode
     pub time_range_mode: TimeRangeMode, // Toggle between absolute and relative
+    
+    // Period selection
+    pub period_scroll: usize, // Track period selection scroll position
+    
+    // Timezone selection
+    pub timezone: Timezone, // Current timezone selection
+    pub timezone_scroll: usize, // Track timezone selection scroll position
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TimeRangeMode {
     Absolute,
     Relative,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Timezone {
+    Utc,
+    Local,
+}
+
+impl Timezone {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Timezone::Utc => "UTC timezone",
+            Timezone::Local => "Local timezone",
+        }
+    }
+    
+    pub fn get_timezone_options() -> Vec<Timezone> {
+        vec![Timezone::Local, Timezone::Utc]
+    }
 }

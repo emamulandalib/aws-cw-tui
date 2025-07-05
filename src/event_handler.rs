@@ -105,28 +105,54 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
         }
         (KeyCode::Left, _) => {
             match app.get_focused_panel() {
+                crate::models::FocusedPanel::Timezone => {
+                    app.timezone_scroll_up(); // Left acts like up in timezone selection
+                }
+                crate::models::FocusedPanel::Period => {
+                    app.period_scroll_up(); // Left acts like up in period selection
+                }
                 crate::models::FocusedPanel::TimeRanges => {
                     app.time_range_scroll_left();
                 }
                 crate::models::FocusedPanel::SparklineGrid => {
-                    app.switch_panel(); // Switch to TimeRanges panel
+                    app.switch_panel(); // Switch to previous panel
                 }
             }
             Ok(false)
         }
         (KeyCode::Right, _) => {
             match app.get_focused_panel() {
+                crate::models::FocusedPanel::Timezone => {
+                    app.timezone_scroll_down(); // Right acts like down in timezone selection
+                }
+                crate::models::FocusedPanel::Period => {
+                    app.period_scroll_down(); // Right acts like down in period selection
+                }
                 crate::models::FocusedPanel::TimeRanges => {
                     app.time_range_scroll_right();
                 }
                 crate::models::FocusedPanel::SparklineGrid => {
-                    app.switch_panel(); // Switch to TimeRanges panel
+                    app.switch_panel(); // Switch to next panel
                 }
             }
             Ok(false)
         }
         (KeyCode::Enter, _) => {
             match app.get_focused_panel() {
+                crate::models::FocusedPanel::Timezone => {
+                    // Timezone selection completed - visual feedback only
+                    // The timezone is already updated in the scroll methods
+                    // Could trigger refresh in the future if needed
+                }
+                crate::models::FocusedPanel::Period => {
+                    // Period selection completed - could trigger refresh or just visual feedback
+                    // For now, just accept the selection (period will be used in future metrics calls)
+                    
+                    // If there's a selected instance, reload metrics with new period
+                    if let Some(instance_id) = app.get_selected_rds_instance_id() {
+                        app.load_metrics(&instance_id).await?;
+                    }
+                }
                 crate::models::FocusedPanel::TimeRanges => {
                     // Select the current time range and reload metrics
                     let current_index = app.get_current_time_range_index();
