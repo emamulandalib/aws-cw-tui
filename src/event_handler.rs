@@ -96,11 +96,25 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
     match (key.code, key.modifiers) {
         (KeyCode::Char('q'), _) => Ok(true), // Signal to quit
         (KeyCode::Down, _) => {
-            app.scroll_down();
+            match app.get_focused_panel() {
+                crate::models::FocusedPanel::SparklineGrid => {
+                    app.sparkline_grid_scroll_down(); // Navigate down within grid
+                }
+                _ => {
+                    app.scroll_down(); // Default scroll behavior for other panels
+                }
+            }
             Ok(false)
         }
         (KeyCode::Up, _) => {
-            app.scroll_up();
+            match app.get_focused_panel() {
+                crate::models::FocusedPanel::SparklineGrid => {
+                    app.sparkline_grid_scroll_up(); // Navigate up within grid
+                }
+                _ => {
+                    app.scroll_up(); // Default scroll behavior for other panels
+                }
+            }
             Ok(false)
         }
         (KeyCode::Left, _) => {

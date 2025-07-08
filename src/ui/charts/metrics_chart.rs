@@ -220,6 +220,36 @@ fn collect_available_metrics(metrics: &MetricData) -> Vec<MetricTuple<'_>> {
                 Color::LightYellow,
                 1000.0,
             ),
+            // Missing CPU surplus credit metrics
+            crate::models::MetricType::CpuSurplusCreditBalance => (
+                "CPU Surplus Credit Balance",
+                format!("{:.1}", metrics.cpu_surplus_credit_balance),
+                &metrics.cpu_surplus_credit_balance_history,
+                Color::LightBlue,
+                1000.0,
+            ),
+            crate::models::MetricType::CpuSurplusCreditsCharged => (
+                "CPU Surplus Credits Charged",
+                format!("{:.1}", metrics.cpu_surplus_credits_charged),
+                &metrics.cpu_surplus_credits_charged_history,
+                Color::LightRed,
+                1000.0,
+            ),
+            // Missing EBS performance metrics
+            crate::models::MetricType::EbsByteBalance => (
+                "EBS Byte Balance",
+                format!("{:.1}%", metrics.ebs_byte_balance),
+                &metrics.ebs_byte_balance_history,
+                Color::Cyan,
+                100.0,
+            ),
+            crate::models::MetricType::EbsIoBalance => (
+                "EBS IO Balance",
+                format!("{:.1}%", metrics.ebs_io_balance),
+                &metrics.ebs_io_balance_history,
+                Color::Green,
+                100.0,
+            ),
             crate::models::MetricType::BinLogDiskUsage => (
                 "Bin Log Usage",
                 format!("{:.1} MB", metrics.bin_log_disk_usage / 1024.0 / 1024.0),
@@ -249,6 +279,17 @@ fn collect_available_metrics(metrics: &MetricData) -> Vec<MetricTuple<'_>> {
                 ),
                 &metrics.oldest_replication_slot_lag_history,
                 Color::Magenta,
+                100_000_000.0,
+            ),
+            // Missing logical replication slot lag metric
+            crate::models::MetricType::OldestLogicalReplicationSlotLag => (
+                "Logical Replication Slot Lag",
+                format!(
+                    "{:.1} MB",
+                    metrics.oldest_logical_replication_slot_lag / 1024.0 / 1024.0
+                ),
+                &metrics.oldest_logical_replication_slot_lag_history,
+                Color::LightMagenta,
                 100_000_000.0,
             ),
             crate::models::MetricType::ReplicationSlotDiskUsage => (

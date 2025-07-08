@@ -1,7 +1,6 @@
 use crate::models::{App, RdsInstance, SqsQueue};
 use ratatui::{
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
+    prelude::*,
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
@@ -47,12 +46,12 @@ fn render_header(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     };
 
     let header = Paragraph::new(main_title)
-        .style(Style::default().fg(Color::White))
+        .style(Style::default().white())
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title(border_title)
-                .border_style(Style::default().fg(Color::Cyan)),
+                .border_style(Style::default().cyan()),
         );
     f.render_widget(header, area);
 }
@@ -71,13 +70,13 @@ fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect, app: &App)
 
     let loading_msg = Paragraph::new(loading_text.join("
 "))
-        .style(Style::default().fg(Color::Yellow))
+        .style(Style::default().yellow())
         .alignment(ratatui::layout::Alignment::Center)
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Status")
-                .border_style(Style::default().fg(Color::White)),
+                .border_style(Style::default().white()),
         );
     f.render_widget(loading_msg, area);
 }
@@ -89,24 +88,24 @@ fn render_no_instances_message(f: &mut Frame, area: ratatui::layout::Rect, app: 
     let title = format!("{} Instances", service_name);
 
     let no_instances = Paragraph::new(format!("No {} instances found in this account/region", service_name))
-        .style(Style::default().fg(Color::Red))
+        .style(Style::default().red())
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .border_style(Style::default().fg(Color::White)),
+                .border_style(Style::default().white()),
         );
     f.render_widget(no_instances, area);
 }
 
 fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, error_msg: &str) {
     let error_paragraph = Paragraph::new(error_msg)
-        .style(Style::default().fg(Color::Red))
+        .style(Style::default().red())
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Error")
-                .border_style(Style::default().fg(Color::Red)),
+                .border_style(Style::default().red()),
         )
         .wrap(ratatui::widgets::Wrap { trim: false })
         .alignment(ratatui::layout::Alignment::Left);
@@ -143,12 +142,12 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .border_style(Style::default().fg(Color::White)),
+                .border_style(Style::default().white()),
         )
         .highlight_style(
             Style::default()
-                .bg(Color::DarkGray)
-                .add_modifier(Modifier::BOLD),
+                .on_dark_gray()
+                .bold(),
         )
         .highlight_symbol("");
 
@@ -160,15 +159,15 @@ fn create_rds_list_item(instance: &RdsInstance) -> ListItem<'_> {
         Span::styled(
             instance.identifier.to_string(),
             Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
+                .white()
+                .bold(),
         ),
         Span::raw(" | "),
-        Span::styled(&instance.engine, Style::default().fg(Color::Green)),
+        Span::styled(&instance.engine, Style::default().green()),
         Span::raw(" | "),
         Span::styled(&instance.status, get_status_style(&instance.status)),
         Span::raw(" | "),
-        Span::styled(&instance.instance_class, Style::default().fg(Color::Cyan)),
+        Span::styled(&instance.instance_class, Style::default().cyan()),
     ])];
     ListItem::new(lines)
 }
@@ -191,24 +190,24 @@ fn create_sqs_list_item(queue: &SqsQueue) -> ListItem<'_> {
         Span::styled(
             queue.name.to_string(),
             Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
+                .white()
+                .bold(),
         ),
         Span::raw(" | "),
         Span::styled(&queue.queue_type, get_queue_type_style(&queue.queue_type)),
         Span::raw(" | "),
-        Span::styled(format!("Messages: {}", queue_depth), Style::default().fg(Color::Cyan)),
+        Span::styled(format!("Messages: {}", queue_depth), Style::default().cyan()),
         Span::raw(" | "),
-        Span::styled(format!("Retention: {}", retention_period), Style::default().fg(Color::Yellow)),
+        Span::styled(format!("Retention: {}", retention_period), Style::default().yellow()),
     ])];
     ListItem::new(lines)
 }
 
 fn get_queue_type_style(queue_type: &str) -> Style {
     match queue_type {
-        "FIFO" => Style::default().fg(Color::Magenta),
-        "Standard" => Style::default().fg(Color::Green),
-        _ => Style::default().fg(Color::Gray),
+        "FIFO" => Style::default().magenta(),
+        "Standard" => Style::default().green(),
+        _ => Style::default().gray(),
     }
 }
 
@@ -216,15 +215,15 @@ fn render_controls(f: &mut Frame, area: ratatui::layout::Rect) {
     let controls = Paragraph::new(
         "↑/↓: Navigate • Enter: View Details • Esc: Back to Services • r: Refresh • q: Quit",
     )
-    .style(Style::default().fg(Color::Gray));
+    .style(Style::default().gray());
     f.render_widget(controls, area);
 }
 
 fn get_status_style(status: &str) -> Style {
     match status {
-        "available" => Style::default().fg(Color::Green),
-        "stopped" => Style::default().fg(Color::Red),
-        "starting" | "stopping" => Style::default().fg(Color::Yellow),
-        _ => Style::default().fg(Color::Gray),
+        "available" => Style::default().green(),
+        "stopped" => Style::default().red(),
+        "starting" | "stopping" => Style::default().yellow(),
+        _ => Style::default().gray(),
     }
 }

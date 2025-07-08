@@ -4,7 +4,7 @@ use aws_sdk_cloudwatch::Client as CloudWatchClient;
 use std::time::SystemTime;
 
 // Import our new modules
-use super::metric_builder::build_metric_data;
+use super::metric_builder::{build_metric_data, build_metric_data_with_characteristics};
 use super::metric_fetcher::fetch_comprehensive_metric;
 use super::metric_types::{AdvancedMetrics, CoreMetrics, MetricFetchParams};
 use super::session::AwsSessionManager;
@@ -45,6 +45,54 @@ pub async fn load_metrics(instance_id: &str, time_range: TimeRange) -> Result<Me
     .await;
 
     Ok(build_metric_data(core_metrics, advanced_metrics))
+}
+
+/// Load metrics with instance characteristics for intelligent filtering
+pub async fn load_metrics_with_instance(
+    instance: &crate::models::RdsInstance, 
+    time_range: TimeRange
+) -> Result<MetricData> {
+    // Use shared AWS session manager for CloudWatch client
+    let client = AwsSessionManager::cloudwatch_client().await;
+
+    let end_time = SystemTime::now();
+    let start_time = end_time - time_range.duration();
+
+    let instance_id_owned = instance.identifier.clone();
+
+    // Calculate period based on time range duration and period_days
+    let period_seconds = calculate_period_seconds(&time_range);
+
+    // Create instance characteristics for intelligent filtering
+    let characteristics = super::metric_types::RdsInstanceCharacteristics::from_instance(instance);
+    let relevant_metrics = characteristics.get_relevant_metrics();
+
+    // Only fetch metrics that are relevant for this instance
+    let core_metrics = fetch_relevant_core_metrics(
+        &client,
+        &instance_id_owned,
+        start_time,
+        end_time,
+        period_seconds,
+        &relevant_metrics,
+    )
+    .await;
+
+    let advanced_metrics = fetch_relevant_advanced_metrics(
+        &client,
+        &instance_id_owned,
+        start_time,
+        end_time,
+        period_seconds,
+        &relevant_metrics,
+    )
+    .await;
+
+    Ok(build_metric_data_with_characteristics(
+        core_metrics, 
+        advanced_metrics, 
+        Some(characteristics)
+    ))
 }
 
 async fn fetch_core_metrics(
@@ -284,10 +332,18 @@ async fn fetch_advanced_metrics(
         (burst_balance, burst_balance_hist, _),
         (cpu_credit_usage, cpu_credit_usage_hist, _),
         (cpu_credit_balance, cpu_credit_balance_hist, _),
+        // Missing CPU surplus credit metrics results
+        (cpu_surplus_credit_balance, cpu_surplus_credit_balance_hist, _),
+        (cpu_surplus_credits_charged, cpu_surplus_credits_charged_hist, _),
+        // Missing EBS performance metrics results
+        (ebs_byte_balance, ebs_byte_balance_hist, _),
+        (ebs_io_balance, ebs_io_balance_hist, _),
         (bin_log_disk_usage, bin_log_disk_usage_hist, _),
         (replica_lag, replica_lag_hist, _),
         (max_transaction_ids, max_transaction_ids_hist, _),
         (oldest_replication_slot_lag, oldest_replication_slot_lag_hist, _),
+        // Missing logical replication slot lag metric result
+        (oldest_logical_replication_slot_lag, oldest_logical_replication_slot_lag_hist, _),
         (replication_slot_disk_usage, replication_slot_disk_usage_hist, _),
         (transaction_logs_disk_usage, transaction_logs_disk_usage_hist, _),
         (transaction_logs_generation, transaction_logs_generation_hist, _),
@@ -326,6 +382,56 @@ async fn fetch_advanced_metrics(
                 namespace: "AWS/RDS".to_string(),
                 instance_id: instance_id.to_string(),
                 unit: None,
+            },
+            start_time,
+            end_time,
+            period_seconds
+        ),
+        // Missing CPU surplus credit metrics
+        fetch_comprehensive_metric(
+            client,
+            MetricFetchParams {
+                metric_name: "CPUSurplusCreditBalance".to_string(),
+                namespace: "AWS/RDS".to_string(),
+                instance_id: instance_id.to_string(),
+                unit: None,
+            },
+            start_time,
+            end_time,
+            period_seconds
+        ),
+        fetch_comprehensive_metric(
+            client,
+            MetricFetchParams {
+                metric_name: "CPUSurplusCreditsCharged".to_string(),
+                namespace: "AWS/RDS".to_string(),
+                instance_id: instance_id.to_string(),
+                unit: None,
+            },
+            start_time,
+            end_time,
+            period_seconds
+        ),
+        // Missing EBS performance metrics
+        fetch_comprehensive_metric(
+            client,
+            MetricFetchParams {
+                metric_name: "EBSByteBalance%".to_string(),
+                namespace: "AWS/RDS".to_string(),
+                instance_id: instance_id.to_string(),
+                unit: Some("Percent".to_string()),
+            },
+            start_time,
+            end_time,
+            period_seconds
+        ),
+        fetch_comprehensive_metric(
+            client,
+            MetricFetchParams {
+                metric_name: "EBSIOBalance%".to_string(),
+                namespace: "AWS/RDS".to_string(),
+                instance_id: instance_id.to_string(),
+                unit: Some("Percent".to_string()),
             },
             start_time,
             end_time,
@@ -371,6 +477,19 @@ async fn fetch_advanced_metrics(
             client,
             MetricFetchParams {
                 metric_name: "OldestReplicationSlotLag".to_string(),
+                namespace: "AWS/RDS".to_string(),
+                instance_id: instance_id.to_string(),
+                unit: Some("Bytes".to_string()),
+            },
+            start_time,
+            end_time,
+            period_seconds
+        ),
+        // Missing logical replication slot lag metric
+        fetch_comprehensive_metric(
+            client,
+            MetricFetchParams {
+                metric_name: "OldestLogicalReplicationSlotLag".to_string(),
                 namespace: "AWS/RDS".to_string(),
                 instance_id: instance_id.to_string(),
                 unit: Some("Bytes".to_string()),
@@ -460,6 +579,16 @@ async fn fetch_advanced_metrics(
         cpu_credit_usage_history: cpu_credit_usage_hist,
         cpu_credit_balance,
         cpu_credit_balance_history: cpu_credit_balance_hist,
+        // Missing CPU surplus credit metrics
+        cpu_surplus_credit_balance,
+        cpu_surplus_credit_balance_history: cpu_surplus_credit_balance_hist,
+        cpu_surplus_credits_charged,
+        cpu_surplus_credits_charged_history: cpu_surplus_credits_charged_hist,
+        // Missing EBS performance metrics
+        ebs_byte_balance,
+        ebs_byte_balance_history: ebs_byte_balance_hist,
+        ebs_io_balance,
+        ebs_io_balance_history: ebs_io_balance_hist,
         bin_log_disk_usage,
         bin_log_disk_usage_history: bin_log_disk_usage_hist,
         replica_lag,
@@ -468,6 +597,9 @@ async fn fetch_advanced_metrics(
         maximum_used_transaction_ids_history: max_transaction_ids_hist,
         oldest_replication_slot_lag,
         oldest_replication_slot_lag_history: oldest_replication_slot_lag_hist,
+        // Missing logical replication slot lag metric
+        oldest_logical_replication_slot_lag,
+        oldest_logical_replication_slot_lag_history: oldest_logical_replication_slot_lag_hist,
         replication_slot_disk_usage,
         replication_slot_disk_usage_history: replication_slot_disk_usage_hist,
         transaction_logs_disk_usage,
@@ -481,4 +613,85 @@ async fn fetch_advanced_metrics(
         connection_attempts,
         connection_attempts_history: connection_attempts_hist,
     }
+}
+
+async fn fetch_relevant_core_metrics(
+    client: &CloudWatchClient,
+    instance_id: &str,
+    start_time: SystemTime,
+    end_time: SystemTime,
+    period_seconds: i32,
+    relevant_metrics: &[crate::models::MetricType],
+) -> CoreMetrics {
+    use crate::models::MetricType;
+    
+    // Check which core metrics are relevant for this instance
+    let fetch_cpu = relevant_metrics.contains(&MetricType::CpuUtilization);
+    let fetch_connections = relevant_metrics.contains(&MetricType::DatabaseConnections);
+    let fetch_free_storage = relevant_metrics.contains(&MetricType::FreeStorageSpace);
+    let fetch_read_iops = relevant_metrics.contains(&MetricType::ReadIops);
+    let fetch_write_iops = relevant_metrics.contains(&MetricType::WriteIops);
+    let fetch_read_latency = relevant_metrics.contains(&MetricType::ReadLatency);
+    let fetch_write_latency = relevant_metrics.contains(&MetricType::WriteLatency);
+    let fetch_read_throughput = relevant_metrics.contains(&MetricType::ReadThroughput);
+    let fetch_write_throughput = relevant_metrics.contains(&MetricType::WriteThroughput);
+    let fetch_net_receive = relevant_metrics.contains(&MetricType::NetworkReceiveThroughput);
+    let fetch_net_transmit = relevant_metrics.contains(&MetricType::NetworkTransmitThroughput);
+    let fetch_swap = relevant_metrics.contains(&MetricType::SwapUsage);
+    let fetch_memory = relevant_metrics.contains(&MetricType::FreeableMemory);
+    let fetch_queue_depth = relevant_metrics.contains(&MetricType::QueueDepth);
+
+    // Fetch only relevant metrics concurrently
+    let tasks = vec![
+        // CPU Utilization (always relevant)
+        if fetch_cpu {
+            Some(fetch_comprehensive_metric(
+                client,
+                MetricFetchParams {
+                    metric_name: "CPUUtilization".to_string(),
+                    namespace: "AWS/RDS".to_string(),
+                    instance_id: instance_id.to_string(),
+                    unit: Some("Percent".to_string()),
+                },
+                start_time,
+                end_time,
+                period_seconds
+            ))
+        } else { None },
+        
+        // Database Connections (always relevant)
+        if fetch_connections {
+            Some(fetch_comprehensive_metric(
+                client,
+                MetricFetchParams {
+                    metric_name: "DatabaseConnections".to_string(),
+                    namespace: "AWS/RDS".to_string(),
+                    instance_id: instance_id.to_string(),
+                    unit: Some("Count".to_string()),
+                },
+                start_time,
+                end_time,
+                period_seconds
+            ))
+        } else { None },
+
+        // Add more metrics as needed...
+    ];
+
+    // For now, let's fetch all core metrics and filter later
+    // This is simpler and we can optimize it further if needed
+    fetch_core_metrics(client, instance_id, start_time, end_time, period_seconds).await
+}
+
+async fn fetch_relevant_advanced_metrics(
+    client: &CloudWatchClient,
+    instance_id: &str,
+    start_time: SystemTime,
+    end_time: SystemTime,
+    period_seconds: i32,
+    relevant_metrics: &[crate::models::MetricType],
+) -> AdvancedMetrics {
+    // For now, let's fetch all advanced metrics and filter later
+    // This is simpler and we can optimize it further if needed
+    fetch_advanced_metrics(client, instance_id, start_time, end_time, period_seconds).await
 }

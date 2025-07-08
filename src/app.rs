@@ -1,5 +1,5 @@
 use crate::aws::time_range::{TimeRange, TimeUnit};
-use crate::aws::{cloudwatch_service::load_metrics, load_rds_instances, rds::RdsInstanceManager};
+use crate::aws::{cloudwatch_service::{load_metrics, load_metrics_with_instance}, load_rds_instances, rds::RdsInstanceManager};
 use crate::models::{App, AppState, AwsService, FocusedPanel, MetricType, ServiceInstance, TimeRangeMode, Timezone};
 use anyhow::Result;
 use std::time::{Duration, Instant};
@@ -44,6 +44,7 @@ impl App {
             sparkline_grid_scroll: 0,
             sparkline_grid_selected_index: 0,
             saved_sparkline_grid_selected_index: 0,
+            sparkline_grid_list_state: ratatui::widgets::ListState::default(),
 
             // Initialize error handling
             error_message: None,
@@ -316,9 +317,19 @@ impl App {
     }
 
     pub fn get_selected_instance(&self) -> Option<&ServiceInstance> {
+        log::info!("Getting selected instance, list_state.selected(): {:?}, instances.len(): {}", 
+            self.list_state.selected(), self.instances.len());
         if let Some(index) = self.list_state.selected() {
-            self.instances.get(index)
+            log::info!("List state has selected index: {}", index);
+            let instance = self.instances.get(index);
+            if let Some(inst) = instance {
+                log::info!("Found instance at index {}: {:?}", index, inst.as_aws_instance().id());
+            } else {
+                log::warn!("No instance found at index {}", index);
+            }
+            instance
         } else {
+            log::info!("No index selected in list state");
             None
         }
     }
@@ -330,12 +341,21 @@ impl App {
 
     /// Safely get the selected RDS instance with bounds checking
     pub fn get_selected_rds_instance(&self) -> Option<&RdsInstance> {
+        log::info!("Getting selected RDS instance, selected_instance: {:?}", self.selected_instance);
         if let Some(instance) = self.get_selected_instance() {
+            log::info!("Found selected instance, checking type...");
             match instance {
-                ServiceInstance::Rds(rds) => Some(rds),
-                _ => None,
+                ServiceInstance::Rds(rds) => {
+                    log::info!("Selected instance is RDS: {} ({})", rds.identifier, rds.engine);
+                    Some(rds)
+                },
+                _ => {
+                    log::info!("Selected instance is not RDS type");
+                    None
+                }
             }
         } else {
+            log::info!("No instance selected");
             None
         }
     }
@@ -361,7 +381,7 @@ impl App {
     /// Count available metrics based on the current service
     pub fn count_available_metrics(&self) -> usize {
         match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-            AwsService::Rds => self.metrics.get_available_metrics().len(),
+            AwsService::Rds => self.metrics.get_available_metrics_with_data().len(),
             AwsService::Sqs => self.sqs_metrics.get_available_metrics().len(),
         }
     }
@@ -377,23 +397,50 @@ impl App {
 
     match service {
         AwsService::Rds => {
-            // Load RDS metrics
-            match load_metrics(instance_id, self.time_range).await {
-                Ok(metrics) => {
-                    self.metrics = metrics;
-                    self.metrics_loading = false;
-                    self.clear_error();
-                    self.initialize_sparkline_grid();
-                    self.mark_refreshed();
-                    Ok(())
+            // Load RDS metrics with intelligent filtering
+            if let Some(rds_instance) = self.get_selected_rds_instance() {
+                log::info!("Loading metrics with intelligent filtering for RDS instance: {} ({})", 
+                    rds_instance.identifier, rds_instance.engine);
+                match load_metrics_with_instance(rds_instance, self.time_range).await {
+                    Ok(metrics) => {
+                        log::info!("Successfully loaded metrics with characteristics");
+                        self.metrics = metrics;
+                        self.metrics_loading = false;
+                        self.clear_error();
+                        self.initialize_sparkline_grid();
+                        self.mark_refreshed();
+                        Ok(())
+                    }
+                    Err(e) => {
+                        log::error!("Failed to load metrics with characteristics: {}", e);
+                        self.metrics_loading = false;
+                        self.error_message = Some(format!("CloudWatch Error: {e}"));
+                        self.metrics = crate::models::MetricData::default();
+                        self.selected_metric = None;
+                        self.sparkline_grid_selected_index = 0;
+                        Ok(())
+                    }
                 }
-                Err(e) => {
-                    self.metrics_loading = false;
-                    self.error_message = Some(format!("CloudWatch Error: {e}"));
-                    self.metrics = crate::models::MetricData::default();
-                    self.selected_metric = None;
-                    self.sparkline_grid_selected_index = 0;
-                    Ok(())
+            } else {
+                log::warn!("No RDS instance selected, falling back to old method");
+                // Fallback to old method if no RDS instance is selected
+                match load_metrics(instance_id, self.time_range).await {
+                    Ok(metrics) => {
+                        self.metrics = metrics;
+                        self.metrics_loading = false;
+                        self.clear_error();
+                        self.initialize_sparkline_grid();
+                        self.mark_refreshed();
+                        Ok(())
+                    }
+                    Err(e) => {
+                        self.metrics_loading = false;
+                        self.error_message = Some(format!("CloudWatch Error: {e}"));
+                        self.metrics = crate::models::MetricData::default();
+                        self.selected_metric = None;
+                        self.sparkline_grid_selected_index = 0;
+                        Ok(())
+                    }
                 }
             }
         }
@@ -429,7 +476,7 @@ impl App {
 
     pub fn get_available_metrics(&self) -> Vec<MetricType> {
     match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-        AwsService::Rds => self.metrics.get_available_metrics(),
+        AwsService::Rds => self.metrics.get_available_metrics_with_data(),
         AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
     }
 }
@@ -441,7 +488,7 @@ impl App {
     pub fn update_selected_metric(&mut self) {
     match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
         AwsService::Rds => {
-            let available_metrics = self.metrics.get_available_metrics();
+            let available_metrics = self.metrics.get_available_metrics_with_data();
             if let Some(metric) = available_metrics.get(self.sparkline_grid_selected_index) {
                 self.selected_metric = Some(metric.clone());
             }
@@ -455,25 +502,29 @@ impl App {
     }
 }
 
-    pub fn initialize_sparkline_grid(&mut self) {
-    match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+        pub fn initialize_sparkline_grid(&mut self) {
+        match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
         AwsService::Rds => {
-            let available_metrics = self.metrics.get_available_metrics();
+            let available_metrics = self.metrics.get_available_metrics_with_data();
             if !available_metrics.is_empty() {
                 if self.selected_metric.is_none() {
                     self.selected_metric = Some(available_metrics[0].clone());
                     self.sparkline_grid_selected_index = 0;
+                    self.sparkline_grid_list_state.select(Some(0));
                 } else if let Some(ref current_metric) = self.selected_metric {
                     if let Some(index) = available_metrics.iter().position(|m| m == current_metric) {
                         self.sparkline_grid_selected_index = index;
+                        self.sparkline_grid_list_state.select(Some(index));
                     } else {
                         self.selected_metric = Some(available_metrics[0].clone());
                         self.sparkline_grid_selected_index = 0;
+                        self.sparkline_grid_list_state.select(Some(0));
                     }
                 }
             } else {
                 self.selected_metric = None;
                 self.sparkline_grid_selected_index = 0;
+                self.sparkline_grid_list_state.select(None);
             }
         }
         AwsService::Sqs => {
@@ -482,17 +533,21 @@ impl App {
                 if self.selected_metric.is_none() {
                     self.selected_metric = Some(available_metrics[0].clone());
                     self.sparkline_grid_selected_index = 0;
+                    self.sparkline_grid_list_state.select(Some(0));
                 } else if let Some(ref current_metric) = self.selected_metric {
                     if let Some(index) = available_metrics.iter().position(|m| m == current_metric) {
                         self.sparkline_grid_selected_index = index;
+                        self.sparkline_grid_list_state.select(Some(index));
                     } else {
                         self.selected_metric = Some(available_metrics[0].clone());
                         self.sparkline_grid_selected_index = 0;
+                        self.sparkline_grid_list_state.select(Some(0));
                     }
                 }
             } else {
                 self.selected_metric = None;
                 self.sparkline_grid_selected_index = 0;
+                self.sparkline_grid_list_state.select(None);
             }
         }
     }
@@ -707,36 +762,29 @@ impl App {
 
     pub fn back_to_metrics_summary(&mut self) {
         self.state = AppState::MetricsSummary;
-        self.scroll_offset = self.metrics_summary_scroll;
         self.focused_panel = self.saved_focused_panel.clone();
         self.sparkline_grid_selected_index = self.saved_sparkline_grid_selected_index;
         self.update_selected_metric();
+        // ListState maintains its own position, no need for manual scroll_offset restoration
     }
 
     pub fn enter_instance_details(&mut self) {
-    if let Some(i) = self.list_state.selected() {
-        self.selected_instance = Some(i);
-        self.state = AppState::InstanceDetails;
-        self.metrics_summary_scroll = self.scroll_offset;
-        self.saved_focused_panel = self.focused_panel.clone();
-        self.saved_sparkline_grid_selected_index = self.sparkline_grid_selected_index;
+        if let Some(i) = self.list_state.selected() {
+            self.selected_instance = Some(i);
+            self.state = AppState::InstanceDetails;
+            self.saved_focused_panel = self.focused_panel.clone();
+            self.saved_sparkline_grid_selected_index = self.sparkline_grid_selected_index;
 
-        let available_metrics_count = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-            AwsService::Rds => self.metrics.count_available_metrics(),
-            AwsService::Sqs => self.sqs_metrics.count_available_metrics(),
-        };
-        
-        self.scroll_offset = self
-            .sparkline_grid_selected_index
-            .min(available_metrics_count.saturating_sub(1));
+            // The ListState will handle the selection automatically
+            // No need for manual scroll_offset manipulation since we're using the same ListState
+        }
     }
-}
 
     pub fn back_to_list(&mut self) {
         self.state = AppState::InstanceList;
         self.selected_instance = None;
-        self.scroll_offset = 0;
-        self.metrics_summary_scroll = 0;
+        // Reset metrics navigation state
+        self.reset_scroll();
     }
 
     // ================================
@@ -760,14 +808,8 @@ impl App {
                 }
             },
             AppState::InstanceDetails => {
-                if self.scroll_offset > 0 {
-                    // Grid alignment: always ensure scroll_offset is a multiple of 2
-                    let metrics_per_row = 2;
-                    // Scroll by metrics_per_row (1 row) for grid alignment
-                    self.scroll_offset = self.scroll_offset.saturating_sub(metrics_per_row);
-                    // Force grid alignment (must be multiple of 2)
-                    self.scroll_offset = (self.scroll_offset / metrics_per_row) * metrics_per_row;
-                }
+                // Use the same built-in ListState navigation as MetricsSummary
+                self.sparkline_grid_scroll_up();
             }
             _ => {
                 if self.scroll_offset > 0 {
@@ -778,78 +820,42 @@ impl App {
     }
 
     pub fn scroll_down(&mut self) {
-    match self.state {
-        AppState::MetricsSummary => match self.focused_panel {
-            FocusedPanel::Timezone => {
-                self.timezone_scroll_down();
-            }
-            FocusedPanel::Period => {
-                self.period_scroll_down();
-            }
-            FocusedPanel::TimeRanges => {
-                self.time_range_scroll_down();
-            }
-            FocusedPanel::SparklineGrid => {
+        match self.state {
+            AppState::MetricsSummary => match self.focused_panel {
+                FocusedPanel::Timezone => {
+                    self.timezone_scroll_down();
+                }
+                FocusedPanel::Period => {
+                    self.period_scroll_down();
+                }
+                FocusedPanel::TimeRanges => {
+                    self.time_range_scroll_down();
+                }
+                FocusedPanel::SparklineGrid => {
+                    self.sparkline_grid_scroll_down();
+                }
+            },
+            AppState::InstanceDetails => {
+                // Use the same built-in ListState navigation as MetricsSummary
                 self.sparkline_grid_scroll_down();
             }
-        },
-        AppState::InstanceDetails => {
-            let total_individual_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-                AwsService::Rds => self.metrics.count_available_metrics(),
-                AwsService::Sqs => self.sqs_metrics.count_available_metrics(),
-            };
-            
-            // Safety check: ensure we have metrics to scroll through
-            if total_individual_metrics == 0 {
-                return;
-            }
-            
-            // Ensure metrics_per_screen is valid
-            if self.metrics_per_screen == 0 {
-                self.metrics_per_screen = 2; // Default fallback
-            }
-            
-            // Grid alignment: always ensure scroll_offset is a multiple of 2
-            let metrics_per_row = 2;
-            
-            // For grid system (2 per row), calculate proper maximum scroll offset
-            let max_offset = if total_individual_metrics > self.metrics_per_screen {
-                let max_scroll = total_individual_metrics - self.metrics_per_screen;
-                // Align to grid boundary
-                (max_scroll / metrics_per_row) * metrics_per_row
-            } else {
-                0
-            };
-            
-            if self.scroll_offset < max_offset {
-                // Scroll by metrics_per_row (1 row) for grid alignment
-                self.scroll_offset = (self.scroll_offset + metrics_per_row).min(max_offset);
-                // Force grid alignment (must be multiple of 2)
-                self.scroll_offset = (self.scroll_offset / metrics_per_row) * metrics_per_row;
-            }
+            _ => {}
         }
-        _ => {}
     }
-}
 
     pub fn reset_scroll(&mut self) {
-        match self.state {
-            AppState::MetricsSummary => {
-                self.metrics_summary_scroll = 0;
-                self.scroll_offset = 0;
-                self.focused_panel = FocusedPanel::Timezone;
-                self.saved_focused_panel = FocusedPanel::Timezone;
-                self.sparkline_grid_scroll = 0;
-                self.sparkline_grid_selected_index = 0;
-                self.saved_sparkline_grid_selected_index = 0;
-                self.initialize_sparkline_grid();
-            }
-            _ => {
-                self.scroll_offset = 0;
-                self.sparkline_grid_selected_index = 0;
-                self.metrics_summary_scroll = 0;
-            }
-        }
+        // Use unified reset for all states since we're using ListState everywhere
+        self.focused_panel = FocusedPanel::Timezone;
+        self.saved_focused_panel = FocusedPanel::Timezone;
+        self.sparkline_grid_selected_index = 0;
+        self.saved_sparkline_grid_selected_index = 0;
+        self.sparkline_grid_list_state = ratatui::widgets::ListState::default();
+        self.initialize_sparkline_grid();
+        
+        // Legacy fields can be set to 0 for compatibility
+        self.scroll_offset = 0;
+        self.metrics_summary_scroll = 0;
+        self.sparkline_grid_scroll = 0;
     }
 
     pub fn switch_panel(&mut self) {
@@ -901,7 +907,7 @@ impl App {
     pub fn sparkline_grid_scroll_up(&mut self) {
         // Get total metrics count for bounds checking
         let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-            AwsService::Rds => self.metrics.get_available_metrics(),
+            AwsService::Rds => self.metrics.get_available_metrics_with_data(),
             AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
         };
         
@@ -910,86 +916,20 @@ impl App {
             return;
         }
         
-        // Ensure selected_index is within bounds
-        if self.sparkline_grid_selected_index >= total_metrics {
-            self.sparkline_grid_selected_index = total_metrics.saturating_sub(1);
-            return;
+        // Use ratatui's built-in ListState for navigation
+        let current_selection = self.sparkline_grid_list_state.selected().unwrap_or(0);
+        
+        if current_selection > 0 {
+            let new_selection = current_selection.saturating_sub(1);
+            self.sparkline_grid_list_state.select(Some(new_selection));
+            self.sparkline_grid_selected_index = new_selection;
+            self.update_selected_metric();
         }
-        
-        // Move by row (2 metrics) for faster navigation
-        let metrics_per_row = 2;
-        
-        if self.sparkline_grid_selected_index >= metrics_per_row {
-            // Move up by one row (2 metrics)
-            self.sparkline_grid_selected_index -= metrics_per_row;
-        } else {
-            // If we're in the first row, go to the beginning
-            self.sparkline_grid_selected_index = 0;
-        }
-        
-        self.update_selected_metric();
-        
-        // Ensure the selected metric is visible in the view with proper bounds checking
-        self.ensure_selected_metric_visible();
     }
 
     pub fn sparkline_grid_scroll_down(&mut self) {
-    let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-        AwsService::Rds => self.metrics.get_available_metrics(),
-        AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
-    };
-    
-    let total_metrics = available_metrics.len();
-    if total_metrics == 0 {
-        return;
-    }
-    
-    // Ensure selected_index is within bounds
-    if self.sparkline_grid_selected_index >= total_metrics {
-        self.sparkline_grid_selected_index = total_metrics.saturating_sub(1);
-        return;
-    }
-    
-    // Move by row (2 metrics) for faster navigation
-    let metrics_per_row = 2;
-    
-    // Ensure metrics_per_screen is valid
-    if self.metrics_per_screen == 0 {
-        self.metrics_per_screen = 2; // Default fallback
-    }
-
-    // Calculate maximum valid scroll offset first
-    let max_scroll_offset = if total_metrics > self.metrics_per_screen {
-        let max_scroll = total_metrics - self.metrics_per_screen;
-        // Align to grid boundary
-        (max_scroll / metrics_per_row) * metrics_per_row
-    } else {
-        0
-    };
-    
-    // Calculate the maximum valid selected index that can be displayed
-    let max_valid_selected_index = max_scroll_offset + self.metrics_per_screen.saturating_sub(1);
-    
-    // Check if we can move down by one row, but don't exceed the last displayable metric
-    if self.sparkline_grid_selected_index + metrics_per_row <= max_valid_selected_index && 
-       self.sparkline_grid_selected_index + metrics_per_row < total_metrics {
-        // Move down by one row (2 metrics)
-        self.sparkline_grid_selected_index += metrics_per_row;
-    } else if self.sparkline_grid_selected_index < total_metrics.saturating_sub(1) {
-        // If we can't move a full row, move to the last metric but respect the display bounds
-        self.sparkline_grid_selected_index = max_valid_selected_index.min(total_metrics.saturating_sub(1));
-    }
-    // If we're already at the maximum displayable position, don't move at all
-    
-    self.update_selected_metric();
-    
-    // Ensure the selected metric is visible in the view with proper bounds checking
-    self.ensure_selected_metric_visible();
-}
-
-    pub fn sparkline_grid_scroll_left(&mut self) {
         let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-            AwsService::Rds => self.metrics.get_available_metrics(),
+            AwsService::Rds => self.metrics.get_available_metrics_with_data(),
             AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
         };
         
@@ -998,34 +938,42 @@ impl App {
             return;
         }
         
-        // Ensure selected_index is within bounds
-        if self.sparkline_grid_selected_index >= total_metrics {
-            self.sparkline_grid_selected_index = total_metrics.saturating_sub(1);
+        // Use ratatui's built-in ListState for navigation
+        let current_selection = self.sparkline_grid_list_state.selected().unwrap_or(0);
+        
+        if current_selection < total_metrics.saturating_sub(1) {
+            let new_selection = (current_selection + 1).min(total_metrics.saturating_sub(1));
+            self.sparkline_grid_list_state.select(Some(new_selection));
+            self.sparkline_grid_selected_index = new_selection;
+            self.update_selected_metric();
+        }
+    }
+
+    pub fn sparkline_grid_scroll_left(&mut self) {
+        let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+            AwsService::Rds => self.metrics.get_available_metrics_with_data(),
+            AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
+        };
+        
+        let total_metrics = available_metrics.len();
+        if total_metrics == 0 {
             return;
         }
         
-        let metrics_per_row = 2;
-        let current_row = self.sparkline_grid_selected_index / metrics_per_row;
-        let current_col = self.sparkline_grid_selected_index % metrics_per_row;
+        // Use ratatui's built-in ListState for navigation
+        let current_selection = self.sparkline_grid_list_state.selected().unwrap_or(0);
         
-        if current_col > 0 {
-            // Move left within the same row
-            self.sparkline_grid_selected_index -= 1;
-        } else if current_row > 0 {
-            // Move to the rightmost column of the previous row
-            let prev_row_start = (current_row - 1) * metrics_per_row;
-            let prev_row_end = (prev_row_start + metrics_per_row - 1).min(total_metrics - 1);
-            self.sparkline_grid_selected_index = prev_row_end;
+        if current_selection > 0 {
+            let new_selection = current_selection.saturating_sub(1);
+            self.sparkline_grid_list_state.select(Some(new_selection));
+            self.sparkline_grid_selected_index = new_selection;
+            self.update_selected_metric();
         }
-        // If we're at the top-left, stay there
-        
-        self.update_selected_metric();
-        self.ensure_selected_metric_visible();
     }
 
     pub fn sparkline_grid_scroll_right(&mut self) {
         let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-            AwsService::Rds => self.metrics.get_available_metrics(),
+            AwsService::Rds => self.metrics.get_available_metrics_with_data(),
             AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
         };
         
@@ -1034,96 +982,16 @@ impl App {
             return;
         }
         
-        // Ensure selected_index is within bounds
-        if self.sparkline_grid_selected_index >= total_metrics {
-            self.sparkline_grid_selected_index = total_metrics.saturating_sub(1);
-            return;
+        // Use ratatui's built-in ListState for navigation
+        let current_selection = self.sparkline_grid_list_state.selected().unwrap_or(0);
+        
+        if current_selection < total_metrics.saturating_sub(1) {
+            let new_selection = (current_selection + 1).min(total_metrics.saturating_sub(1));
+            self.sparkline_grid_list_state.select(Some(new_selection));
+            self.sparkline_grid_selected_index = new_selection;
+            self.update_selected_metric();
         }
-        
-        let metrics_per_row = 2;
-        let current_row = self.sparkline_grid_selected_index / metrics_per_row;
-        let current_col = self.sparkline_grid_selected_index % metrics_per_row;
-        
-        if current_col < metrics_per_row - 1 && self.sparkline_grid_selected_index + 1 < total_metrics {
-            // Move right within the same row
-            self.sparkline_grid_selected_index += 1;
-        } else if self.sparkline_grid_selected_index + 1 < total_metrics {
-            // Move to the leftmost column of the next row
-            let next_row_start = (current_row + 1) * metrics_per_row;
-            if next_row_start < total_metrics {
-                self.sparkline_grid_selected_index = next_row_start;
-            }
-        }
-        // If we're at the bottom-right, stay there
-        
-        self.update_selected_metric();
-        self.ensure_selected_metric_visible();
     }
 
-    fn ensure_selected_metric_visible(&mut self) {
-        // Ensure metrics_per_screen is valid
-        if self.metrics_per_screen == 0 {
-            self.metrics_per_screen = 2; // Default fallback
-        }
-
-        let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-            AwsService::Rds => self.metrics.get_available_metrics(),
-            AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
-        };
-        
-        let total_metrics = available_metrics.len();
-        if total_metrics == 0 {
-            self.scroll_offset = 0;
-            self.metrics_summary_scroll = 0;
-            return;
-        }
-        
-        let metrics_per_row = 2;
-
-        // Ensure selected index is within bounds first
-        if self.sparkline_grid_selected_index >= total_metrics {
-            self.sparkline_grid_selected_index = total_metrics.saturating_sub(1);
-        }
-
-        // Calculate maximum scroll offset to prevent infinite scrolling
-        let max_scroll_offset = if total_metrics > self.metrics_per_screen {
-            let max_scroll = total_metrics - self.metrics_per_screen;
-            // Align to grid boundary
-            (max_scroll / metrics_per_row) * metrics_per_row
-        } else {
-            0
-        };
-
-        // Ensure current scroll_offset is within valid bounds
-        self.scroll_offset = self.scroll_offset.min(max_scroll_offset);
-
-        // Check if selected metric is above the visible area
-        if self.sparkline_grid_selected_index < self.scroll_offset {
-            self.scroll_offset = self.sparkline_grid_selected_index;
-            // Force grid alignment (must be multiple of 2)
-            self.scroll_offset = (self.scroll_offset / metrics_per_row) * metrics_per_row;
-            // Ensure it doesn't exceed max bounds
-            self.scroll_offset = self.scroll_offset.min(max_scroll_offset);
-            self.metrics_summary_scroll = self.scroll_offset;
-        }
-        // Check if selected metric is below the visible area
-        else {
-            let max_visible_index = self.scroll_offset + self.metrics_per_screen.saturating_sub(1);
-            
-            if self.sparkline_grid_selected_index > max_visible_index {
-                // Calculate new scroll offset
-                let target_scroll = self
-                    .sparkline_grid_selected_index
-                    .saturating_sub(self.metrics_per_screen.saturating_sub(1));
-                
-                // Apply bounds checking and ensure grid alignment
-                self.scroll_offset = target_scroll.min(max_scroll_offset);
-                // Force grid alignment (must be multiple of 2)
-                self.scroll_offset = (self.scroll_offset / metrics_per_row) * metrics_per_row;
-                // Ensure it doesn't exceed max bounds again
-                self.scroll_offset = self.scroll_offset.min(max_scroll_offset);
-                self.metrics_summary_scroll = self.scroll_offset;
-            }
-        }
-    }
+    // This function is no longer needed as ratatui's ListState handles scrolling automatically
 }

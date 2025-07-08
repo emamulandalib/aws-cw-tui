@@ -1,12 +1,11 @@
 use super::{
     display_utils::calculate_time_panel_width, instance_details::render_metrics_loading,
-    metric_list_utils::render_enhanced_metric_list, time_range_utils::{render_aws_console_time_range_panel, render_period_selection_panel, render_timezone_selection_panel},
+    time_range_utils::{render_aws_console_time_range_panel, render_period_selection_panel, render_timezone_selection_panel},
 };
 use crate::models::{App, TimeRangeMode};
 
 use ratatui::{
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
+    prelude::*,
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
     Frame,
@@ -71,10 +70,8 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
         // Render time range panel
         render_aws_console_time_range_panel(f, app, time_panel_chunks[2]);
 
-        // Metrics Panel
-        // Update metrics_per_screen before rendering to ensure navigation works correctly
-        app.update_metrics_per_screen(content_chunks[1].height);
-        render_enhanced_metric_list(f, app, content_chunks[1]);
+        // Metrics Panel - AWS Console Style Grid (direct rendering)
+        super::aws_chart::AwsMetricsGrid::render(f, app, content_chunks[1]);
     }
 
     // Controls
@@ -90,20 +87,20 @@ fn render_rds_instance_info(
     let na_string = "N/A".to_string();
     let info_text = vec![
         Line::from(vec![
-            Span::styled("Engine: ", Style::default().fg(Color::White)),
-            Span::styled(&instance.engine, Style::default().fg(Color::White)),
+            Span::styled("Engine: ", Style::default().white()),
+            Span::styled(&instance.engine, Style::default().white()),
             Span::raw("  "),
-            Span::styled("Status: ", Style::default().fg(Color::White)),
-            Span::styled(&instance.status, Style::default().fg(Color::White)),
+            Span::styled("Status: ", Style::default().white()),
+            Span::styled(&instance.status, Style::default().white()),
             Span::raw("  "),
-            Span::styled("Class: ", Style::default().fg(Color::White)),
-            Span::styled(&instance.instance_class, Style::default().fg(Color::White)),
+            Span::styled("Class: ", Style::default().white()),
+            Span::styled(&instance.instance_class, Style::default().white()),
         ]),
         Line::from(vec![
-            Span::styled("Endpoint: ", Style::default().fg(Color::White)),
+            Span::styled("Endpoint: ", Style::default().white()),
             Span::styled(
                 instance.endpoint.as_ref().unwrap_or(&na_string),
-                Style::default().fg(Color::Cyan),
+                Style::default().cyan(),
             ),
         ]),
     ];
@@ -113,7 +110,7 @@ fn render_rds_instance_info(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Instance Information")
-                .border_style(Style::default().fg(Color::Cyan)),
+                .border_style(Style::default().cyan()),
         )
         .wrap(ratatui::widgets::Wrap { trim: false });
     f.render_widget(info, area);
@@ -127,17 +124,17 @@ fn render_sqs_instance_info(
 ) {
     let info_text = vec![
         Line::from(vec![
-            Span::styled("Queue: ", Style::default().fg(Color::White)),
-            Span::styled(&queue.name, Style::default().fg(Color::Green)),
+            Span::styled("Queue: ", Style::default().white()),
+            Span::styled(&queue.name, Style::default().green()),
             Span::raw("  "),
-            Span::styled("Type: ", Style::default().fg(Color::White)),
-            Span::styled(&queue.queue_type, Style::default().fg(Color::Yellow)),
+            Span::styled("Type: ", Style::default().white()),
+            Span::styled(&queue.queue_type, Style::default().yellow()),
         ]),
         Line::from(vec![
-            Span::styled("URL: ", Style::default().fg(Color::White)),
+            Span::styled("URL: ", Style::default().white()),
             Span::styled(
                 &queue.url,
-                Style::default().fg(Color::Cyan),
+                Style::default().cyan(),
             ),
         ]),
     ];
@@ -147,7 +144,7 @@ fn render_sqs_instance_info(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Queue Information")
-                .border_style(Style::default().fg(Color::Cyan)),
+                .border_style(Style::default().cyan()),
         )
         .wrap(ratatui::widgets::Wrap { trim: false });
     f.render_widget(info, area);
@@ -155,12 +152,12 @@ fn render_sqs_instance_info(
 
 fn render_default_header(f: &mut Frame, area: ratatui::layout::Rect) {
     let header_block = Paragraph::new("Metrics Summary")
-        .style(Style::default().fg(Color::White))
+        .style(Style::default().white())
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title("AWS CloudWatch TUI")
-                .border_style(Style::default().fg(Color::Cyan)),
+                .border_style(Style::default().cyan()),
         );
     f.render_widget(header_block, area);
 }
@@ -175,18 +172,18 @@ fn render_controls(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
         "↑/↓: Navigate • Tab: Switch Panels • t: Toggle Mode ({}) • Enter: Select • r: Refresh • b/Esc: Back • q: Quit", 
         mode_text
     ))
-        .style(Style::default().fg(Color::Gray));
+        .style(Style::default().gray());
     f.render_widget(controls, area);
 }
 
 fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, error_msg: &str) {
     let error_paragraph = Paragraph::new(error_msg)
-        .style(Style::default().fg(Color::Red))
+        .style(Style::default().red())
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Error")
-                .border_style(Style::default().fg(Color::Red)),
+                .border_style(Style::default().red()),
         )
         .wrap(ratatui::widgets::Wrap { trim: false })
         .alignment(ratatui::layout::Alignment::Left);

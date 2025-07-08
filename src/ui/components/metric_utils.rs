@@ -28,7 +28,10 @@ pub fn get_metric_unit(metric_type: &MetricType) -> &'static str {
         | MetricType::NetworkReceiveThroughput
         | MetricType::NetworkTransmitThroughput
         | MetricType::TransactionLogsGeneration => "Bytes/Second",
-        MetricType::CpuCreditUsage | MetricType::CpuCreditBalance => "Credits",
+        MetricType::CpuCreditUsage | MetricType::CpuCreditBalance 
+        | MetricType::CpuSurplusCreditBalance | MetricType::CpuSurplusCreditsCharged => "Credits",
+        MetricType::EbsByteBalance | MetricType::EbsIoBalance => "Percent",
+        MetricType::OldestLogicalReplicationSlotLag => "Bytes",
         // SQS Metrics
         MetricType::NumberOfMessagesSent
         | MetricType::NumberOfMessagesReceived
@@ -99,6 +102,12 @@ pub fn get_available_metrics_with_history(
             MetricType::FailedSqlServerAgentJobsCount => metrics.failed_sql_server_agent_jobs_count,
             MetricType::CheckpointLag => metrics.checkpoint_lag,
             MetricType::ConnectionAttempts => metrics.connection_attempts,
+            // New missing metrics
+            MetricType::CpuSurplusCreditBalance => metrics.cpu_surplus_credit_balance,
+            MetricType::CpuSurplusCreditsCharged => metrics.cpu_surplus_credits_charged,
+            MetricType::EbsByteBalance => metrics.ebs_byte_balance,
+            MetricType::EbsIoBalance => metrics.ebs_io_balance,
+            MetricType::OldestLogicalReplicationSlotLag => metrics.oldest_logical_replication_slot_lag,
             // SQS Metrics - return 0.0 for RDS metrics function
             MetricType::NumberOfMessagesSent => 0.0,
             MetricType::NumberOfMessagesReceived => 0.0,
@@ -267,7 +276,8 @@ pub fn get_metric_colors(metric_name: &str, current_value: f64) -> (Color, Color
 
 /// Format a metric value based on its unit
 pub fn format_value(value: f64, unit: &str) -> String {
-    match unit {
+    // Debug: Force display for debugging
+    let formatted = match unit {
         "Bytes" | "Bytes/Second" => format_bytes(value),
         "Percent" => format!("{value:.1}%"),
         "Seconds" => {
@@ -284,11 +294,20 @@ pub fn format_value(value: f64, unit: &str) -> String {
                 format!("{:.1}M", value / 1_000_000.0)
             } else if value >= 1_000.0 {
                 format!("{:.1}K", value / 1_000.0)
+            } else if value == 0.0 {
+                "0".to_string() // Show zero values clearly
             } else {
                 format!("{value:.1}")
             }
         }
         _ => format!("{value:.2}"),
+    };
+    
+    // Ensure we always return something visible (minimum 1 character)
+    if formatted.is_empty() {
+        "0".to_string()
+    } else {
+        formatted
     }
 }
 

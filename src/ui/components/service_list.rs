@@ -1,7 +1,6 @@
 use crate::models::App;
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    prelude::*,
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
@@ -24,11 +23,11 @@ pub fn render_service_list(f: &mut Frame, app: &mut App) {
 
 fn render_header(f: &mut Frame, area: Rect) {
     let header = Paragraph::new("AWS CloudWatch TUI - Service Selection")
-        .style(Style::default().fg(Color::White))
+        .style(Style::default().white())
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Cyan)),
+                .border_style(Style::default().cyan()),
         );
     f.render_widget(header, area);
 }
@@ -40,7 +39,7 @@ fn render_services(f: &mut Frame, area: Rect, app: &mut App) {
         .map(|service| {
             let content = vec![Line::from(vec![Span::styled(
                 service.display_name(),
-                Style::default().fg(Color::Green),
+                Style::default().green(),
             )])];
             ListItem::new(content)
         })
@@ -51,12 +50,12 @@ fn render_services(f: &mut Frame, area: Rect, app: &mut App) {
             Block::default()
                 .borders(Borders::ALL)
                 .title("Available Services")
-                .border_style(Style::default().fg(Color::White)),
+                .border_style(Style::default().white()),
         )
         .highlight_style(
             Style::default()
-                .bg(Color::DarkGray)
-                .add_modifier(Modifier::BOLD),
+                .on_dark_gray()
+                .bold(),
         )
         .highlight_symbol("");
 
@@ -65,6 +64,6 @@ fn render_services(f: &mut Frame, area: Rect, app: &mut App) {
 
 fn render_controls(f: &mut Frame, area: Rect) {
     let controls = Paragraph::new("↑/↓: Navigate • Enter: Select Service • q: Quit")
-        .style(Style::default().fg(Color::Gray));
+        .style(Style::default().gray());
     f.render_widget(controls, area);
 }

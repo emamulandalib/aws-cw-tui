@@ -10,6 +10,7 @@ use anyhow::Result;
 use clap::Command;
 use log::{info, error, debug, warn};
 use crossterm::event;
+use ratatui::prelude::*;
 
 use aws::session::AwsSessionManager;
 use event_handler::handle_event;

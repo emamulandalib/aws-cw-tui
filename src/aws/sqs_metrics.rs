@@ -28,7 +28,7 @@ pub async fn fetch_sqs_metrics(queue: &SqsQueue, time_range: &TimeRange) -> Resu
         .value(queue_name)
         .build();
 
-    // Define SQS metrics to fetch (10 standard AWS metrics)
+    // Define SQS metrics to fetch (11 standard AWS metrics)
     let metrics_to_fetch = vec![
         ("NumberOfMessagesSent", "AWS/SQS"),
         ("NumberOfMessagesReceived", "AWS/SQS"), 
@@ -40,6 +40,7 @@ pub async fn fetch_sqs_metrics(queue: &SqsQueue, time_range: &TimeRange) -> Resu
         ("NumberOfEmptyReceives", "AWS/SQS"),
         ("ApproximateNumberOfMessagesDelayed", "AWS/SQS"),
         ("SentMessageSize", "AWS/SQS"), // Added missing metric
+        ("NumberOfMessagesInDlq", "AWS/SQS"), // Added missing DLQ metric
     ];
 
     // FIFO-specific metrics (only fetch for FIFO queues)
@@ -119,6 +120,10 @@ pub async fn fetch_sqs_metrics(queue: &SqsQueue, time_range: &TimeRange) -> Resu
                         metric_data.sent_message_size = current_value;
                         metric_data.sent_message_size_history = values;
                     }
+                    "NumberOfMessagesInDlq" => {
+                        metric_data.number_of_messages_in_dlq = current_value;
+                        metric_data.dlq_messages_history = values;
+                    }
                     _ => {}
                 }
             }
@@ -128,13 +133,14 @@ pub async fn fetch_sqs_metrics(queue: &SqsQueue, time_range: &TimeRange) -> Resu
                 
                 // For critical metrics, try to get current value from SQS attributes and create synthetic history
                 match metric_name {
-                    "ApproximateNumberOfMessages" | "ApproximateNumberOfMessagesVisible" | "ApproximateNumberOfMessagesNotVisible" => {
+                    "ApproximateNumberOfMessages" | "ApproximateNumberOfMessagesVisible" | "ApproximateNumberOfMessagesNotVisible" | "NumberOfMessagesInDlq" => {
                         // Try to get current queue metrics from SQS directly
                         if let Ok((visible_messages, not_visible_messages, _delayed_messages)) = get_current_queue_metrics(queue).await {
                             let current_value = match metric_name {
                                 "ApproximateNumberOfMessages" => visible_messages + not_visible_messages,
                                 "ApproximateNumberOfMessagesVisible" => visible_messages,
                                 "ApproximateNumberOfMessagesNotVisible" => not_visible_messages,
+                                "NumberOfMessagesInDlq" => 0.0, // DLQ metrics need special handling
                                 _ => 0.0, // fallback
                             };
                             
@@ -153,6 +159,10 @@ pub async fn fetch_sqs_metrics(queue: &SqsQueue, time_range: &TimeRange) -> Resu
                                 "ApproximateNumberOfMessagesNotVisible" => {
                                     metric_data.approximate_number_of_messages_not_visible = current_value;
                                     metric_data.messages_not_visible_history = synthetic_history;
+                                }
+                                "NumberOfMessagesInDlq" => {
+                                    metric_data.number_of_messages_in_dlq = current_value;
+                                    metric_data.dlq_messages_history = synthetic_history;
                                 }
                                 _ => {}
                             }
@@ -185,6 +195,11 @@ pub async fn fetch_sqs_metrics(queue: &SqsQueue, time_range: &TimeRange) -> Resu
         if metric_data.messages_delayed_history.is_empty() {
             metric_data.approximate_number_of_messages_delayed = _delayed_messages;
             metric_data.messages_delayed_history = create_synthetic_history(_delayed_messages, 12);
+        }
+        if metric_data.dlq_messages_history.is_empty() {
+            // DLQ messages default to 0 if not available
+            metric_data.number_of_messages_in_dlq = 0.0;
+            metric_data.dlq_messages_history = create_synthetic_history(0.0, 12);
         }
         
         // Ensure we have timestamps if they're missing
