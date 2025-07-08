@@ -1,6 +1,6 @@
 use super::display_utils::truncate_string;
 use ratatui::{
-    style::{Color, Modifier, Style},
+    prelude::*,
     text::{Line, Span},
 };
 
@@ -18,8 +18,18 @@ pub struct MetricBlockParams {
 
 /// Creates a distinct visual block for each metric item with proper spacing and styling
 pub fn create_metric_block(params: MetricBlockParams) -> Vec<Line<'static>> {
-    // Calculate total width based on actual content structure
-    let total_width = params.name_width + params.sparkline_width + 12 + 4; // name + sparkline + value + spaces
+    // Create content with proper spacing and calculate actual width
+    let content = format!(
+        " {:<name_width$}  {:<sparkline_width$}  {:>12} ",
+        truncate_string(&params.metric_name, params.name_width),
+        params.sparkline,
+        params.formatted_value,
+        name_width = params.name_width,
+        sparkline_width = params.sparkline_width,
+    );
+
+    // Use actual content length for border width
+    let total_width = content.chars().count();
 
     // Create the frame characters
     let top_border = format!("┌{}┐", "─".repeat(total_width));
@@ -43,11 +53,11 @@ fn create_selected_metric_block(
     vec![
         Line::from(vec![Span::styled(
             top_border,
-            Style::default().fg(Color::Yellow),
+            Style::default().yellow(),
         )]),
         Line::from(vec![
-            Span::styled("│", Style::default().fg(Color::Yellow)),
-            Span::styled(" ", Style::default().bg(Color::DarkGray)),
+            Span::styled("│", Style::default().yellow()),
+            Span::styled(" ", Style::default().on_dark_gray()),
             Span::styled(
                 format!(
                     "{:<width$}",
@@ -55,11 +65,11 @@ fn create_selected_metric_block(
                     width = params.name_width
                 ),
                 Style::default()
-                    .fg(Color::Cyan)
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
+                    .cyan()
+                    .on_dark_gray()
+                    .bold(),
             ),
-            Span::styled(" ", Style::default().bg(Color::DarkGray)),
+            Span::styled("  ", Style::default().on_dark_gray()),
             Span::styled(
                 format!(
                     "{:<width$}",
@@ -68,23 +78,23 @@ fn create_selected_metric_block(
                 ),
                 Style::default()
                     .fg(params.sparkline_color)
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
+                    .on_dark_gray()
+                    .bold(),
             ),
-            Span::styled(" ", Style::default().bg(Color::DarkGray)),
+            Span::styled("  ", Style::default().on_dark_gray()),
             Span::styled(
                 format!("{:>12}", params.formatted_value),
                 Style::default()
                     .fg(params.value_color)
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
+                    .on_dark_gray()
+                    .bold(),
             ),
-            Span::styled(" ", Style::default().bg(Color::DarkGray)),
-            Span::styled("│", Style::default().fg(Color::Yellow)),
+            Span::styled(" ", Style::default().on_dark_gray()),
+            Span::styled("│", Style::default().yellow()),
         ]),
         Line::from(vec![Span::styled(
             bottom_border,
-            Style::default().fg(Color::Yellow),
+            Style::default().yellow(),
         )]),
     ]
 }
@@ -98,10 +108,10 @@ fn create_regular_metric_block(
     vec![
         Line::from(vec![Span::styled(
             top_border,
-            Style::default().fg(Color::Yellow),
+            Style::default().yellow(),
         )]),
         Line::from(vec![
-            Span::styled("│", Style::default().fg(Color::Yellow)),
+            Span::styled("│", Style::default().yellow()),
             Span::styled(" ", Style::default()),
             Span::styled(
                 format!(
@@ -109,9 +119,9 @@ fn create_regular_metric_block(
                     truncate_string(&params.metric_name, params.name_width),
                     width = params.name_width
                 ),
-                Style::default().fg(Color::Cyan),
+                Style::default().cyan(),
             ),
-            Span::styled(" ", Style::default()),
+            Span::styled("  ", Style::default()),
             Span::styled(
                 format!(
                     "{:<width$}",
@@ -120,17 +130,17 @@ fn create_regular_metric_block(
                 ),
                 Style::default().fg(params.sparkline_color),
             ),
-            Span::styled(" ", Style::default()),
+            Span::styled("  ", Style::default()),
             Span::styled(
                 format!("{:>12}", params.formatted_value),
-                Style::default().fg(params.value_color),
+                Style::default().fg(params.value_color).bold(),
             ),
             Span::styled(" ", Style::default()),
-            Span::styled("│", Style::default().fg(Color::Yellow)),
+            Span::styled("│", Style::default().yellow()),
         ]),
         Line::from(vec![Span::styled(
             bottom_border,
-            Style::default().fg(Color::Yellow),
+            Style::default().yellow(),
         )]),
     ]
 }

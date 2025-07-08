@@ -77,16 +77,27 @@ pub struct MetricData {
     pub burst_balance: f64,      // Percent - GP2 burst bucket credits
     pub cpu_credit_usage: f64,   // Credits - for T2/T3/T4g instances
     pub cpu_credit_balance: f64, // Credits - for T2/T3/T4g instances
+    // Missing CPU surplus credit metrics
+    pub cpu_surplus_credit_balance: f64, // Credits - CPU surplus credit balance
+    pub cpu_surplus_credits_charged: f64, // Credits - CPU surplus credits charged
+    // Missing EBS performance metrics
+    pub ebs_byte_balance: f64, // Percent - EBS byte balance
+    pub ebs_io_balance: f64, // Percent - EBS IO balance
     pub bin_log_disk_usage: f64, // Bytes - MySQL/MariaDB binary logs
     pub replica_lag: f64,        // Seconds - read replica lag
     pub maximum_used_transaction_ids: f64, // Count - PostgreSQL transaction IDs
     pub oldest_replication_slot_lag: f64, // Bytes - PostgreSQL replication slot lag
+    // Missing logical replication slot lag metric
+    pub oldest_logical_replication_slot_lag: f64, // Bytes - PostgreSQL logical replication slot lag
     pub replication_slot_disk_usage: f64, // Bytes - PostgreSQL replication slots
     pub transaction_logs_disk_usage: f64, // Bytes - PostgreSQL transaction logs
     pub transaction_logs_generation: f64, // Bytes/second - PostgreSQL log generation
     pub failed_sql_server_agent_jobs_count: f64, // Count/minute - SQL Server agent jobs
     pub checkpoint_lag: f64,     // Seconds - checkpoint lag
     pub connection_attempts: f64, // Count - MySQL connection attempts
+
+    // RDS Instance characteristics for intelligent metric filtering
+    pub instance_characteristics: Option<crate::aws::metric_types::RdsInstanceCharacteristics>,
 
     // Historical data for 3 hours (36 data points at 5min intervals)
     pub timestamps: Vec<SystemTime>,
@@ -109,6 +120,13 @@ pub struct MetricData {
     pub burst_balance_history: Vec<f64>,
     pub cpu_credit_usage_history: Vec<f64>,
     pub cpu_credit_balance_history: Vec<f64>,
+    // Missing history vectors for new metrics
+    pub cpu_surplus_credit_balance_history: Vec<f64>,
+    pub cpu_surplus_credits_charged_history: Vec<f64>,
+    pub ebs_byte_balance_history: Vec<f64>,
+    pub ebs_io_balance_history: Vec<f64>,
+    // Logical replication slot lag history
+    pub oldest_logical_replication_slot_lag_history: Vec<f64>,
     pub bin_log_disk_usage_history: Vec<f64>,
     pub replica_lag_history: Vec<f64>,
     pub maximum_used_transaction_ids_history: Vec<f64>,
@@ -328,16 +346,24 @@ impl Default for MetricData {
             burst_balance: 0.0,
             cpu_credit_usage: 0.0,
             cpu_credit_balance: 0.0,
+            cpu_surplus_credit_balance: 0.0,
+            cpu_surplus_credits_charged: 0.0,
+            ebs_byte_balance: 0.0,
+            ebs_io_balance: 0.0,
             bin_log_disk_usage: 0.0,
             replica_lag: 0.0,
             maximum_used_transaction_ids: 0.0,
             oldest_replication_slot_lag: 0.0,
+            oldest_logical_replication_slot_lag: 0.0,
             replication_slot_disk_usage: 0.0,
             transaction_logs_disk_usage: 0.0,
             transaction_logs_generation: 0.0,
             failed_sql_server_agent_jobs_count: 0.0,
             checkpoint_lag: 0.0,
             connection_attempts: 0.0,
+
+            // RDS Instance characteristics for intelligent metric filtering
+            instance_characteristics: None,
 
             cpu_history: Vec::new(),
             connections_history: Vec::new(),
@@ -358,6 +384,12 @@ impl Default for MetricData {
             burst_balance_history: Vec::new(),
             cpu_credit_usage_history: Vec::new(),
             cpu_credit_balance_history: Vec::new(),
+            // Missing history vectors initialization
+            cpu_surplus_credit_balance_history: Vec::new(),
+            cpu_surplus_credits_charged_history: Vec::new(),
+            ebs_byte_balance_history: Vec::new(),
+            ebs_io_balance_history: Vec::new(),
+            oldest_logical_replication_slot_lag_history: Vec::new(),
             bin_log_disk_usage_history: Vec::new(),
             replica_lag_history: Vec::new(),
             maximum_used_transaction_ids_history: Vec::new(),
@@ -460,6 +492,36 @@ impl MetricData {
     }
 
     pub fn get_available_metrics(&self) -> Vec<MetricType> {
+        // Use intelligent filtering based on instance characteristics if available
+        if let Some(ref characteristics) = self.instance_characteristics {
+            log::info!("Using intelligent filtering for {} {} instance", 
+                characteristics.engine, characteristics.instance_class);
+            let metrics = characteristics.get_relevant_metrics();
+            log::info!("Intelligent filtering returned {} metrics", metrics.len());
+            return metrics;
+        } else {
+            log::info!("No instance characteristics found, using intelligent filtering for PostgreSQL");
+            // For PostgreSQL instances, use intelligent filtering by default
+            use crate::aws::metric_types::RdsInstanceCharacteristics;
+            
+            let characteristics = RdsInstanceCharacteristics {
+                engine: "postgres".to_string(),
+                instance_class: "db.t3.micro".to_string(), 
+                is_read_replica: false,
+                multi_az: false,
+            };
+            
+            let intelligent_metrics = characteristics.get_relevant_metrics();
+            log::info!("PostgreSQL intelligent filtering returned {} metrics", intelligent_metrics.len());
+            
+            // Always use intelligent filtering - it shows what metrics should be available
+            // even if CloudWatch doesn't currently have data for them
+            return intelligent_metrics;
+        }
+    }
+
+    /// Get only metrics that have actual historical data (fallback method)
+    pub fn get_available_metrics_with_data(&self) -> Vec<MetricType> {
         let mut available_metrics = Vec::new();
 
         // Core metrics
@@ -569,10 +631,15 @@ impl MetricData {
             MetricType::BurstBalance => &self.burst_balance_history,
             MetricType::CpuCreditUsage => &self.cpu_credit_usage_history,
             MetricType::CpuCreditBalance => &self.cpu_credit_balance_history,
+            MetricType::CpuSurplusCreditBalance => &self.cpu_surplus_credit_balance_history,
+            MetricType::CpuSurplusCreditsCharged => &self.cpu_surplus_credits_charged_history,
+            MetricType::EbsByteBalance => &self.ebs_byte_balance_history,
+            MetricType::EbsIoBalance => &self.ebs_io_balance_history,
             MetricType::BinLogDiskUsage => &self.bin_log_disk_usage_history,
             MetricType::ReplicaLag => &self.replica_lag_history,
             MetricType::MaximumUsedTransactionIds => &self.maximum_used_transaction_ids_history,
             MetricType::OldestReplicationSlotLag => &self.oldest_replication_slot_lag_history,
+            MetricType::OldestLogicalReplicationSlotLag => &self.oldest_logical_replication_slot_lag_history,
             MetricType::ReplicationSlotDiskUsage => &self.replication_slot_disk_usage_history,
             MetricType::TransactionLogsDiskUsage => &self.transaction_logs_disk_usage_history,
             MetricType::TransactionLogsGeneration => &self.transaction_logs_generation_history,
@@ -688,10 +755,18 @@ pub enum MetricType {
     BurstBalance,
     CpuCreditUsage,
     CpuCreditBalance,
+    // Missing CPU Surplus Credits metrics
+    CpuSurplusCreditBalance,
+    CpuSurplusCreditsCharged,
+    // Missing EBS metrics  
+    EbsByteBalance,
+    EbsIoBalance,
     BinLogDiskUsage,
     ReplicaLag,
     MaximumUsedTransactionIds,
     OldestReplicationSlotLag,
+    // Missing logical replication slot lag metric
+    OldestLogicalReplicationSlotLag,
     ReplicationSlotDiskUsage,
     TransactionLogsDiskUsage,
     TransactionLogsGeneration,
@@ -738,10 +813,15 @@ impl MetricType {
             MetricType::BurstBalance => "Burst Balance",
             MetricType::CpuCreditUsage => "CPU Credit Usage",
             MetricType::CpuCreditBalance => "CPU Credit Balance",
+            MetricType::CpuSurplusCreditBalance => "CPU Surplus Credit Balance",
+            MetricType::CpuSurplusCreditsCharged => "CPU Surplus Credits Charged", 
+            MetricType::EbsByteBalance => "EBS Byte Balance",
+            MetricType::EbsIoBalance => "EBS IO Balance",
             MetricType::BinLogDiskUsage => "Binary Log Disk Usage",
             MetricType::ReplicaLag => "Replica Lag",
             MetricType::MaximumUsedTransactionIds => "Maximum Used Transaction IDs",
             MetricType::OldestReplicationSlotLag => "Oldest Replication Slot Lag",
+            MetricType::OldestLogicalReplicationSlotLag => "Oldest Logical Replication Slot Lag",
             MetricType::ReplicationSlotDiskUsage => "Replication Slot Disk Usage",
             MetricType::TransactionLogsDiskUsage => "Transaction Logs Disk Usage",
             MetricType::TransactionLogsGeneration => "Transaction Logs Generation",
@@ -801,6 +881,7 @@ pub struct App {
     pub sparkline_grid_scroll: usize,        // Track scroll position in sparkline grid
     pub sparkline_grid_selected_index: usize, // Track currently selected metric index in grid
     pub saved_sparkline_grid_selected_index: usize, // Save selected metric index when transitioning to details
+    pub sparkline_grid_list_state: ListState, // Built-in ratatui state for proper scrolling
 
     // Error handling
     pub error_message: Option<String>, // Store user-friendly error messages

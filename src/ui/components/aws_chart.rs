@@ -64,8 +64,11 @@ impl AwsMetricsGrid {
             None => return,
         };
 
-        // Get available metrics for the service
-        let available_metrics = MetricRegistry::get_available_metrics_for_service(service);
+        // Get available metrics for the service using data-based filtering (only metrics with actual data)
+        let available_metrics = match service {
+            crate::models::AwsService::Rds => app.metrics.get_available_metrics_with_data(),
+            crate::models::AwsService::Sqs => app.sqs_metrics.get_available_metrics(),
+        };
         
         if available_metrics.is_empty() {
             Self::render_no_metrics(f, area);
@@ -83,29 +86,40 @@ impl AwsMetricsGrid {
             return;
         }
 
-        // Calculate how many metrics can be shown on screen (2 per row)
+        // Calculate how many metrics can be shown on screen (2 per row for grid layout)
         let metrics_per_row = 2;
         let min_height_per_row = 12; // Minimum height needed for each row
         let max_rows = (area.height as usize / min_height_per_row).max(1);
         let metrics_per_screen = max_rows * metrics_per_row;
 
-        // Apply scrolling to show only visible metrics with proper bounds checking
-        let scroll_offset = app.scroll_offset;
+        // Use scrolling to show a window of metrics
         let total_metrics = all_chart_data.len();
+        let selected_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
         
-        // Ensure scroll_offset is within valid bounds and aligned to grid boundaries
-        let grid_aligned_scroll_offset = (scroll_offset / metrics_per_row) * metrics_per_row;
-        let max_valid_offset = total_metrics.saturating_sub(metrics_per_screen);
-        let safe_scroll_offset = grid_aligned_scroll_offset.min(max_valid_offset);
-        let start_idx = safe_scroll_offset;
+        // CRITICAL: Bounds check to prevent crashes - clamp selected_index to available data
+        let safe_selected_index = selected_index.min(total_metrics.saturating_sub(1));
+        
+        // Calculate scroll offset for smooth scrolling (not page-based)
+        let start_idx = if total_metrics <= metrics_per_screen {
+            0 // Show all if we have fewer metrics than screen space
+        } else {
+            // Calculate smooth scroll - ensure selected item is visible
+            let max_start = total_metrics.saturating_sub(metrics_per_screen);
+            
+            if safe_selected_index < metrics_per_screen / 2 {
+                // If near the beginning, start from 0
+                0
+            } else if safe_selected_index >= total_metrics.saturating_sub(metrics_per_screen / 2) {
+                // If near the end, show the last screen
+                max_start
+            } else {
+                // Center the selected item in the visible area
+                safe_selected_index.saturating_sub(metrics_per_screen / 2)
+            }
+        };
         let end_idx = (start_idx + metrics_per_screen).min(total_metrics);
         
-        // Additional safety check
-        if start_idx >= total_metrics {
-            Self::render_no_data_chart(f, area, Color::White);
-            return;
-        }
-        
+        // Get the visible slice of metrics
         let visible_chart_data: Vec<_> = all_chart_data[start_idx..end_idx].to_vec();
 
         if visible_chart_data.is_empty() {
@@ -113,11 +127,12 @@ impl AwsMetricsGrid {
             return;
         }
 
-        // Calculate actual grid layout for visible metrics (always 2 columns)
-        let grid_layout = calculate_scrollable_grid_layout(visible_chart_data.len(), metrics_per_row);
+        // Calculate grid layout based on visible metrics
+        let visible_count = visible_chart_data.len();
+        let grid_layout = calculate_scrollable_grid_layout(visible_count, metrics_per_row);
 
-        // Render metrics in grid with scrolling support
-        Self::render_metrics_grid(f, area, &visible_chart_data, grid_layout);
+        // Render the visible metrics grid
+        Self::render_metrics_grid(f, area, &visible_chart_data, grid_layout, app, start_idx);
     }
 
     /// Render individual metric chart in AWS console style
@@ -333,6 +348,8 @@ impl AwsMetricsGrid {
         area: Rect,
         chart_data: &[MetricChartData],
         grid_layout: GridLayout,
+        app: &App,
+        start_idx: usize,
     ) {
         // Calculate the height for each row to fit within available area
         let min_row_height = 12u16;
@@ -382,7 +399,19 @@ impl AwsMetricsGrid {
             for (col_idx, col_area) in col_chunks.iter().enumerate() {
                 let metric_idx = row_idx * grid_layout.cols + col_idx;
                 if let Some(chart) = chart_data.get(metric_idx) {
-                    Self::render_metric_chart(f, *col_area, chart, false);
+                    // For focused chart display, the single visible chart is always focused
+                    // For grid layout, we can compare with actual position
+                    let is_focused = if chart_data.len() == 1 {
+                        true // Single chart is always focused
+                    } else {
+                        // For multiple charts, check against selected index with bounds checking
+                        let global_idx = start_idx + metric_idx;
+                        let selected_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
+                        
+                        // Check if this metric is the currently selected one
+                        global_idx == selected_index
+                    };
+                    Self::render_metric_chart(f, *col_area, chart, is_focused);
                 }
             }
         }

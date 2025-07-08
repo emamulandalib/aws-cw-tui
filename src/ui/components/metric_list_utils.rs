@@ -1,6 +1,7 @@
 // All imports are local to the render_enhanced_metric_list function
 use crate::models::App;
 use ratatui::{layout::Rect, Frame};
+use ratatui::layout::{Layout, Constraint};
 
 /// Calculate the layout parameters for the metric list
 ///
@@ -76,48 +77,31 @@ pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
     // Calculate items that can fit on screen for scrolling
     let items_per_screen = (area.height.saturating_sub(2)) as usize; // Account for borders
     let total_items = available_metrics.len();
-    let selected_index = app.get_sparkline_grid_selected_index();
+    // Use ListState's selected value as the source of truth for selection
+    let selected_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
 
     // Each metric is now only 1 line (not 3 lines like before)
     let actual_metrics_per_screen = items_per_screen;
 
-    // Use the app's scroll offset directly
-    let scroll_offset = app.scroll_offset;
+    // Use ratatui's built-in layout methods with better proportions
+    let layout = Layout::horizontal([
+        Constraint::Min(25),         // Minimum 25 chars for metric name, can grow
+        Constraint::Fill(1),         // Fill remaining space for sparkline
+        Constraint::Length(12),      // Fixed width for value
+    ])
+    .split(area);
 
-    // Calculate responsive widths to fill the terminal width
-    // Use proper width calculation considering the actual layout structure
-    let total_width = area.width as usize;
-    let border_width = 4; // Left border (2) + right border (2)
-    let available_width = total_width.saturating_sub(border_width);
-    
-    // Fixed components
-    let value_width = 12; // Fixed width for values
-    let separators_width = 4; // Space for separators between columns (2 spaces between 3 columns)
-    let padding_width = 2; // Left and right padding inside borders
-    
-    // Calculate remaining width for name and sparkline
-    let content_width = available_width.saturating_sub(value_width + separators_width + padding_width);
-    
-    // Give more space to metric names and limit sparkline to reasonable size
-    let name_width = (content_width * 35 / 100).clamp(20, 35); // 35% for names, min 20 chars
-    let sparkline_width = content_width.saturating_sub(name_width).clamp(15, 40); // Rest for sparkline, max 40 chars
+    let name_width = layout[0].width as usize;
+    let sparkline_width = layout[1].width as usize;
+    let _value_width = layout[2].width as usize;
 
-    // Create enhanced metric blocks with distinct visual separation and spacing
+    // Create enhanced metric blocks for ALL metrics (not just visible ones)
+    // This is the ratatui way - let ListState handle viewport management
     let empty_history = Vec::new();
     let mut items: Vec<ListItem> = Vec::new();
-    let mut metric_positions: Vec<usize> = Vec::new(); // Track which positions contain actual metrics
 
-    for (original_index, metric_type) in available_metrics
-        .iter()
-        .enumerate()
-        .skip(scroll_offset)
-        .take(actual_metrics_per_screen)
-    {
+    for (original_index, metric_type) in available_metrics.iter().enumerate() {
         let is_selected = original_index == selected_index;
-
-        // Track the position of this metric in the items list (single line per metric)
-        let metric_position = items.len(); // Current position in the items list
-        metric_positions.push(metric_position);
 
         // Find corresponding data for this metric
         let metric_name = metric_type.display_name();
@@ -149,23 +133,10 @@ pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
             sparkline_width,
         });
 
-        // Add the metric line as a list item (now single line per metric)
-        for line in content_lines {
-            items.push(ListItem::new(line));
-        }
-    }
-
-    // Create list state for navigation and scrolling
-    let mut list_state = ratatui::widgets::ListState::default();
-    let has_items = !items.is_empty();
-    if has_items
-        && selected_index >= scroll_offset
-        && selected_index < scroll_offset + actual_metrics_per_screen
-    {
-        // Find the position of the selected metric in our items list
-        let relative_index = selected_index - scroll_offset;
-        if let Some(&position) = metric_positions.get(relative_index) {
-            list_state.select(Some(position));
+        // Add the metric line as a list item (single line per metric) 
+        // Note: For multi-line items, we only add the first line to maintain proper ListState alignment
+        if let Some(first_line) = content_lines.first() {
+            items.push(ListItem::new(first_line.clone()));
         }
     }
 
@@ -182,11 +153,11 @@ pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
                 ))
                 .border_style(Style::default().fg(border_color)),
         )
-        .highlight_style(Style::default()) // Remove highlight since we handle it manually
-        .highlight_symbol(""); // Remove default highlight symbol
+        .highlight_style(Style::default().bg(ratatui::style::Color::DarkGray))
+        .highlight_symbol("▶ ");
 
-    // Render the list with scrolling support
-    f.render_stateful_widget(list, area, &mut list_state);
+    // Use the app's actual ListState - this is the key to proper ratatui scrolling!
+    f.render_stateful_widget(list, area, &mut app.sparkline_grid_list_state);
 
     // Scroll indicator removed per user request
 }

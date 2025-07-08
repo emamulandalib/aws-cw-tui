@@ -181,6 +181,36 @@ impl MetricProvider for RdsMetricProvider {
                 statistic: StatisticType::Average,
                 category: MetricCategory::Advanced,
             },
+            MetricDefinition {
+                name: "CPUSurplusCreditBalance".to_string(),
+                unit: None,
+                statistic: StatisticType::Average,
+                category: MetricCategory::Advanced,
+            },
+            MetricDefinition {
+                name: "CPUSurplusCreditsCharged".to_string(),
+                unit: None,
+                statistic: StatisticType::Average,
+                category: MetricCategory::Advanced,
+            },
+            MetricDefinition {
+                name: "EBSByteBalance%".to_string(),
+                unit: Some("Percent".to_string()),
+                statistic: StatisticType::Average,
+                category: MetricCategory::Advanced,
+            },
+            MetricDefinition {
+                name: "EBSIOBalance%".to_string(),
+                unit: Some("Percent".to_string()),
+                statistic: StatisticType::Average,
+                category: MetricCategory::Advanced,
+            },
+            MetricDefinition {
+                name: "OldestLogicalReplicationSlotLag".to_string(),
+                unit: Some("Bytes".to_string()),
+                statistic: StatisticType::Average,
+                category: MetricCategory::Advanced,
+            },
         ]
     }
 
@@ -246,6 +276,16 @@ impl MetricProvider for RdsMetricProvider {
             cpu_credit_usage_history: get_metric("CPUCreditUsage").1,
             cpu_credit_balance: get_metric("CPUCreditBalance").0,
             cpu_credit_balance_history: get_metric("CPUCreditBalance").1,
+            // Missing CPU surplus credit metrics
+            cpu_surplus_credit_balance: get_metric("CPUSurplusCreditBalance").0,
+            cpu_surplus_credit_balance_history: get_metric("CPUSurplusCreditBalance").1,
+            cpu_surplus_credits_charged: get_metric("CPUSurplusCreditsCharged").0,
+            cpu_surplus_credits_charged_history: get_metric("CPUSurplusCreditsCharged").1,
+            // Missing EBS performance metrics
+            ebs_byte_balance: get_metric("EBSByteBalance%").0,
+            ebs_byte_balance_history: get_metric("EBSByteBalance%").1,
+            ebs_io_balance: get_metric("EBSIOBalance%").0,
+            ebs_io_balance_history: get_metric("EBSIOBalance%").1,
             bin_log_disk_usage: get_metric("BinLogDiskUsage").0,
             bin_log_disk_usage_history: get_metric("BinLogDiskUsage").1,
             replica_lag: get_metric("ReplicaLag").0,
@@ -254,6 +294,9 @@ impl MetricProvider for RdsMetricProvider {
             maximum_used_transaction_ids_history: get_metric("MaximumUsedTransactionIDs").1,
             oldest_replication_slot_lag: get_metric("OldestReplicationSlotLag").0,
             oldest_replication_slot_lag_history: get_metric("OldestReplicationSlotLag").1,
+            // Missing logical replication slot lag metric
+            oldest_logical_replication_slot_lag: get_metric("OldestLogicalReplicationSlotLag").0,
+            oldest_logical_replication_slot_lag_history: get_metric("OldestLogicalReplicationSlotLag").1,
             replication_slot_disk_usage: get_metric("ReplicationSlotDiskUsage").0,
             replication_slot_disk_usage_history: get_metric("ReplicationSlotDiskUsage").1,
             transaction_logs_disk_usage: get_metric("TransactionLogsDiskUsage").0,

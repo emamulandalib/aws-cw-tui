@@ -45,22 +45,16 @@ pub fn render_instance_details(f: &mut Frame, app: &mut App) {
         render_metrics_loading(f, chunks[1]);
     } else {
         // For the detailed chart view, we want to show 1 metric per screen for maximum chart size
-        // Don't use the app's metrics_per_screen as it's been adjusted for the list view
         let chart_metrics_per_screen = 1;
 
-        // Get available metrics and calculate proper scroll offset
-        let available_metrics_count = app.count_available_metrics();
-
-        // Ensure scroll_offset doesn't exceed available metrics for chart view
-        let effective_scroll_offset = app
-            .scroll_offset
-            .min(available_metrics_count.saturating_sub(1));
+        // Use the ListState-based selection directly (consistent with MetricsSummary)
+        let selected_metric_index = app.sparkline_grid_selected_index;
 
         render_metrics_unified(
             f,
             chunks[1],
             app,
-            effective_scroll_offset,
+            selected_metric_index,
             chart_metrics_per_screen,
         );
     }
