@@ -759,6 +759,16 @@ impl App {
                     self.sparkline_grid_scroll_up();
                 }
             },
+            AppState::InstanceDetails => {
+                if self.scroll_offset > 0 {
+                    // Grid alignment: always ensure scroll_offset is a multiple of 2
+                    let metrics_per_row = 2;
+                    // Scroll by metrics_per_row (1 row) for grid alignment
+                    self.scroll_offset = self.scroll_offset.saturating_sub(metrics_per_row);
+                    // Force grid alignment (must be multiple of 2)
+                    self.scroll_offset = (self.scroll_offset / metrics_per_row) * metrics_per_row;
+                }
+            }
             _ => {
                 if self.scroll_offset > 0 {
                     self.scroll_offset -= 1;
@@ -788,9 +798,34 @@ impl App {
                 AwsService::Rds => self.metrics.count_available_metrics(),
                 AwsService::Sqs => self.sqs_metrics.count_available_metrics(),
             };
-            let max_offset = total_individual_metrics.saturating_sub(1);
+            
+            // Safety check: ensure we have metrics to scroll through
+            if total_individual_metrics == 0 {
+                return;
+            }
+            
+            // Ensure metrics_per_screen is valid
+            if self.metrics_per_screen == 0 {
+                self.metrics_per_screen = 2; // Default fallback
+            }
+            
+            // Grid alignment: always ensure scroll_offset is a multiple of 2
+            let metrics_per_row = 2;
+            
+            // For grid system (2 per row), calculate proper maximum scroll offset
+            let max_offset = if total_individual_metrics > self.metrics_per_screen {
+                let max_scroll = total_individual_metrics - self.metrics_per_screen;
+                // Align to grid boundary
+                (max_scroll / metrics_per_row) * metrics_per_row
+            } else {
+                0
+            };
+            
             if self.scroll_offset < max_offset {
-                self.scroll_offset += 1;
+                // Scroll by metrics_per_row (1 row) for grid alignment
+                self.scroll_offset = (self.scroll_offset + metrics_per_row).min(max_offset);
+                // Force grid alignment (must be multiple of 2)
+                self.scroll_offset = (self.scroll_offset / metrics_per_row) * metrics_per_row;
             }
         }
         _ => {}
@@ -833,10 +868,30 @@ impl App {
     /// Update metrics_per_screen based on available area
     /// This should be called before rendering to ensure navigation functions work correctly
     pub fn update_metrics_per_screen(&mut self, area_height: u16) {
-        let available_lines = (area_height.saturating_sub(2)) as usize; // Account for borders
-        // Each metric now takes 3 lines (top border, content, bottom border)
-        let actual_metrics_per_screen = (available_lines / 3).max(1);
-        self.metrics_per_screen = actual_metrics_per_screen;
+        // For the new metrics grid system (2 metrics per row)
+        let metrics_per_row = 2;
+        let min_height_per_row = 12; // Minimum height needed for each row
+        let available_height = area_height.saturating_sub(2) as usize; // Account for borders
+        
+        // Ensure we have at least enough space for one row
+        let max_rows = if available_height >= min_height_per_row {
+            (available_height / min_height_per_row).max(1)
+        } else {
+            1 // Fallback to show at least one row even if space is tight
+        };
+        
+        let calculated_metrics_per_screen = max_rows * metrics_per_row;
+        
+        // Ensure metrics_per_screen is never zero and always a multiple of metrics_per_row
+        if calculated_metrics_per_screen == 0 {
+            self.metrics_per_screen = metrics_per_row; // Default to 2 metrics (1 row)
+        } else {
+            // Ensure it's always a multiple of metrics_per_row for grid alignment
+            self.metrics_per_screen = (calculated_metrics_per_screen / metrics_per_row) * metrics_per_row;
+            if self.metrics_per_screen == 0 {
+                self.metrics_per_screen = metrics_per_row; // Fallback to at least one row
+            }
+        }
     }
 
     // ================================
@@ -844,15 +899,38 @@ impl App {
     // ================================
 
     pub fn sparkline_grid_scroll_up(&mut self) {
-        if self.sparkline_grid_selected_index > 0 {
-            self.sparkline_grid_selected_index -= 1;
-            self.update_selected_metric();
-
-            if self.sparkline_grid_selected_index < self.scroll_offset {
-                self.scroll_offset = self.sparkline_grid_selected_index;
-                self.metrics_summary_scroll = self.scroll_offset;
-            }
+        // Get total metrics count for bounds checking
+        let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+            AwsService::Rds => self.metrics.get_available_metrics(),
+            AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
+        };
+        
+        let total_metrics = available_metrics.len();
+        if total_metrics == 0 {
+            return;
         }
+        
+        // Ensure selected_index is within bounds
+        if self.sparkline_grid_selected_index >= total_metrics {
+            self.sparkline_grid_selected_index = total_metrics.saturating_sub(1);
+            return;
+        }
+        
+        // Move by row (2 metrics) for faster navigation
+        let metrics_per_row = 2;
+        
+        if self.sparkline_grid_selected_index >= metrics_per_row {
+            // Move up by one row (2 metrics)
+            self.sparkline_grid_selected_index -= metrics_per_row;
+        } else {
+            // If we're in the first row, go to the beginning
+            self.sparkline_grid_selected_index = 0;
+        }
+        
+        self.update_selected_metric();
+        
+        // Ensure the selected metric is visible in the view with proper bounds checking
+        self.ensure_selected_metric_visible();
     }
 
     pub fn sparkline_grid_scroll_down(&mut self) {
@@ -861,17 +939,191 @@ impl App {
         AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
     };
     
-    if self.sparkline_grid_selected_index < available_metrics.len().saturating_sub(1) {
-        self.sparkline_grid_selected_index += 1;
-        self.update_selected_metric();
+    let total_metrics = available_metrics.len();
+    if total_metrics == 0 {
+        return;
+    }
+    
+    // Ensure selected_index is within bounds
+    if self.sparkline_grid_selected_index >= total_metrics {
+        self.sparkline_grid_selected_index = total_metrics.saturating_sub(1);
+        return;
+    }
+    
+    // Move by row (2 metrics) for faster navigation
+    let metrics_per_row = 2;
+    
+    // Ensure metrics_per_screen is valid
+    if self.metrics_per_screen == 0 {
+        self.metrics_per_screen = 2; // Default fallback
+    }
 
-        let max_visible_index = self.scroll_offset + self.metrics_per_screen.saturating_sub(1);
-        if self.sparkline_grid_selected_index > max_visible_index {
-            self.scroll_offset = self
-                .sparkline_grid_selected_index
-                .saturating_sub(self.metrics_per_screen.saturating_sub(1));
+    // Calculate maximum valid scroll offset first
+    let max_scroll_offset = if total_metrics > self.metrics_per_screen {
+        let max_scroll = total_metrics - self.metrics_per_screen;
+        // Align to grid boundary
+        (max_scroll / metrics_per_row) * metrics_per_row
+    } else {
+        0
+    };
+    
+    // Calculate the maximum valid selected index that can be displayed
+    let max_valid_selected_index = max_scroll_offset + self.metrics_per_screen.saturating_sub(1);
+    
+    // Check if we can move down by one row, but don't exceed the last displayable metric
+    if self.sparkline_grid_selected_index + metrics_per_row <= max_valid_selected_index && 
+       self.sparkline_grid_selected_index + metrics_per_row < total_metrics {
+        // Move down by one row (2 metrics)
+        self.sparkline_grid_selected_index += metrics_per_row;
+    } else if self.sparkline_grid_selected_index < total_metrics.saturating_sub(1) {
+        // If we can't move a full row, move to the last metric but respect the display bounds
+        self.sparkline_grid_selected_index = max_valid_selected_index.min(total_metrics.saturating_sub(1));
+    }
+    // If we're already at the maximum displayable position, don't move at all
+    
+    self.update_selected_metric();
+    
+    // Ensure the selected metric is visible in the view with proper bounds checking
+    self.ensure_selected_metric_visible();
+}
+
+    pub fn sparkline_grid_scroll_left(&mut self) {
+        let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+            AwsService::Rds => self.metrics.get_available_metrics(),
+            AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
+        };
+        
+        let total_metrics = available_metrics.len();
+        if total_metrics == 0 {
+            return;
+        }
+        
+        // Ensure selected_index is within bounds
+        if self.sparkline_grid_selected_index >= total_metrics {
+            self.sparkline_grid_selected_index = total_metrics.saturating_sub(1);
+            return;
+        }
+        
+        let metrics_per_row = 2;
+        let current_row = self.sparkline_grid_selected_index / metrics_per_row;
+        let current_col = self.sparkline_grid_selected_index % metrics_per_row;
+        
+        if current_col > 0 {
+            // Move left within the same row
+            self.sparkline_grid_selected_index -= 1;
+        } else if current_row > 0 {
+            // Move to the rightmost column of the previous row
+            let prev_row_start = (current_row - 1) * metrics_per_row;
+            let prev_row_end = (prev_row_start + metrics_per_row - 1).min(total_metrics - 1);
+            self.sparkline_grid_selected_index = prev_row_end;
+        }
+        // If we're at the top-left, stay there
+        
+        self.update_selected_metric();
+        self.ensure_selected_metric_visible();
+    }
+
+    pub fn sparkline_grid_scroll_right(&mut self) {
+        let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+            AwsService::Rds => self.metrics.get_available_metrics(),
+            AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
+        };
+        
+        let total_metrics = available_metrics.len();
+        if total_metrics == 0 {
+            return;
+        }
+        
+        // Ensure selected_index is within bounds
+        if self.sparkline_grid_selected_index >= total_metrics {
+            self.sparkline_grid_selected_index = total_metrics.saturating_sub(1);
+            return;
+        }
+        
+        let metrics_per_row = 2;
+        let current_row = self.sparkline_grid_selected_index / metrics_per_row;
+        let current_col = self.sparkline_grid_selected_index % metrics_per_row;
+        
+        if current_col < metrics_per_row - 1 && self.sparkline_grid_selected_index + 1 < total_metrics {
+            // Move right within the same row
+            self.sparkline_grid_selected_index += 1;
+        } else if self.sparkline_grid_selected_index + 1 < total_metrics {
+            // Move to the leftmost column of the next row
+            let next_row_start = (current_row + 1) * metrics_per_row;
+            if next_row_start < total_metrics {
+                self.sparkline_grid_selected_index = next_row_start;
+            }
+        }
+        // If we're at the bottom-right, stay there
+        
+        self.update_selected_metric();
+        self.ensure_selected_metric_visible();
+    }
+
+    fn ensure_selected_metric_visible(&mut self) {
+        // Ensure metrics_per_screen is valid
+        if self.metrics_per_screen == 0 {
+            self.metrics_per_screen = 2; // Default fallback
+        }
+
+        let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+            AwsService::Rds => self.metrics.get_available_metrics(),
+            AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
+        };
+        
+        let total_metrics = available_metrics.len();
+        if total_metrics == 0 {
+            self.scroll_offset = 0;
+            self.metrics_summary_scroll = 0;
+            return;
+        }
+        
+        let metrics_per_row = 2;
+
+        // Ensure selected index is within bounds first
+        if self.sparkline_grid_selected_index >= total_metrics {
+            self.sparkline_grid_selected_index = total_metrics.saturating_sub(1);
+        }
+
+        // Calculate maximum scroll offset to prevent infinite scrolling
+        let max_scroll_offset = if total_metrics > self.metrics_per_screen {
+            let max_scroll = total_metrics - self.metrics_per_screen;
+            // Align to grid boundary
+            (max_scroll / metrics_per_row) * metrics_per_row
+        } else {
+            0
+        };
+
+        // Ensure current scroll_offset is within valid bounds
+        self.scroll_offset = self.scroll_offset.min(max_scroll_offset);
+
+        // Check if selected metric is above the visible area
+        if self.sparkline_grid_selected_index < self.scroll_offset {
+            self.scroll_offset = self.sparkline_grid_selected_index;
+            // Force grid alignment (must be multiple of 2)
+            self.scroll_offset = (self.scroll_offset / metrics_per_row) * metrics_per_row;
+            // Ensure it doesn't exceed max bounds
+            self.scroll_offset = self.scroll_offset.min(max_scroll_offset);
             self.metrics_summary_scroll = self.scroll_offset;
         }
+        // Check if selected metric is below the visible area
+        else {
+            let max_visible_index = self.scroll_offset + self.metrics_per_screen.saturating_sub(1);
+            
+            if self.sparkline_grid_selected_index > max_visible_index {
+                // Calculate new scroll offset
+                let target_scroll = self
+                    .sparkline_grid_selected_index
+                    .saturating_sub(self.metrics_per_screen.saturating_sub(1));
+                
+                // Apply bounds checking and ensure grid alignment
+                self.scroll_offset = target_scroll.min(max_scroll_offset);
+                // Force grid alignment (must be multiple of 2)
+                self.scroll_offset = (self.scroll_offset / metrics_per_row) * metrics_per_row;
+                // Ensure it doesn't exceed max bounds again
+                self.scroll_offset = self.scroll_offset.min(max_scroll_offset);
+                self.metrics_summary_scroll = self.scroll_offset;
+            }
+        }
     }
-}
 }

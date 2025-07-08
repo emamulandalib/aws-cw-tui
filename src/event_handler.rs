@@ -115,7 +115,7 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
                     app.time_range_scroll_left();
                 }
                 crate::models::FocusedPanel::SparklineGrid => {
-                    app.switch_panel(); // Switch to previous panel
+                    app.sparkline_grid_scroll_left(); // Navigate left within grid
                 }
             }
             Ok(false)
@@ -132,7 +132,7 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
                     app.time_range_scroll_right();
                 }
                 crate::models::FocusedPanel::SparklineGrid => {
-                    app.switch_panel(); // Switch to next panel
+                    app.sparkline_grid_scroll_right(); // Navigate right within grid
                 }
             }
             Ok(false)
@@ -174,7 +174,7 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
             Ok(false)
         }
         (KeyCode::Tab, _) => {
-            // Cycle through TimeRanges → SparklineGrid panels
+            // Cycle through Timezone → Period → TimeRanges → SparklineGrid panels
             app.switch_panel();
             Ok(false)
         }
