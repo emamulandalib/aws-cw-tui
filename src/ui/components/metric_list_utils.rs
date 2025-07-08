@@ -85,17 +85,22 @@ pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
     let scroll_offset = app.scroll_offset;
 
     // Calculate responsive widths to fill the terminal width
-    // Don't subtract borders here since visual_utils will handle the final layout
-    let total_width = area.width as usize; // Use full area width for calculation
-    let border_and_padding = 6; // Account for borders (2) and padding (4) in visual_utils
-    let available_width = total_width.saturating_sub(border_and_padding);
+    // Use proper width calculation considering the actual layout structure
+    let total_width = area.width as usize;
+    let border_width = 4; // Left border (2) + right border (2)
+    let available_width = total_width.saturating_sub(border_width);
     
+    // Fixed components
     let value_width = 12; // Fixed width for values
-    let separators_width = 4; // Space for separators between columns
-    let name_width = (available_width * 30 / 100).clamp(18, 30); // 30% of available width for names
-    let sparkline_width = available_width
-        .saturating_sub(name_width + value_width + separators_width)
-        .max(15); // Rest for sparkline, minimum 15 chars
+    let separators_width = 4; // Space for separators between columns (2 spaces between 3 columns)
+    let padding_width = 2; // Left and right padding inside borders
+    
+    // Calculate remaining width for name and sparkline
+    let content_width = available_width.saturating_sub(value_width + separators_width + padding_width);
+    
+    // Give more space to metric names and limit sparkline to reasonable size
+    let name_width = (content_width * 35 / 100).clamp(20, 35); // 35% for names, min 20 chars
+    let sparkline_width = content_width.saturating_sub(name_width).clamp(15, 40); // Rest for sparkline, max 40 chars
 
     // Create enhanced metric blocks with distinct visual separation and spacing
     let empty_history = Vec::new();
