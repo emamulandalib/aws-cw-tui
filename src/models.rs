@@ -868,21 +868,22 @@ pub struct App {
     pub metrics_loading: bool,
     pub last_refresh: Option<Instant>,
     pub auto_refresh_enabled: bool,
-    pub scroll_offset: usize,
     pub metrics_per_screen: usize,
-    pub metrics_summary_scroll: usize, // Track metrics summary scroll position separately
-    pub time_range_scroll: usize,      // Track time range selection scroll position
     pub focused_panel: FocusedPanel,   // Track which panel has focus (metrics or time ranges)
     pub saved_focused_panel: FocusedPanel, // Save focused panel state when transitioning to details
     pub time_range: TimeRange,
 
     // Sparkline grid state
     pub selected_metric: Option<MetricType>, // Currently selected metric in sparkline grid
-    pub sparkline_grid_scroll: usize,        // Track scroll position in sparkline grid
     pub sparkline_grid_selected_index: usize, // Track currently selected metric index in grid
     pub saved_sparkline_grid_selected_index: usize, // Save selected metric index when transitioning to details
     pub sparkline_grid_list_state: ListState, // Built-in ratatui state for proper scrolling
-
+    
+    // Built-in list states for all components (replacing manual scroll variables)
+    pub time_range_list_state: ListState,    // Built-in state for time range selection
+    pub period_list_state: ListState,        // Built-in state for period selection  
+    pub timezone_list_state: ListState,      // Built-in state for timezone selection
+    
     // Error handling
     pub error_message: Option<String>, // Store user-friendly error messages
 
@@ -892,12 +893,8 @@ pub struct App {
     // Time range display mode
     pub time_range_mode: TimeRangeMode, // Toggle between absolute and relative
     
-    // Period selection
-    pub period_scroll: usize, // Track period selection scroll position
-    
     // Timezone selection
     pub timezone: Timezone, // Current timezone selection
-    pub timezone_scroll: usize, // Track timezone selection scroll position
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -2,7 +2,7 @@ use crate::models::{App, RdsInstance, SqsQueue};
 use ratatui::{
     prelude::*,
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
     Frame,
 };
 
@@ -149,9 +149,25 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
                 .on_dark_gray()
                 .bold(),
         )
-        .highlight_symbol("");
+        .highlight_symbol("▶ ");
 
     f.render_stateful_widget(items_list, area, &mut app.list_state);
+    
+    // Add scrollbar if there are more instances than can fit on screen
+    if current_instances.len() > (area.height.saturating_sub(2)) as usize {
+        let scrollbar = Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"))
+            .track_symbol(Some("│"))
+            .thumb_symbol("█");
+        
+        let mut scrollbar_state = ScrollbarState::default()
+            .content_length(current_instances.len())
+            .position(app.list_state.selected().unwrap_or(0));
+            
+        f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
+    }
 }
 
 fn create_rds_list_item(instance: &RdsInstance) -> ListItem<'_> {

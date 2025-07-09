@@ -31,20 +31,33 @@ impl App {
             metrics_loading: false,
             last_refresh: None,
             auto_refresh_enabled: true,
-            scroll_offset: 0,
             metrics_per_screen: 1,
-            metrics_summary_scroll: 0,
-            time_range_scroll: 8, // Default to "3 hours" in the new extended options
             focused_panel: FocusedPanel::Timezone,
             saved_focused_panel: FocusedPanel::Timezone,
             time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(),
 
             // Initialize sparkline grid state
             selected_metric: None,
-            sparkline_grid_scroll: 0,
             sparkline_grid_selected_index: 0,
             saved_sparkline_grid_selected_index: 0,
             sparkline_grid_list_state: ratatui::widgets::ListState::default(),
+
+            // Initialize built-in list states for all components
+            time_range_list_state: {
+                let mut state = ratatui::widgets::ListState::default();
+                state.select(Some(8)); // Default to "3 hours" option
+                state
+            },
+            period_list_state: {
+                let mut state = ratatui::widgets::ListState::default();
+                state.select(Some(2)); // Default to a reasonable period option
+                state
+            },
+            timezone_list_state: {
+                let mut state = ratatui::widgets::ListState::default();
+                state.select(Some(1)); // Default to UTC (index 1 in the options)
+                state
+            },
 
             // Initialize error handling
             error_message: None,
@@ -55,12 +68,8 @@ impl App {
             // Initialize time range mode
             time_range_mode: TimeRangeMode::Relative,
             
-            // Initialize period selection
-            period_scroll: 2, // Default to a reasonable period option
-            
             // Initialize timezone selection
             timezone: Timezone::Utc, // Default to UTC timezone
-            timezone_scroll: 1, // Default to UTC (index 1 in the options)
         };
         app.service_list_state.select(Some(0));
         app
@@ -503,55 +512,13 @@ impl App {
 }
 
         pub fn initialize_sparkline_grid(&mut self) {
-        match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-        AwsService::Rds => {
-            let available_metrics = self.metrics.get_available_metrics_with_data();
-            if !available_metrics.is_empty() {
-                if self.selected_metric.is_none() {
-                    self.selected_metric = Some(available_metrics[0].clone());
-                    self.sparkline_grid_selected_index = 0;
-                    self.sparkline_grid_list_state.select(Some(0));
-                } else if let Some(ref current_metric) = self.selected_metric {
-                    if let Some(index) = available_metrics.iter().position(|m| m == current_metric) {
-                        self.sparkline_grid_selected_index = index;
-                        self.sparkline_grid_list_state.select(Some(index));
-                    } else {
-                        self.selected_metric = Some(available_metrics[0].clone());
-                        self.sparkline_grid_selected_index = 0;
-                        self.sparkline_grid_list_state.select(Some(0));
-                    }
-                }
-            } else {
-                self.selected_metric = None;
-                self.sparkline_grid_selected_index = 0;
-                self.sparkline_grid_list_state.select(None);
-            }
-        }
-        AwsService::Sqs => {
-            let available_metrics = self.sqs_metrics.get_available_metrics();
-            if !available_metrics.is_empty() {
-                if self.selected_metric.is_none() {
-                    self.selected_metric = Some(available_metrics[0].clone());
-                    self.sparkline_grid_selected_index = 0;
-                    self.sparkline_grid_list_state.select(Some(0));
-                } else if let Some(ref current_metric) = self.selected_metric {
-                    if let Some(index) = available_metrics.iter().position(|m| m == current_metric) {
-                        self.sparkline_grid_selected_index = index;
-                        self.sparkline_grid_list_state.select(Some(index));
-                    } else {
-                        self.selected_metric = Some(available_metrics[0].clone());
-                        self.sparkline_grid_selected_index = 0;
-                        self.sparkline_grid_list_state.select(Some(0));
-                    }
-                }
-            } else {
-                self.selected_metric = None;
-                self.sparkline_grid_selected_index = 0;
-                self.sparkline_grid_list_state.select(None);
-            }
-        }
+        // Initialize the list state with the first item selected
+        self.sparkline_grid_list_state.select(Some(0));
+        
+        // Legacy fields for compatibility
+        self.sparkline_grid_selected_index = 0;
+        self.saved_sparkline_grid_selected_index = 0;
     }
-}
 
     pub fn initialize_sparkline_grid_for_sqs(&mut self) {
         let available_metrics = self.sqs_metrics.get_available_metrics();
@@ -628,13 +595,13 @@ impl App {
     }
 
     pub fn get_current_time_range_index(&self) -> usize {
-        self.time_range_scroll
+        self.time_range_list_state.selected().unwrap_or(0)
     }
 
     pub fn select_time_range(&mut self, index: usize) -> Result<()> {
         let options = Self::get_time_range_options();
         if let Some(&(_, value, unit, period_days)) = options.get(index) {
-            self.time_range_scroll = index;
+            self.time_range_list_state.select(Some(index));
             self.time_range = TimeRange::new(value, unit, period_days)?;
             Ok(())
         } else {
@@ -643,15 +610,17 @@ impl App {
     }
 
     pub fn time_range_scroll_up(&mut self) {
-        if self.time_range_scroll > 0 {
-            self.time_range_scroll -= 1;
+        let current = self.time_range_list_state.selected().unwrap_or(0);
+        if current > 0 {
+            self.time_range_list_state.select(Some(current - 1));
         }
     }
 
     pub fn time_range_scroll_down(&mut self) {
         let options = Self::get_time_range_options();
-        if self.time_range_scroll < options.len() - 1 {
-            self.time_range_scroll += 1;
+        let current = self.time_range_list_state.selected().unwrap_or(0);
+        if current < options.len() - 1 {
+            self.time_range_list_state.select(Some(current + 1));
         }
     }
     
@@ -695,19 +664,21 @@ impl App {
     }
 
     pub fn get_current_period_index(&self) -> usize {
-        self.period_scroll
+        self.period_list_state.selected().unwrap_or(0)
     }
 
     pub fn period_scroll_up(&mut self) {
-        if self.period_scroll > 0 {
-            self.period_scroll -= 1;
+        let current = self.period_list_state.selected().unwrap_or(0);
+        if current > 0 {
+            self.period_list_state.select(Some(current - 1));
         }
     }
 
     pub fn period_scroll_down(&mut self) {
         let options = Self::get_period_options();
-        if self.period_scroll < options.len() - 1 {
-            self.period_scroll += 1;
+        let current = self.period_list_state.selected().unwrap_or(0);
+        if current < options.len() - 1 {
+            self.period_list_state.select(Some(current + 1));
         }
     }
     
@@ -721,14 +692,15 @@ impl App {
     }
     
     pub fn get_current_timezone_index(&self) -> usize {
-        self.timezone_scroll
+        self.timezone_list_state.selected().unwrap_or(0)
     }
     
     pub fn timezone_scroll_up(&mut self) {
-        if self.timezone_scroll > 0 {
-            self.timezone_scroll -= 1;
+        let current = self.timezone_list_state.selected().unwrap_or(0);
+        if current > 0 {
+            self.timezone_list_state.select(Some(current - 1));
             let options = Self::get_timezone_options();
-            if let Some(timezone) = options.get(self.timezone_scroll) {
+            if let Some(timezone) = options.get(current - 1) {
                 self.timezone = timezone.clone();
             }
         }
@@ -736,9 +708,10 @@ impl App {
     
     pub fn timezone_scroll_down(&mut self) {
         let options = Self::get_timezone_options();
-        if self.timezone_scroll < options.len() - 1 {
-            self.timezone_scroll += 1;
-            if let Some(timezone) = options.get(self.timezone_scroll) {
+        let current = self.timezone_list_state.selected().unwrap_or(0);
+        if current < options.len() - 1 {
+            self.timezone_list_state.select(Some(current + 1));
+            if let Some(timezone) = options.get(current + 1) {
                 self.timezone = timezone.clone();
             }
         }
@@ -752,8 +725,6 @@ impl App {
         if let Some(i) = self.list_state.selected() {
             self.selected_instance = Some(i);
             self.state = AppState::MetricsSummary;
-            self.metrics_summary_scroll = 0;
-            self.scroll_offset = 0;
             self.focused_panel = FocusedPanel::SparklineGrid; // Focus on metrics list instead of timezone
             self.sparkline_grid_selected_index = 0;
             self.initialize_sparkline_grid();
@@ -812,9 +783,7 @@ impl App {
                 self.sparkline_grid_scroll_up();
             }
             _ => {
-                if self.scroll_offset > 0 {
-                    self.scroll_offset -= 1;
-                }
+                // No legacy scrolling needed - ListState handles everything
             }
         }
     }
@@ -850,12 +819,8 @@ impl App {
         self.sparkline_grid_selected_index = 0;
         self.saved_sparkline_grid_selected_index = 0;
         self.sparkline_grid_list_state = ratatui::widgets::ListState::default();
-        self.initialize_sparkline_grid();
         
-        // Legacy fields can be set to 0 for compatibility
-        self.scroll_offset = 0;
-        self.metrics_summary_scroll = 0;
-        self.sparkline_grid_scroll = 0;
+        self.initialize_sparkline_grid();
     }
 
     pub fn switch_panel(&mut self) {
@@ -901,97 +866,112 @@ impl App {
     }
 
     // ================================
-    // 10. SPARKLINE GRID NAVIGATION
+    // 10. ENHANCED LIST NAVIGATION
     // ================================
+    // Using Ratatui 0.29.0 built-in ListState with enhanced navigation patterns
 
     pub fn sparkline_grid_scroll_up(&mut self) {
-        // Get total metrics count for bounds checking
-        let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-            AwsService::Rds => self.metrics.get_available_metrics_with_data(),
-            AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
-        };
-        
-        let total_metrics = available_metrics.len();
-        if total_metrics == 0 {
+        let available_metrics = self.get_available_metrics();
+        if available_metrics.is_empty() {
             return;
         }
         
-        // Use ratatui's built-in ListState for navigation
-        let current_selection = self.sparkline_grid_list_state.selected().unwrap_or(0);
+        let current_index = self.sparkline_grid_list_state.selected().unwrap_or(0);
+        let metrics_per_row = 2;
         
-        if current_selection > 0 {
-            let new_selection = current_selection.saturating_sub(1);
-            self.sparkline_grid_list_state.select(Some(new_selection));
-            self.sparkline_grid_selected_index = new_selection;
-            self.update_selected_metric();
+        // Move up by one row (simplified grid navigation)
+        if current_index >= metrics_per_row {
+            let new_index = current_index - metrics_per_row;
+            self.sparkline_grid_list_state.select(Some(new_index));
         }
     }
 
     pub fn sparkline_grid_scroll_down(&mut self) {
-        let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-            AwsService::Rds => self.metrics.get_available_metrics_with_data(),
-            AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
-        };
-        
-        let total_metrics = available_metrics.len();
-        if total_metrics == 0 {
+        let available_metrics = self.get_available_metrics();
+        if available_metrics.is_empty() {
             return;
         }
         
-        // Use ratatui's built-in ListState for navigation
-        let current_selection = self.sparkline_grid_list_state.selected().unwrap_or(0);
+        let current_index = self.sparkline_grid_list_state.selected().unwrap_or(0);
+        let metrics_per_row = 2;
+        let total_metrics = available_metrics.len();
         
-        if current_selection < total_metrics.saturating_sub(1) {
-            let new_selection = (current_selection + 1).min(total_metrics.saturating_sub(1));
-            self.sparkline_grid_list_state.select(Some(new_selection));
-            self.sparkline_grid_selected_index = new_selection;
-            self.update_selected_metric();
+        // Move down by one row (simplified grid navigation)
+        let new_index = current_index + metrics_per_row;
+        if new_index < total_metrics {
+            self.sparkline_grid_list_state.select(Some(new_index));
         }
     }
 
     pub fn sparkline_grid_scroll_left(&mut self) {
-        let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-            AwsService::Rds => self.metrics.get_available_metrics_with_data(),
-            AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
-        };
-        
-        let total_metrics = available_metrics.len();
-        if total_metrics == 0 {
+        let available_metrics = self.get_available_metrics();
+        if available_metrics.is_empty() {
             return;
         }
         
-        // Use ratatui's built-in ListState for navigation
-        let current_selection = self.sparkline_grid_list_state.selected().unwrap_or(0);
+        let current_index = self.sparkline_grid_list_state.selected().unwrap_or(0);
         
-        if current_selection > 0 {
-            let new_selection = current_selection.saturating_sub(1);
-            self.sparkline_grid_list_state.select(Some(new_selection));
-            self.sparkline_grid_selected_index = new_selection;
-            self.update_selected_metric();
+        // Move left within current row (simplified navigation)
+        if current_index > 0 && current_index % 2 == 1 {
+            self.sparkline_grid_list_state.select(Some(current_index - 1));
         }
     }
 
     pub fn sparkline_grid_scroll_right(&mut self) {
-        let available_metrics = match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-            AwsService::Rds => self.metrics.get_available_metrics_with_data(),
-            AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
-        };
-        
-        let total_metrics = available_metrics.len();
-        if total_metrics == 0 {
+        let available_metrics = self.get_available_metrics();
+        if available_metrics.is_empty() {
             return;
         }
         
-        // Use ratatui's built-in ListState for navigation
-        let current_selection = self.sparkline_grid_list_state.selected().unwrap_or(0);
+        let current_index = self.sparkline_grid_list_state.selected().unwrap_or(0);
+        let total_metrics = available_metrics.len();
         
-        if current_selection < total_metrics.saturating_sub(1) {
-            let new_selection = (current_selection + 1).min(total_metrics.saturating_sub(1));
-            self.sparkline_grid_list_state.select(Some(new_selection));
-            self.sparkline_grid_selected_index = new_selection;
-            self.update_selected_metric();
+        // Move right within current row (simplified navigation)
+        if current_index % 2 == 0 && current_index + 1 < total_metrics {
+            self.sparkline_grid_list_state.select(Some(current_index + 1));
         }
+    }
+
+    // Enhanced navigation methods using ListState's built-in capabilities
+    pub fn sparkline_grid_go_to_first(&mut self) {
+        let available_metrics = self.get_available_metrics();
+        if !available_metrics.is_empty() {
+            self.sparkline_grid_list_state.select(Some(0));
+        }
+    }
+
+    pub fn sparkline_grid_go_to_last(&mut self) {
+        let available_metrics = self.get_available_metrics();
+        if !available_metrics.is_empty() {
+            self.sparkline_grid_list_state.select(Some(available_metrics.len() - 1));
+        }
+    }
+
+    pub fn sparkline_grid_page_up(&mut self) {
+        let available_metrics = self.get_available_metrics();
+        if available_metrics.is_empty() {
+            return;
+        }
+        
+        let current_index = self.sparkline_grid_list_state.selected().unwrap_or(0);
+        let page_size = self.metrics_per_screen.max(4); // At least 4 items per page
+        let new_index = current_index.saturating_sub(page_size);
+        self.sparkline_grid_list_state.select(Some(new_index));
+    }
+
+    pub fn sparkline_grid_page_down(&mut self) {
+        let available_metrics = self.get_available_metrics();
+        if available_metrics.is_empty() {
+            return;
+        }
+        
+        let current_index = self.sparkline_grid_list_state.selected().unwrap_or(0);
+        let page_size = self.metrics_per_screen.max(4); // At least 4 items per page
+        let total_metrics = available_metrics.len();
+        let new_index = (current_index + page_size).min(total_metrics - 1);
+        self.sparkline_grid_list_state.select(Some(new_index));
     }
 
     // This function is no longer needed as ratatui's ListState handles scrolling automatically
 }
+

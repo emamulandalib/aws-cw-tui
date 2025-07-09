@@ -22,7 +22,7 @@ pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
     };
     use ratatui::{
         style::{Color, Style},
-        widgets::{Block, Borders, List, ListItem, Paragraph},
+        widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
     };
 
     // Determine if this panel is focused
@@ -158,6 +158,20 @@ pub fn render_enhanced_metric_list(f: &mut Frame, app: &mut App, area: Rect) {
 
     // Use the app's actual ListState - this is the key to proper ratatui scrolling!
     f.render_stateful_widget(list, area, &mut app.sparkline_grid_list_state);
-
-    // Scroll indicator removed per user request
+    
+    // Add scrollbar if there are more metrics than can fit on screen
+    if total_items > (area.height.saturating_sub(2)) as usize {
+        let scrollbar = Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"))
+            .track_symbol(Some("│"))
+            .thumb_symbol("█");
+        
+        let mut scrollbar_state = ScrollbarState::default()
+            .content_length(total_items)
+            .position(selected_index);
+            
+        f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
+    }
 }
