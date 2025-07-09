@@ -192,16 +192,75 @@ pub async fn fetch_discovered_metrics(
                         })
                         .collect();
 
-                    // Only include metrics that have data
-                    if !history.is_empty() {
-                        metric_data.push(DynamicMetricData {
-                            metric_name: metric_def.metric_name.clone(),
-                            display_name: metric_def.metric_name.clone(), // Use AWS SDK metric name directly
-                            current_value,
-                            history,
-                            timestamps,
-                            unit: metric_def.unit.clone(),
-                        });
+                    // Only include metrics that have data and valid values
+                    if !history.is_empty() && !timestamps.is_empty() {
+                        // Validate data consistency
+                        if history.len() != timestamps.len() {
+                            log::warn!("Skipping metric {} due to data length mismatch: history={}, timestamps={}", 
+                                metric_def.metric_name, history.len(), timestamps.len());
+                            continue;
+                        }
+                        
+                        // Check for finite values
+                        let valid_count = history.iter().filter(|&&v| v.is_finite()).count();
+                        if valid_count == 0 {
+                            log::warn!("Skipping metric {} due to no valid data points", metric_def.metric_name);
+                            continue;
+                        }
+                        
+                        // Warn if we have invalid values but continue with valid ones
+                        if valid_count < history.len() {
+                            log::warn!("Metric {} has {} invalid values out of {}", 
+                                metric_def.metric_name, history.len() - valid_count, history.len());
+                        }
+
+                        // Validate timestamps are chronologically ordered
+                        let mut timestamps_valid = true;
+                        for i in 1..timestamps.len() {
+                            if timestamps[i] < timestamps[i-1] {
+                                log::warn!("Metric {} has unordered timestamps at index {}", metric_def.metric_name, i);
+                                timestamps_valid = false;
+                                break;
+                            }
+                        }
+
+                        if !timestamps_valid {
+                            log::warn!("Skipping metric {} due to timestamp ordering issues", metric_def.metric_name);
+                            continue;
+                        }
+
+                        // Ensure current value is finite
+                        if !current_value.is_finite() {
+                            log::warn!("Metric {} has invalid current value: {}, using last valid value from history", 
+                                metric_def.metric_name, current_value);
+                            
+                            // Find the last valid value from history
+                            let corrected_current_value = history.iter()
+                                .rev()
+                                .find(|&&v| v.is_finite())
+                                .copied()
+                                .unwrap_or(0.0);
+                            
+                            metric_data.push(DynamicMetricData {
+                                metric_name: metric_def.metric_name.clone(),
+                                display_name: metric_def.metric_name.clone(),
+                                current_value: corrected_current_value,
+                                history,
+                                timestamps,
+                                unit: metric_def.unit.clone(),
+                            });
+                        } else {
+                            metric_data.push(DynamicMetricData {
+                                metric_name: metric_def.metric_name.clone(),
+                                display_name: metric_def.metric_name.clone(), // Use AWS SDK metric name directly
+                                current_value,
+                                history,
+                                timestamps,
+                                unit: metric_def.unit.clone(),
+                            });
+                        }
+                    } else {
+                        log::debug!("Skipping metric {} due to empty data", metric_def.metric_name);
                     }
                 }
             }

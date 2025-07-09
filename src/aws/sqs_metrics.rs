@@ -63,12 +63,56 @@ pub async fn fetch_sqs_metrics(queue: &SqsQueue, time_range: &TimeRange) -> Resu
         .await
         {
             Ok((values, times)) => {
+                // Validate data before processing
+                if values.len() != times.len() {
+                    log::warn!("SQS metric {} data length mismatch: values={}, times={}", 
+                        metric_name, values.len(), times.len());
+                    continue;
+                }
+
+                // Check for finite values
+                let valid_count = values.iter().filter(|&&v| v.is_finite()).count();
+                if valid_count == 0 {
+                    log::warn!("SQS metric {} has no valid data points", metric_name);
+                    continue;
+                }
+
+                // Warn about invalid values but continue processing
+                if valid_count < values.len() {
+                    log::warn!("SQS metric {} has {} invalid values out of {}", 
+                        metric_name, values.len() - valid_count, values.len());
+                }
+
+                // Validate timestamps are chronologically ordered
+                let mut timestamps_valid = true;
+                for i in 1..times.len() {
+                    if times[i] < times[i-1] {
+                        log::warn!("SQS metric {} has unordered timestamps at index {}", metric_name, i);
+                        timestamps_valid = false;
+                        break;
+                    }
+                }
+
+                if !timestamps_valid {
+                    log::warn!("Skipping SQS metric {} due to timestamp ordering issues", metric_name);
+                    continue;
+                }
+
                 if timestamps.is_empty() {
                     timestamps = times;
                 }
 
                 // Update current value (latest) and history
                 let current_value = values.last().copied().unwrap_or(0.0);
+
+                // Ensure current value is finite
+                let current_value = if current_value.is_finite() {
+                    current_value
+                } else {
+                    log::warn!("SQS metric {} has invalid current value: {}, using last valid value", 
+                        metric_name, current_value);
+                    values.iter().rev().find(|&&v| v.is_finite()).copied().unwrap_or(0.0)
+                };
 
                 // Debug: Print metric fetch results (comment out in production)
                 // eprintln!("DEBUG: Fetched {} with {} data points, current value: {}", metric_name, values.len(), current_value);

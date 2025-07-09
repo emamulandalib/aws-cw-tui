@@ -281,18 +281,37 @@ impl AwsMetricsGrid {
             return;
         }
 
+        // Validate data lengths match
+        if chart_data.history.len() != chart_data.timestamps.len() {
+            log::warn!("Chart data length mismatch: history={}, timestamps={}", 
+                chart_data.history.len(), chart_data.timestamps.len());
+            Self::render_error_chart(f, area, "Data length mismatch", border_color);
+            return;
+        }
+
+        // Validate data contains finite values
+        let valid_data_count = chart_data.history.iter().filter(|&&v| v.is_finite()).count();
+        if valid_data_count == 0 {
+            Self::render_error_chart(f, area, "No valid data points", border_color);
+            return;
+        }
+
         // Convert timestamps to seconds for x-axis
         let start_time = chart_data.timestamps[0];
         let data_points: Vec<(f64, f64)> = chart_data
             .timestamps
             .iter()
             .zip(chart_data.history.iter())
-            .map(|(timestamp, value)| {
-                let seconds = timestamp
-                    .duration_since(start_time)
-                    .unwrap_or_default()
-                    .as_secs() as f64;
-                (seconds, *value)
+            .filter_map(|(timestamp, value)| {
+                if value.is_finite() {
+                    let seconds = timestamp
+                        .duration_since(start_time)
+                        .unwrap_or_default()
+                        .as_secs() as f64;
+                    Some((seconds, *value))
+                } else {
+                    None
+                }
             })
             .collect();
 
@@ -414,6 +433,21 @@ impl AwsMetricsGrid {
             );
 
         f.render_widget(no_data_widget, area);
+    }
+
+    /// Render error chart
+    fn render_error_chart(f: &mut Frame, area: Rect, error_msg: &str, border_color: Color) {
+        let error_widget = Paragraph::new(format!("Error: {}", error_msg))
+            .style(Style::default().fg(Color::Red))
+            .alignment(ratatui::layout::Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Chart Error")
+                    .border_style(Style::default().fg(border_color)),
+            );
+
+        f.render_widget(error_widget, area);
     }
 
     /// Render metrics in grid layout
@@ -648,24 +682,75 @@ impl AwsMetricsGrid {
         metric_data: &DynamicMetricData,
         border_color: Color,
     ) {
+        // Validate data before rendering
+        if metric_data.history.is_empty() || metric_data.timestamps.is_empty() {
+            Self::render_error_chart(f, area, "No data points", border_color);
+            return;
+        }
+
+        // Validate data lengths match
+        if metric_data.history.len() != metric_data.timestamps.len() {
+            log::warn!("Dynamic chart data length mismatch: history={}, timestamps={}", 
+                metric_data.history.len(), metric_data.timestamps.len());
+            Self::render_error_chart(f, area, "Data length mismatch", border_color);
+            return;
+        }
+
+        // Validate data contains finite values
+        let valid_data_count = metric_data.history.iter().filter(|&&v| v.is_finite()).count();
+        if valid_data_count == 0 {
+            Self::render_error_chart(f, area, "No valid data points", border_color);
+            return;
+        }
+
+        // Warn about invalid values but continue with valid data
+        if valid_data_count < metric_data.history.len() {
+            log::warn!("Dynamic metric {} has {} invalid values out of {}", 
+                metric_data.metric_name, metric_data.history.len() - valid_data_count, metric_data.history.len());
+        }
+
+        // Convert timestamps to seconds for x-axis
+        let start_time = metric_data.timestamps[0];
+        let data_points: Vec<(f64, f64)> = metric_data
+            .timestamps
+            .iter()
+            .zip(metric_data.history.iter())
+            .filter_map(|(timestamp, value)| {
+                if value.is_finite() {
+                    let seconds = timestamp
+                        .duration_since(start_time)
+                        .unwrap_or_default()
+                        .as_secs() as f64;
+                    Some((seconds, *value))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Ensure we have data points after filtering
+        if data_points.is_empty() {
+            Self::render_error_chart(f, area, "No valid data after filtering", border_color);
+            return;
+        }
+
+        // Calculate bounds
+        let x_bounds = [0.0, data_points.last().map(|p| p.0).unwrap_or(1.0)];
         let y_bounds = calculate_y_bounds(&metric_data.history);
+
+        // Create labels
         let x_labels = create_time_labels(&metric_data.timestamps);
         let y_labels = create_dynamic_value_labels(y_bounds, metric_data);
 
-        let chart_data: Vec<(f64, f64)> = metric_data.history
-            .iter()
-            .enumerate()
-            .map(|(i, &y)| (i as f64, y))
-            .collect();
-
-        let datasets = vec![Dataset::default()
+        // Create dataset
+        let dataset = Dataset::default()
             .name("")
             .marker(symbols::Marker::Braille)
-            .style(Style::default().fg(Color::Green))
             .graph_type(GraphType::Line)
-            .data(&chart_data)];
+            .style(Style::default().fg(Color::Green))
+            .data(&data_points);
 
-        let chart = Chart::new(datasets)
+        let chart = Chart::new(vec![dataset])
             .block(
                 Block::default()
                     .borders(Borders::ALL)
@@ -673,15 +758,15 @@ impl AwsMetricsGrid {
             )
             .x_axis(
                 Axis::default()
-                    .style(Style::default().fg(Color::DarkGray))
-                    .labels(x_labels)
-                    .bounds([0.0, metric_data.history.len().max(1) as f64 - 1.0]),
+                    .style(Style::default().fg(Color::Gray))
+                    .bounds(x_bounds)
+                    .labels(x_labels),
             )
             .y_axis(
                 Axis::default()
-                    .style(Style::default().fg(Color::DarkGray))
-                    .labels(y_labels)
-                    .bounds(y_bounds),
+                    .style(Style::default().fg(Color::Gray))
+                    .bounds(y_bounds)
+                    .labels(y_labels),
             );
 
         f.render_widget(chart, area);

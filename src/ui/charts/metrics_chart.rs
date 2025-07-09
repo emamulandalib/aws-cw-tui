@@ -11,6 +11,48 @@ use ratatui::{
 };
 use std::time::SystemTime;
 
+// Add data validation utilities
+fn validate_metric_data(history: &[f64], timestamps: &[SystemTime]) -> Result<(), String> {
+    // Check if data is empty
+    if history.is_empty() || timestamps.is_empty() {
+        return Err("Empty data arrays".to_string());
+    }
+    
+    // Check if arrays have matching lengths
+    if history.len() != timestamps.len() {
+        return Err(format!(
+            "Data length mismatch: history has {} points, timestamps has {} points",
+            history.len(),
+            timestamps.len()
+        ));
+    }
+    
+    // Check for invalid values
+    for (i, &value) in history.iter().enumerate() {
+        if !value.is_finite() {
+            return Err(format!("Invalid value at index {}: {}", i, value));
+        }
+    }
+    
+    Ok(())
+}
+
+fn sanitize_metric_data(history: &[f64], timestamps: &[SystemTime]) -> (Vec<f64>, Vec<SystemTime>) {
+    let mut clean_history = Vec::new();
+    let mut clean_timestamps = Vec::new();
+    
+    for (i, (&value, &timestamp)) in history.iter().zip(timestamps.iter()).enumerate() {
+        if value.is_finite() {
+            clean_history.push(value);
+            clean_timestamps.push(timestamp);
+        } else {
+            log::warn!("Skipping invalid metric value at index {}: {}", i, value);
+        }
+    }
+    
+    (clean_history, clean_timestamps)
+}
+
 // Legacy render_metrics function removed - use render_metrics_unified instead
 
 pub fn render_metrics_unified(
@@ -31,27 +73,58 @@ pub fn render_metrics_unified(
     let individual_metrics = collect_available_metrics_unified(app);
     let available_count = individual_metrics.len();
 
-    // Get timestamps based on service type
-    let timestamps = match app
-        .selected_service
-        .as_ref()
-        .unwrap_or(&crate::models::AwsService::Rds)
-    {
-        crate::models::AwsService::Rds => &app.metrics.timestamps,
-        crate::models::AwsService::Sqs => &app.sqs_metrics.timestamps,
+    // Get timestamps based on dynamic vs legacy system
+    let timestamps_available = if let Some(ref dynamic_metrics) = app.dynamic_metrics {
+        // Dynamic metrics system: check if any dynamic metric has timestamps
+        !dynamic_metrics.is_empty() && 
+        dynamic_metrics.metrics.iter().any(|m| !m.timestamps.is_empty())
+    } else {
+        // Legacy system: check service-specific timestamps
+        match app.selected_service.as_ref().unwrap_or(&crate::models::AwsService::Rds) {
+            crate::models::AwsService::Rds => !app.metrics.timestamps.is_empty(),
+            crate::models::AwsService::Sqs => !app.sqs_metrics.timestamps.is_empty(),
+        }
     };
+
+    // Validate timestamps are available
+    if !timestamps_available {
+        render_error_message(f, main_chunks[0], "No timestamp data available");
+        render_instructions(f, main_chunks[1], 0, 0);
+        return;
+    }
 
     // Use ListState-based selection instead of manual scroll_offset
     let selected_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
 
-    render_scrollable_individual_metrics(
-        f,
-        main_chunks[0],
-        timestamps,
-        &individual_metrics,
-        selected_index,
-        metrics_per_screen,
-    );
+    // Render using appropriate timestamp source
+    if let Some(ref dynamic_metrics) = app.dynamic_metrics {
+        // Use first dynamic metric's timestamps for rendering
+        if let Some(first_metric) = dynamic_metrics.metrics.iter().find(|m| !m.timestamps.is_empty()) {
+            render_scrollable_individual_metrics(
+                f,
+                main_chunks[0],
+                &first_metric.timestamps,
+                &individual_metrics,
+                selected_index,
+                metrics_per_screen,
+            );
+        }
+    } else {
+        // Use legacy timestamps
+        let timestamps = match app.selected_service.as_ref().unwrap_or(&crate::models::AwsService::Rds) {
+            crate::models::AwsService::Rds => &app.metrics.timestamps,
+            crate::models::AwsService::Sqs => &app.sqs_metrics.timestamps,
+        };
+        
+        render_scrollable_individual_metrics(
+            f,
+            main_chunks[0],
+            timestamps,
+            &individual_metrics,
+            selected_index,
+            metrics_per_screen,
+        );
+    }
 
     render_instructions(f, main_chunks[1], available_count, selected_index);
 }
@@ -61,30 +134,182 @@ fn collect_available_metrics_unified(app: &crate::models::App) -> Vec<MetricTupl
 
     // NEW: Check if dynamic metrics are available, otherwise fall back to legacy
     if let Some(ref dynamic_metrics) = app.dynamic_metrics {
-        // Use dynamic metrics system
-        for metric_data in &dynamic_metrics.metrics {
-            if !metric_data.history.is_empty() {
-                let display_name = metric_data.display_name.as_str(); // Use AWS SDK metric name directly
-                let formatted_value = format_dynamic_metric_value(metric_data);
-                let color = get_dynamic_metric_color(&metric_data.metric_name);
-                let max_val = calculate_dynamic_metric_max(metric_data);
+        if !dynamic_metrics.is_empty() {
+            log::info!("Using dynamic metrics system with {} metrics", dynamic_metrics.len());
+            
+            // Use dynamic metrics system
+            for metric_data in &dynamic_metrics.metrics {
+                // Validate metric data before adding
+                if let Err(error) = validate_metric_data(&metric_data.history, &metric_data.timestamps) {
+                    log::warn!("Skipping dynamic metric {}: {}", metric_data.metric_name, error);
+                    continue;
+                }
                 
-                individual_metrics.push((
-                    display_name,
-                    formatted_value,
-                    &metric_data.history,
-                    color,
-                    max_val,
-                    true
-                ));
+                if !metric_data.history.is_empty() && !metric_data.timestamps.is_empty() {
+                    let display_name = metric_data.display_name.as_str(); // Use AWS SDK metric name directly
+                    let formatted_value = format_dynamic_metric_value(metric_data);
+                    let color = get_dynamic_metric_color(&metric_data.metric_name);
+                    let max_val = calculate_dynamic_metric_max(metric_data);
+                    
+                    individual_metrics.push((
+                        display_name,
+                        formatted_value,
+                        &metric_data.history,
+                        color,
+                        max_val,
+                        true
+                    ));
+                } else {
+                    log::debug!("Skipping dynamic metric {} with empty data", metric_data.metric_name);
+                }
             }
+            
+            if individual_metrics.is_empty() {
+                log::warn!("Dynamic metrics available but none passed validation - falling back to legacy");
+            } else {
+                log::info!("Successfully loaded {} dynamic metrics", individual_metrics.len());
+                return individual_metrics;
+            }
+        } else {
+            log::warn!("Dynamic metrics available but empty - falling back to legacy");
         }
     } else {
-        // LEGACY: Fall back to hardcoded metrics (empty for now since we're transitioning)
-        // This branch will be removed once dynamic metrics are fully working
+        log::info!("No dynamic metrics available - using legacy system");
+    }
+    
+    // LEGACY: Fall back to hardcoded metrics if dynamic metrics not available or empty
+    log::info!("Using legacy metrics system");
+    
+    // Get available metrics based on service type
+    let available_metrics = match app
+        .selected_service
+        .as_ref()
+        .unwrap_or(&crate::models::AwsService::Rds)
+    {
+        crate::models::AwsService::Rds => {
+            let metrics = &app.metrics;
+            if metrics.timestamps.is_empty() {
+                log::warn!("Legacy RDS metrics have no timestamps");
+                Vec::new()
+            } else {
+                // Only return metrics that have actual data
+                let available = metrics.get_available_metrics_with_data();
+                log::info!("Found {} legacy RDS metrics with data", available.len());
+                available
+            }
+        }
+        crate::models::AwsService::Sqs => {
+            let metrics = &app.sqs_metrics;
+            if metrics.timestamps.is_empty() {
+                log::warn!("Legacy SQS metrics have no timestamps");
+                Vec::new()
+            } else {
+                let available = metrics.get_available_metrics();
+                log::info!("Found {} legacy SQS metrics", available.len());
+                available
+            }
+        }
+    };
+
+    if available_metrics.is_empty() {
+        log::warn!("No legacy metrics available");
+        return individual_metrics;
     }
 
+    // Convert to metric tuples with validation
+    let service_timestamps = match app
+        .selected_service
+        .as_ref()
+        .unwrap_or(&crate::models::AwsService::Rds)
+    {
+        crate::models::AwsService::Rds => &app.metrics.timestamps,
+        crate::models::AwsService::Sqs => &app.sqs_metrics.timestamps,
+    };
+
+    for metric_type in available_metrics {
+        let metric_info = match app
+            .selected_service
+            .as_ref()
+            .unwrap_or(&crate::models::AwsService::Rds)
+        {
+            crate::models::AwsService::Rds => {
+                let rds_info = get_rds_metric_display_info(&metric_type, &app.metrics);
+                (rds_info.0, rds_info.1, rds_info.2, rds_info.3, rds_info.4, true)
+            }
+            crate::models::AwsService::Sqs => {
+                let sqs_info = get_sqs_metric_display_info(&metric_type, &app.sqs_metrics);
+                (sqs_info.0, sqs_info.1, sqs_info.2, sqs_info.3, sqs_info.4, true)
+            }
+        };
+        
+        // Validate metric data using service-specific timestamps
+        if let Err(error) = validate_metric_data(metric_info.2, service_timestamps) {
+            log::warn!("Skipping legacy metric {:?}: {}", metric_type, error);
+            continue;
+        }
+        
+        if !metric_info.2.is_empty() && !service_timestamps.is_empty() {
+            individual_metrics.push(metric_info);
+        } else {
+            log::debug!("Skipping legacy metric {:?} with empty data", metric_type);
+        }
+    }
+
+    log::info!("Successfully loaded {} legacy metrics", individual_metrics.len());
     individual_metrics
+}
+
+fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, message: &str) {
+    let error_widget = Paragraph::new(format!("Error: {}", message))
+        .style(Style::default().fg(Color::Red))
+        .alignment(ratatui::layout::Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Chart Error")
+                .border_style(Style::default().fg(Color::Red)),
+        );
+    f.render_widget(error_widget, area);
+}
+
+fn render_error_chart(f: &mut Frame, area: ratatui::layout::Rect, error_msg: &str) {
+    let error_widget = Paragraph::new(vec![
+        Line::from(Span::styled("Chart Rendering Failed", Style::default().fg(Color::Red))),
+        Line::from(Span::raw("")),
+        Line::from(Span::styled(format!("Error: {}", error_msg), Style::default().fg(Color::Yellow))),
+        Line::from(Span::raw("")),
+        Line::from(Span::styled("Try refreshing (r) or check AWS credentials", Style::default().fg(Color::Gray))),
+    ])
+    .style(Style::default())
+    .alignment(ratatui::layout::Alignment::Center)
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Chart Error")
+            .border_style(Style::default().fg(Color::Red)),
+    );
+    f.render_widget(error_widget, area);
+}
+
+fn render_data_validation_error(f: &mut Frame, area: ratatui::layout::Rect, metric_name: &str, error_details: &str) {
+    let error_widget = Paragraph::new(vec![
+        Line::from(Span::styled(format!("Metric: {}", metric_name), Style::default().fg(Color::White))),
+        Line::from(Span::raw("")),
+        Line::from(Span::styled("Data Validation Failed", Style::default().fg(Color::Red))),
+        Line::from(Span::raw("")),
+        Line::from(Span::styled(error_details, Style::default().fg(Color::Yellow))),
+        Line::from(Span::raw("")),
+        Line::from(Span::styled("This may indicate AWS API issues", Style::default().fg(Color::Gray))),
+    ])
+    .style(Style::default())
+    .alignment(ratatui::layout::Alignment::Center)
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Validation Error")
+            .border_style(Style::default().fg(Color::Red)),
+    );
+    f.render_widget(error_widget, area);
 }
 
 fn get_rds_metric_display_info<'a>(
@@ -633,37 +858,38 @@ fn render_high_resolution_chart(
 ) {
     use chrono::{DateTime, Utc};
 
+    // Validate and sanitize data
+    if let Err(error) = validate_metric_data(history, timestamps) {
+        log::warn!("Chart rendering failed for {}: {}", metric_name, error);
+        render_data_validation_error(f, area, metric_name, &error);
+        return;
+    }
+
     if history.is_empty() || timestamps.is_empty() {
-        let no_data_chart = Chart::new(vec![])
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::White)),
-            )
-            .x_axis(
-                Axis::default()
-                    .style(Style::default().fg(Color::Gray))
-                    .bounds([0.0, 180.0]),
-            )
-            .y_axis(
-                Axis::default()
-                    .style(Style::default().fg(Color::Gray))
-                    .bounds([0.0, 1.0]),
-            );
-        f.render_widget(no_data_chart, area);
+        render_error_chart(f, area, "No data available for this time period");
         return;
     }
 
-    if timestamps.len() != history.len() {
+    // Sanitize data to remove any invalid values
+    let (clean_history, clean_timestamps) = sanitize_metric_data(history, timestamps);
+    
+    if clean_history.is_empty() || clean_timestamps.is_empty() {
+        render_data_validation_error(f, area, metric_name, "All data points contain invalid values (NaN, Infinity)");
         return;
     }
 
-    let start_time: DateTime<Utc> = timestamps[0].into();
+    if clean_timestamps.len() != clean_history.len() {
+        log::error!("Data sanitization failed: length mismatch after cleaning");
+        render_data_validation_error(f, area, metric_name, "Data consistency error after sanitization");
+        return;
+    }
+
+    let start_time: DateTime<Utc> = clean_timestamps[0].into();
     let start_epoch = start_time.timestamp() as f64;
 
-    let data_points: Vec<(f64, f64)> = timestamps
+    let data_points: Vec<(f64, f64)> = clean_timestamps
         .iter()
-        .zip(history.iter())
+        .zip(clean_history.iter())
         .map(|(timestamp, &value)| {
             let dt: DateTime<Utc> = (*timestamp).into();
             let epoch_seconds = dt.timestamp() as f64;
@@ -677,7 +903,7 @@ fn render_high_resolution_chart(
         .unwrap_or(start_epoch + 3600.0 * 3.0);
     let time_bounds = [start_epoch, end_epoch];
 
-    let (y_min, y_max) = calculate_y_bounds(history);
+    let (y_min, y_max) = calculate_y_bounds(&clean_history);
     let y_bounds = if y_max <= y_min {
         [y_min, y_min + 1.0]
     } else {
@@ -691,7 +917,7 @@ fn render_high_resolution_chart(
         .style(Style::default().fg(color))
         .data(&data_points);
 
-    let x_labels = create_x_labels(timestamps);
+    let x_labels = create_x_labels(&clean_timestamps);
     let y_labels = create_y_labels(y_bounds, metric_name);
 
     let chart = Chart::new(vec![dataset])
@@ -933,4 +1159,89 @@ fn calculate_dynamic_metric_max(metric_data: &crate::aws::dynamic_metric_discove
             }
         }
     }
+}
+
+/// Test data validation and chart rendering with edge cases
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn test_validate_metric_data_empty() {
+        let history = vec![];
+        let timestamps = vec![];
+        assert!(validate_metric_data(&history, &timestamps).is_err());
+    }
+
+    #[test]
+    fn test_validate_metric_data_mismatch() {
+        let history = vec![1.0, 2.0, 3.0];
+        let timestamps = vec![SystemTime::now(), SystemTime::now()];
+        assert!(validate_metric_data(&history, &timestamps).is_err());
+    }
+
+    #[test]
+    fn test_validate_metric_data_invalid_values() {
+        let history = vec![1.0, f64::NAN, 3.0];
+        let timestamps = vec![SystemTime::now(); 3];
+        assert!(validate_metric_data(&history, &timestamps).is_err());
+    }
+
+    #[test]
+    fn test_validate_metric_data_valid() {
+        let history = vec![1.0, 2.0, 3.0];
+        let timestamps = vec![SystemTime::now(); 3];
+        assert!(validate_metric_data(&history, &timestamps).is_ok());
+    }
+
+    #[test]
+    fn test_sanitize_metric_data() {
+        let history = vec![1.0, f64::NAN, 3.0, f64::INFINITY, 5.0];
+        let timestamps = vec![SystemTime::now(); 5];
+        let (clean_history, clean_timestamps) = sanitize_metric_data(&history, &timestamps);
+        
+        assert_eq!(clean_history.len(), 3);
+        assert_eq!(clean_timestamps.len(), 3);
+        assert_eq!(clean_history, vec![1.0, 3.0, 5.0]);
+    }
+
+    #[test]
+    fn test_calculate_y_bounds_single_value() {
+        let history = vec![42.0];
+        let (min, max) = calculate_y_bounds(&history);
+        assert!(min < 42.0);
+        assert!(max > 42.0);
+    }
+
+    #[test]
+    fn test_calculate_y_bounds_multiple_values() {
+        let history = vec![10.0, 20.0, 30.0];
+        let (min, max) = calculate_y_bounds(&history);
+        assert!(min < 10.0);
+        assert!(max > 30.0);
+    }
+}
+
+/// Debug function to validate chart rendering components
+pub fn debug_validate_chart_components(app: &crate::models::App) {
+    log::info!("=== Chart Validation Debug ===");
+    
+    // Check dynamic metrics
+    if let Some(ref dynamic_metrics) = app.dynamic_metrics {
+        log::info!("Dynamic metrics available: {} metrics", dynamic_metrics.len());
+        for (i, metric) in dynamic_metrics.metrics.iter().enumerate() {
+            let validation_result = validate_metric_data(&metric.history, &metric.timestamps);
+            log::info!("Metric {}: {} - validation: {:?}", 
+                i, metric.metric_name, validation_result);
+        }
+    } else {
+        log::info!("No dynamic metrics available");
+    }
+    
+    // Check legacy metrics
+    let legacy_validation = validate_metric_data(&app.metrics.cpu_history, &app.metrics.timestamps);
+    log::info!("Legacy metrics validation: {:?}", legacy_validation);
+    
+    log::info!("=== End Chart Validation ===");
 }
