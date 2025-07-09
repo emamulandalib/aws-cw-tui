@@ -74,8 +74,8 @@ impl AwsMetricsGrid {
                 return;
             }
 
-            // Create metric chart data from dynamic metrics
-            let all_chart_data: Vec<MetricChartData> = dynamic_metrics.metrics
+            // Create metric chart data from dynamic metrics and sort alphabetically by display name
+            let mut all_chart_data: Vec<MetricChartData> = dynamic_metrics.metrics
                 .iter()
                 .map(|metric_data| MetricChartData {
                     metric_type: MetricType::CpuUtilization, // Placeholder - we'll use the metric name
@@ -89,6 +89,21 @@ impl AwsMetricsGrid {
                 Self::render_loading_state(f, area);
                 return;
             }
+
+            // Sort the dynamic metrics by display name alphabetically
+            let mut sorted_dynamic_metrics = dynamic_metrics.metrics.clone();
+            sorted_dynamic_metrics.sort_by(|a, b| a.display_name.cmp(&b.display_name));
+            
+            // Recreate chart data in sorted order
+            all_chart_data = sorted_dynamic_metrics
+                .iter()
+                .map(|metric_data| MetricChartData {
+                    metric_type: MetricType::CpuUtilization, // Placeholder - we'll use the metric name
+                    current_value: metric_data.current_value,
+                    history: metric_data.history.clone(),
+                    timestamps: metric_data.timestamps.clone(),
+                })
+                .collect();
 
             // Force 2x2 grid layout (4 metrics per screen)
             let metrics_per_row = 2;
@@ -116,7 +131,7 @@ impl AwsMetricsGrid {
                 f,
                 area,
                 &visible_metrics,
-                &dynamic_metrics.metrics[start_index..end_index],
+                &sorted_dynamic_metrics[start_index..end_index],
                 grid_layout,
                 app,
                 safe_selected_index - start_index,
@@ -135,7 +150,7 @@ impl AwsMetricsGrid {
             }
 
             // Create metric chart data for all available metrics
-            let all_chart_data: Vec<MetricChartData> = available_metrics
+            let mut all_chart_data: Vec<MetricChartData> = available_metrics
                 .into_iter()
                 .filter_map(|metric_type| MetricChartData::from_app(app, metric_type))
                 .collect();
@@ -144,6 +159,13 @@ impl AwsMetricsGrid {
                 Self::render_loading_state(f, area);
                 return;
             }
+
+            // Sort metrics alphabetically by metric name (using MetricDefinition)
+            all_chart_data.sort_by(|a, b| {
+                let a_name = MetricRegistry::get_definition(&a.metric_type).name;
+                let b_name = MetricRegistry::get_definition(&b.metric_type).name;
+                a_name.cmp(b_name)
+            });
 
             // Force 2x2 grid layout (4 metrics per screen)
             let metrics_per_row = 2;

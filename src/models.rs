@@ -26,7 +26,7 @@ impl AwsInstance for RdsInstance {
 }
 impl AwsInstance for SqsQueue {
     fn id(&self) -> &str {
-        &self.url
+        &self.name
     }
 }
 // TEMPORARY: Basic MetricData struct for backward compatibility during UI transition

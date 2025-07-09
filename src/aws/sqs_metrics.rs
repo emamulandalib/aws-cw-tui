@@ -291,7 +291,21 @@ pub async fn fetch_sqs_metrics(queue: &SqsQueue, time_range: &TimeRange) -> Resu
         )
         .await
         {
-            Ok((values, _)) => {
+            Ok((values, times)) => {
+                // Validate data before processing
+                if values.len() != times.len() {
+                    log::warn!("FIFO metric {} data length mismatch: values={}, times={}", 
+                        metric_name, values.len(), times.len());
+                    continue;
+                }
+
+                // Update shared timestamps if this metric has more data points
+                if times.len() > timestamps.len() {
+                    timestamps = times;
+                } else if timestamps.is_empty() {
+                    timestamps = times;
+                }
+
                 let current_value = values.last().copied().unwrap_or(0.0);
 
                 match metric_name {
@@ -320,7 +334,7 @@ pub async fn fetch_sqs_metrics(queue: &SqsQueue, time_range: &TimeRange) -> Resu
             .value(&dlq_name)
             .build();
 
-        if let Ok((values, _)) = fetch_single_metric(
+        if let Ok((values, times)) = fetch_single_metric(
             &client,
             "AWS/SQS",
             "ApproximateNumberOfMessages",
@@ -330,9 +344,51 @@ pub async fn fetch_sqs_metrics(queue: &SqsQueue, time_range: &TimeRange) -> Resu
         )
         .await
         {
-            metric_data.number_of_messages_in_dlq = values.last().copied().unwrap_or(0.0);
-            metric_data.dlq_messages_history = values;
+            // Validate DLQ data before processing
+            if values.len() != times.len() {
+                log::warn!("DLQ metric data length mismatch: values={}, times={}", 
+                    values.len(), times.len());
+            } else {
+                // Update shared timestamps if this metric has more data points
+                if times.len() > timestamps.len() {
+                    timestamps = times;
+                } else if timestamps.is_empty() {
+                    timestamps = times;
+                }
+
+                metric_data.number_of_messages_in_dlq = values.last().copied().unwrap_or(0.0);
+                metric_data.dlq_messages_history = values;
+            }
         }
+    }
+
+    // Final validation: ensure all history vectors match timestamp length
+    let target_length = timestamps.len();
+    if target_length > 0 {
+        // Truncate any history vectors that are longer than timestamps
+        macro_rules! truncate_history {
+            ($history:expr) => {
+                if $history.len() > target_length {
+                    log::warn!("Truncating history vector from {} to {} points to match timestamps", 
+                        $history.len(), target_length);
+                    $history.truncate(target_length);
+                }
+            };
+        }
+
+        truncate_history!(metric_data.messages_sent_history);
+        truncate_history!(metric_data.messages_received_history);
+        truncate_history!(metric_data.messages_deleted_history);
+        truncate_history!(metric_data.queue_depth_history);
+        truncate_history!(metric_data.messages_visible_history);
+        truncate_history!(metric_data.messages_not_visible_history);
+        truncate_history!(metric_data.oldest_message_age_history);
+        truncate_history!(metric_data.empty_receives_history);
+        truncate_history!(metric_data.messages_delayed_history);
+        truncate_history!(metric_data.sent_message_size_history);
+        truncate_history!(metric_data.dlq_messages_history);
+        truncate_history!(metric_data.groups_with_inflight_messages_history);
+        truncate_history!(metric_data.deduplicated_sent_messages_history);
     }
 
     metric_data.timestamps = timestamps;

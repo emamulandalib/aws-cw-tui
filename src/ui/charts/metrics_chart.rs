@@ -167,6 +167,8 @@ fn collect_available_metrics_unified(app: &crate::models::App) -> Vec<MetricTupl
             if individual_metrics.is_empty() {
                 log::warn!("Dynamic metrics available but none passed validation - falling back to legacy");
             } else {
+                // Sort metrics alphabetically by display name
+                individual_metrics.sort_by(|a, b| a.0.cmp(b.0));
                 log::info!("Successfully loaded {} dynamic metrics", individual_metrics.len());
                 return individual_metrics;
             }
@@ -254,6 +256,9 @@ fn collect_available_metrics_unified(app: &crate::models::App) -> Vec<MetricTupl
             log::debug!("Skipping legacy metric {:?} with empty data", metric_type);
         }
     }
+
+    // Sort metrics alphabetically by display name
+    individual_metrics.sort_by(|a, b| a.0.cmp(b.0));
 
     log::info!("Successfully loaded {} legacy metrics", individual_metrics.len());
     individual_metrics
