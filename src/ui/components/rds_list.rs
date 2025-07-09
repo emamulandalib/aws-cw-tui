@@ -148,19 +148,14 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
             Style::default()
                 .on_dark_gray()
                 .bold(),
-        )
-        .highlight_symbol("▶ ");
+        );
 
     f.render_stateful_widget(items_list, area, &mut app.list_state);
     
     // Add scrollbar if there are more instances than can fit on screen
     if current_instances.len() > (area.height.saturating_sub(2)) as usize {
         let scrollbar = Scrollbar::default()
-            .orientation(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(Some("↑"))
-            .end_symbol(Some("↓"))
-            .track_symbol(Some("│"))
-            .thumb_symbol("█");
+            .orientation(ScrollbarOrientation::VerticalRight);
         
         let mut scrollbar_state = ScrollbarState::default()
             .content_length(current_instances.len())
@@ -229,7 +224,7 @@ fn get_queue_type_style(queue_type: &str) -> Style {
 
 fn render_controls(f: &mut Frame, area: ratatui::layout::Rect) {
     let controls = Paragraph::new(
-        "↑/↓: Navigate • Enter: View Details • Esc: Back to Services • r: Refresh • q: Quit",
+        "Up/Down: Navigate • Enter: View Details • Esc: Back to Services • r: Refresh • q: Quit",
     )
     .style(Style::default().gray());
     f.render_widget(controls, area);

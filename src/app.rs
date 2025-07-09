@@ -839,30 +839,9 @@ impl App {
     /// Update metrics_per_screen based on available area
     /// This should be called before rendering to ensure navigation functions work correctly
     pub fn update_metrics_per_screen(&mut self, area_height: u16) {
-        // For the new metrics grid system (2 metrics per row)
-        let metrics_per_row = 2;
-        let min_height_per_row = 12; // Minimum height needed for each row
-        let available_height = area_height.saturating_sub(2) as usize; // Account for borders
-        
-        // Ensure we have at least enough space for one row
-        let max_rows = if available_height >= min_height_per_row {
-            (available_height / min_height_per_row).max(1)
-        } else {
-            1 // Fallback to show at least one row even if space is tight
-        };
-        
-        let calculated_metrics_per_screen = max_rows * metrics_per_row;
-        
-        // Ensure metrics_per_screen is never zero and always a multiple of metrics_per_row
-        if calculated_metrics_per_screen == 0 {
-            self.metrics_per_screen = metrics_per_row; // Default to 2 metrics (1 row)
-        } else {
-            // Ensure it's always a multiple of metrics_per_row for grid alignment
-            self.metrics_per_screen = (calculated_metrics_per_screen / metrics_per_row) * metrics_per_row;
-            if self.metrics_per_screen == 0 {
-                self.metrics_per_screen = metrics_per_row; // Fallback to at least one row
-            }
-        }
+        // Force 2x2 grid layout (4 metrics per screen)
+        // This ensures consistency with the aws_chart.rs implementation
+        self.metrics_per_screen = 4;
     }
 
     // ================================

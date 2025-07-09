@@ -1,18 +1,18 @@
 // Self-contained sparkline utilities for inline display
 
-/// Generates an elegant inline sparkline using Braille characters for compact visualization
+/// Generates an elegant inline sparkline using ASCII characters for compact visualization
 /// This leverages the existing sparkline functionality for consistency
 pub fn generate_inline_sparkline(history: &[f64], width: usize) -> String {
     if history.is_empty() || width == 0 {
-        return "⠀".repeat(width.max(8));
+        return " ".repeat(width.max(8));
     }
 
     if history.len() == 1 {
         // Single data point - show as centered indicator
         let half_width = width / 2;
-        let mut sparkline = "⠀".repeat(half_width);
-        sparkline.push('⣿');
-        sparkline.push_str(&"⠀".repeat(width.saturating_sub(half_width + 1)));
+        let mut sparkline = " ".repeat(half_width);
+        sparkline.push('|');
+        sparkline.push_str(&" ".repeat(width.saturating_sub(half_width + 1)));
         return sparkline;
     }
 
@@ -28,33 +28,33 @@ pub fn generate_inline_sparkline(history: &[f64], width: usize) -> String {
     // Sample data to fit the available width
     let sampled_data = sample_sparkline_data(history, width);
 
-    // Normalize data to 0-1 range for Braille character selection
+    // Normalize data to 0-1 range for ASCII character selection
     let normalized_data: Vec<f64> = sampled_data
         .iter()
         .map(|&value| ((value - y_min) / y_range).clamp(0.0, 1.0))
         .collect();
 
-    // Generate inline sparkline using Braille characters
+    // Generate inline sparkline using ASCII characters
     generate_braille_inline_sparkline(&normalized_data, width)
 }
 
 /// Generate a flat sparkline for constant values
 fn generate_flat_sparkline(width: usize) -> String {
     if width <= 2 {
-        return "⣿".repeat(width);
+        return "|".repeat(width);
     }
 
     let mut sparkline = String::with_capacity(width);
-    sparkline.push('⣿');
-    sparkline.push_str(&"⣤".repeat(width.saturating_sub(2)));
-    sparkline.push('⣿');
+    sparkline.push('|');
+    sparkline.push_str(&"-".repeat(width.saturating_sub(2)));
+    sparkline.push('|');
     sparkline
 }
 
-/// Generate inline sparkline using Braille characters for elegant visualization
+/// Generate inline sparkline using simple ASCII characters for visualization
 fn generate_braille_inline_sparkline(normalized_data: &[f64], width: usize) -> String {
     if normalized_data.is_empty() {
-        return "⠀".repeat(width);
+        return " ".repeat(width);
     }
 
     let mut sparkline = String::with_capacity(width);
@@ -63,20 +63,17 @@ fn generate_braille_inline_sparkline(normalized_data: &[f64], width: usize) -> S
         let char_to_use = if i < normalized_data.len() {
             let current_value = normalized_data[i];
 
-            // Map normalized value to Braille character representing vertical position
-            match (current_value * 8.0) as usize {
-                0 => '⣀',     // Bottom level
-                1 => '⣄',     // Low level
-                2 => '⣆',     // Low-medium level
-                3 => '⣇',     // Medium-low level
-                4 => '⣧',     // Medium level
-                5 => '⣷',     // Medium-high level
-                6 => '⣿',     // High level
-                7..=8 => '⣿', // Maximum level
-                _ => '⣤',     // Default medium
+            // Map normalized value to simple ASCII character representing vertical position
+            match (current_value * 4.0) as usize {
+                0 => '_',     // Bottom level
+                1 => '-',     // Low level
+                2 => '=',     // Medium level
+                3 => '^',     // High level
+                4..=8 => '^', // Maximum level
+                _ => '-',     // Default medium
             }
         } else {
-            '⠀' // Empty space
+            ' ' // Empty space
         };
 
         sparkline.push(char_to_use);

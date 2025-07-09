@@ -719,7 +719,7 @@ fn render_instructions(
     selected_index: usize, // Now using ListState-based selection index
 ) {
     let instructions = Paragraph::new(format!(
-        "↑/↓ scroll ({} metrics with data, showing {}/{}) • r refresh • b back • q quit",
+        "Up/Down scroll ({} metrics with data, showing {}/{}) • r refresh • b back • q quit",
         available_count,
         selected_index + 1,
         available_count

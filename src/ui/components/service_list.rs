@@ -56,19 +56,14 @@ fn render_services(f: &mut Frame, area: Rect, app: &mut App) {
             Style::default()
                 .on_dark_gray()
                 .bold(),
-        )
-        .highlight_symbol("▶ ");
+        );
 
     f.render_stateful_widget(services_list, area, &mut app.service_list_state);
     
     // Add scrollbar if there are more services than can fit on screen
     if app.available_services.len() > (area.height.saturating_sub(2)) as usize {
         let scrollbar = Scrollbar::default()
-            .orientation(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(Some("↑"))
-            .end_symbol(Some("↓"))
-            .track_symbol(Some("│"))
-            .thumb_symbol("█");
+            .orientation(ScrollbarOrientation::VerticalRight);
         
         let mut scrollbar_state = ScrollbarState::default()
             .content_length(app.available_services.len())
@@ -79,7 +74,7 @@ fn render_services(f: &mut Frame, area: Rect, app: &mut App) {
 }
 
 fn render_controls(f: &mut Frame, area: Rect) {
-    let controls = Paragraph::new("↑/↓: Navigate • Enter: Select Service • q: Quit")
+    let controls = Paragraph::new("Up/Down: Navigate • Enter: Select Service • q: Quit")
         .style(Style::default().gray());
     f.render_widget(controls, area);
 }
