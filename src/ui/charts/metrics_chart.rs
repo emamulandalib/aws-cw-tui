@@ -1064,39 +1064,7 @@ fn create_y_labels(y_bounds: [f64; 2], metric_name: &str) -> Vec<Line<'_>> {
 // NEW: Dynamic Metrics Helper Functions
 // ================================
 
-/// Get a user-friendly display name for a dynamic metric
-fn get_dynamic_metric_display_name(metric_name: &str) -> &'static str {
-    match metric_name {
-        "CPUUtilization" => "CPU Utilization",
-        "DatabaseConnections" => "DB Connections", 
-        "FreeStorageSpace" => "Free Storage",
-        "ReadIOPS" => "Read IOPS",
-        "WriteIOPS" => "Write IOPS",
-        "ReadLatency" => "Read Latency",
-        "WriteLatency" => "Write Latency", 
-        "ReadThroughput" => "Read Throughput",
-        "WriteThroughput" => "Write Throughput",
-        "NetworkReceiveThroughput" => "Network Receive",
-        "NetworkTransmitThroughput" => "Network Transmit",
-        "SwapUsage" => "Swap Usage",
-        "FreeableMemory" => "Freeable Memory",
-        "DiskQueueDepth" => "Queue Depth",
-        "BurstBalance" => "Burst Balance",
-        "CPUCreditUsage" => "CPU Credit Usage",
-        "CPUCreditBalance" => "CPU Credit Balance",
-        "BinLogDiskUsage" => "Binary Log Usage",
-        "ReplicaLag" => "Replica Lag",
-        "NumberOfMessagesSent" => "Messages Sent",
-        "NumberOfMessagesReceived" => "Messages Received",
-        "NumberOfMessagesDeleted" => "Messages Deleted",
-        "ApproximateNumberOfMessages" => "Queue Depth",
-        "ApproximateNumberOfMessagesVisible" => "Visible Messages",
-        "ApproximateNumberOfMessagesNotVisible" => "Hidden Messages",
-        "ApproximateAgeOfOldestMessage" => "Oldest Message Age",
-        "NumberOfEmptyReceives" => "Empty Receives",
-        _ => "Unknown Metric", // Fallback to static string
-    }
-}
+
 
 /// Format the current value of a dynamic metric for display
 fn format_dynamic_metric_value(metric_data: &crate::aws::dynamic_metric_discovery::DynamicMetricData) -> String {
@@ -1166,11 +1134,13 @@ fn calculate_dynamic_metric_max(metric_data: &crate::aws::dynamic_metric_discove
     }
 }
 
+
+
 /// Test data validation and chart rendering with edge cases
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{Duration, SystemTime};
+    use std::time::SystemTime;
 
     #[test]
     fn test_validate_metric_data_empty() {
@@ -1226,27 +1196,4 @@ mod tests {
         assert!(min < 10.0);
         assert!(max > 30.0);
     }
-}
-
-/// Debug function to validate chart rendering components
-pub fn debug_validate_chart_components(app: &crate::models::App) {
-    log::info!("=== Chart Validation Debug ===");
-    
-    // Check dynamic metrics
-    if let Some(ref dynamic_metrics) = app.dynamic_metrics {
-        log::info!("Dynamic metrics available: {} metrics", dynamic_metrics.len());
-        for (i, metric) in dynamic_metrics.metrics.iter().enumerate() {
-            let validation_result = validate_metric_data(&metric.history, &metric.timestamps);
-            log::info!("Metric {}: {} - validation: {:?}", 
-                i, metric.metric_name, validation_result);
-        }
-    } else {
-        log::info!("No dynamic metrics available");
-    }
-    
-    // Check legacy metrics
-    let legacy_validation = validate_metric_data(&app.metrics.cpu_history, &app.metrics.timestamps);
-    log::info!("Legacy metrics validation: {:?}", legacy_validation);
-    
-    log::info!("=== End Chart Validation ===");
 }

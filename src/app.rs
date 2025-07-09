@@ -11,6 +11,12 @@ use log::info;
 use std::time::{Duration, Instant};
 
 use crate::models::{RdsInstance, SqsQueue};
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl App {
     // ================================
     // 1. INITIALIZATION
@@ -43,7 +49,7 @@ impl App {
 
             // Initialize sparkline grid state
             selected_metric_name: None,
-            selected_metric: None, // TEMPORARY: Legacy compatibility
+
             sparkline_grid_selected_index: 0,
             saved_sparkline_grid_selected_index: 0,
             sparkline_grid_list_state: ratatui::widgets::ListState::default(),
@@ -357,11 +363,7 @@ impl App {
         }
     }
 
-    /// Safely get the selected RDS instance ID with bounds checking
-    pub fn get_selected_rds_instance_id(&self) -> Option<String> {
-        self.get_selected_rds_instance()
-            .map(|instance| instance.identifier.clone())
-    }
+
 
     /// Safely get the selected SQS queue with bounds checking
     pub fn get_selected_sqs_queue(&self) -> Option<&SqsQueue> {
@@ -414,13 +416,7 @@ impl App {
 
 
 
-    /// Get available dynamic metric names
-    pub fn get_available_dynamic_metrics(&self) -> Vec<String> {
-        self.dynamic_metrics
-            .as_ref()
-            .map(|dm| dm.get_available_metric_names())
-            .unwrap_or_default()
-    }
+
 
     /// Load metrics using dynamic discovery system
     pub async fn load_metrics(&mut self, instance_id: &str) -> Result<()> {
@@ -506,11 +502,7 @@ impl App {
         self.initialize_sparkline_grid_dynamic();
     }
 
-    /// LEGACY: This method is now handled by initialize_sparkline_grid_dynamic
-    pub fn initialize_sparkline_grid_for_sqs(&mut self) {
-        // Redirect to dynamic method
-        self.initialize_sparkline_grid_dynamic();
-    }
+
 
     // ================================
     // 7. TIME RANGE MANAGEMENT

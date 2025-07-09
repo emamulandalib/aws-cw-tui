@@ -263,17 +263,13 @@ impl SqsMetricData {
 /// This replaces the hardcoded MetricData and SqsMetricData structs
 #[derive(Debug, Clone)]
 pub struct DynamicMetrics {
-    pub service_type: AwsService,
-    pub instance_id: String,
     pub metrics: Vec<DynamicMetricData>,
     pub last_updated: SystemTime,
 }
 
 impl DynamicMetrics {
-    pub fn new(service_type: AwsService, instance_id: String) -> Self {
+    pub fn new(_service_type: AwsService, _instance_id: String) -> Self {
         Self {
-            service_type,
-            instance_id,
             metrics: Vec::new(),
             last_updated: SystemTime::now(),
         }
@@ -284,9 +280,7 @@ impl DynamicMetrics {
         self.last_updated = SystemTime::now();
     }
 
-    pub fn get_metric_by_name(&self, metric_name: &str) -> Option<&DynamicMetricData> {
-        self.metrics.iter().find(|m| m.metric_name == metric_name)
-    }
+
 
     pub fn get_available_metric_names(&self) -> Vec<String> {
         self.metrics.iter().map(|m| m.metric_name.clone()).collect()
@@ -367,6 +361,7 @@ pub enum FocusedPanel {
 }
 
 // TEMPORARY: Basic MetricType enum for backward compatibility during UI transition
+// Only keeping variants that are still used in the codebase
 #[derive(Debug, Clone, PartialEq)]
 pub enum MetricType {
     // RDS Metrics
@@ -420,7 +415,6 @@ pub enum MetricType {
 }
 
 
-
 pub struct App {
     // Service selection state (focused on RDS for now)
     pub available_services: Vec<AwsService>,
@@ -452,7 +446,6 @@ pub struct App {
 
     // Sparkline grid state
     pub selected_metric_name: Option<String>, // Currently selected metric name in sparkline grid (dynamic)
-    pub selected_metric: Option<MetricType>, // TEMPORARY: Legacy selected metric for UI compatibility
     pub sparkline_grid_selected_index: usize, // Track currently selected metric index in grid
     pub saved_sparkline_grid_selected_index: usize, // Save selected metric index when transitioning to details
     pub sparkline_grid_list_state: ListState,       // Built-in ratatui state for proper scrolling

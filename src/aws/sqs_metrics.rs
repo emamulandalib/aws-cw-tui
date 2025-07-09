@@ -299,10 +299,8 @@ pub async fn fetch_sqs_metrics(queue: &SqsQueue, time_range: &TimeRange) -> Resu
                     continue;
                 }
 
-                // Update shared timestamps if this metric has more data points
-                if times.len() > timestamps.len() {
-                    timestamps = times;
-                } else if timestamps.is_empty() {
+                // Update shared timestamps if this metric has more data points or timestamps is empty
+                if times.len() > timestamps.len() || timestamps.is_empty() {
                     timestamps = times;
                 }
 
@@ -349,10 +347,8 @@ pub async fn fetch_sqs_metrics(queue: &SqsQueue, time_range: &TimeRange) -> Resu
                 log::warn!("DLQ metric data length mismatch: values={}, times={}", 
                     values.len(), times.len());
             } else {
-                // Update shared timestamps if this metric has more data points
-                if times.len() > timestamps.len() {
-                    timestamps = times;
-                } else if timestamps.is_empty() {
+                // Update shared timestamps if this metric has more data points or timestamps is empty
+                if times.len() > timestamps.len() || timestamps.is_empty() {
                     timestamps = times;
                 }
 
@@ -597,7 +593,7 @@ fn get_dlq_name(queue: &SqsQueue) -> Option<String> {
                 let end = arn_part.find('"')?;
                 if start < end {
                     let arn = &arn_part[start + 1..end];
-                    return arn.split(':').last().map(|s| s.to_string());
+                    return arn.split(':').next_back().map(|s| s.to_string());
                 }
             }
         }

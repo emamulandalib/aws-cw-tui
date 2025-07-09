@@ -377,9 +377,9 @@ fn get_statistic_value(
 fn format_metric_display_name(metric_name: &str) -> String {
     // Convert PascalCase to readable format
     let mut result = String::new();
-    let mut chars = metric_name.chars().peekable();
+    let chars = metric_name.chars().peekable();
     
-    while let Some(ch) = chars.next() {
+    for ch in chars {
         if ch.is_uppercase() && !result.is_empty() {
             result.push(' ');
         }

@@ -12,8 +12,6 @@ pub mod error_utils;
 pub mod session;
 
 // New refactored modules
-pub mod metric_fetcher;
-pub mod metric_types;
 pub mod time_range;
 
 // New modular metrics system - removed (unused)

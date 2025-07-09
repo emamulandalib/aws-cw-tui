@@ -544,7 +544,7 @@ impl AwsMetricsGrid {
     fn render_metrics_grid_dynamic(
         f: &mut Frame,
         area: Rect,
-        chart_data: &[MetricChartData],
+        _chart_data: &[MetricChartData],
         dynamic_metrics: &[DynamicMetricData],
         grid_layout: GridLayout,
         _app: &App,
@@ -846,7 +846,7 @@ fn calculate_scrollable_grid_layout(
     }
 
     let cols = metrics_per_row; // Always 2 columns for better readability
-    let rows = (visible_metric_count + cols - 1) / cols; // Ceiling division
+    let rows = visible_metric_count.div_ceil(cols); // Ceiling division
 
     GridLayout { rows, cols }
 }
@@ -933,7 +933,7 @@ fn create_value_labels(y_bounds: [f64; 2], definition: &MetricDefinition) -> Vec
 }
 
 /// Create dynamic value labels for Y axis
-fn create_dynamic_value_labels(y_bounds: [f64; 2], metric_data: &DynamicMetricData) -> Vec<Line<'_>> {
+fn create_dynamic_value_labels(y_bounds: [f64; 2], _metric_data: &DynamicMetricData) -> Vec<Line<'_>> {
     let num_labels = 5;
     let range = y_bounds[1] - y_bounds[0];
 

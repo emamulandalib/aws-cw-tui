@@ -1,11 +1,9 @@
 use crate::models::{AwsService, DynamicMetrics};
 use anyhow::Result;
-use aws_sdk_cloudwatch::Client as CloudWatchClient;
 use std::time::SystemTime;
 
 // Import our dynamic modules
 use super::dynamic_metric_discovery::{discover_rds_metrics, discover_sqs_metrics, fetch_discovered_metrics};
-use super::session::AwsSessionManager;
 use super::time_range::calculate_period_seconds;
 
 // Re-export for backward compatibility
