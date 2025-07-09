@@ -10,101 +10,6 @@ use ratatui::{
     Frame,
 };
 
-/// Create AWS Console-style time range list items with categories
-#[allow(dead_code)]
-pub fn create_aws_console_time_range_items(app: &App) -> Vec<ListItem<'_>> {
-    let time_ranges = crate::models::App::get_time_range_options();
-    let mut items = Vec::new();
-
-    // Add category headers and items
-    let categories = [
-        ("Minutes", 0..6),
-        ("Hours", 6..12),
-        ("Days", 12..18),
-        ("Weeks", 18..22),
-        ("Months", 22..26),
-    ];
-
-    for (category, range) in categories {
-        // Add category header
-        items.push(ListItem::new(Line::from(Span::styled(
-            category.to_string(),
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        ))));
-
-        // Add time range options for this category
-        for i in range {
-            if let Some((label, _value, _unit, _period)) = time_ranges.get(i) {
-                let is_selected = i == app.get_current_time_range_index();
-                let style = if is_selected {
-                    Style::default()
-                        .fg(Color::Green)
-                        .add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(Color::White)
-                };
-
-                // Format time range numbers like AWS Console
-                let formatted_label = format_time_range_label(label);
-
-                // Simple text without icons - just color difference
-                let display_text = format!("    {}", formatted_label);
-
-                items.push(ListItem::new(Line::from(Span::styled(display_text, style))));
-            }
-        }
-    }
-
-    items
-}
-
-/// Format time range labels to match AWS Console style
-#[allow(dead_code)]
-fn format_time_range_label(label: &str) -> String {
-    // Extract number and unit from label
-    let parts: Vec<&str> = label.split(' ').collect();
-    if parts.len() >= 2 {
-        let number = parts[0];
-        let unit = parts[1];
-
-        // Format like AWS Console (e.g., "1", "3", "5" for numbers)
-        match unit {
-            "minute" | "minutes" => number.to_string(),
-            "hour" | "hours" => number.to_string(),
-            "day" | "days" => number.to_string(),
-            "week" | "weeks" => number.to_string(),
-            "month" | "months" => number.to_string(),
-            _ => label.to_string(),
-        }
-    } else {
-        label.to_string()
-    }
-}
-
-/// Get the title for the time range panel with absolute/relative toggle
-#[allow(dead_code)]
-pub fn get_time_range_title(app: &App, _is_focused: bool) -> String {
-    let mode_text = match app.get_time_range_mode() {
-        TimeRangeMode::Absolute => "Absolute",
-        TimeRangeMode::Relative => "Relative",
-    };
-
-    let time_ranges = crate::models::App::get_time_range_options();
-    let current_time_range_index = app.get_current_time_range_index();
-    let selected_time_period = time_ranges
-        .get(current_time_range_index)
-        .map(|(label, _, _, _)| *label)
-        .unwrap_or("Unknown");
-
-    format!(
-        "CloudWatch Dashboard - {} | {}",
-        mode_text,
-        get_selected_time_range_display(selected_time_period)
-    )
-}
-
 /// Render period selection panel (like AWS Console)
 pub fn render_period_selection_panel(f: &mut Frame, app: &mut App, area: Rect) {
     let period_options = crate::models::App::get_period_options();
@@ -293,36 +198,6 @@ fn render_absolute_time_picker(f: &mut Frame, app: &mut App, area: Rect) {
         .alignment(ratatui::layout::Alignment::Center);
 
     f.render_widget(placeholder, area);
-}
-
-/// Create compact time range list items with abbreviated labels (backward compatibility)
-#[allow(dead_code)]
-pub fn create_time_range_items(app: &App) -> Vec<ListItem<'_>> {
-    create_aws_console_time_range_items(app)
-}
-
-/// Create the time range list widget (backward compatibility)
-#[allow(dead_code)]
-pub fn create_time_range_list(items: Vec<ListItem>, title: String, border_color: Color) -> List {
-    List::new(items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(title)
-                .border_style(Style::default().fg(border_color)),
-        )
-        .highlight_style(
-            Style::default()
-                .bg(Color::DarkGray)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("") // Remove highlight symbol to save space
-}
-
-/// Render the complete time range panel (updated to use AWS Console style)
-#[allow(dead_code)]
-pub fn render_time_range_panel(f: &mut Frame, app: &mut App, area: Rect) {
-    render_aws_console_time_range_panel(f, app, area);
 }
 
 /// Render timezone selection panel

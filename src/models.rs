@@ -1,6 +1,5 @@
 use crate::aws::cloudwatch_service::TimeRange;
 use ratatui::widgets::ListState;
-use std::collections::HashMap;
 use std::time::{Instant, SystemTime};
 
 #[derive(Debug, Clone)]
@@ -23,34 +22,10 @@ impl AwsInstance for RdsInstance {
     fn id(&self) -> &str {
         &self.identifier
     }
-
-    fn name(&self) -> Option<&str> {
-        Some(&self.identifier)
-    }
-
-    fn status(&self) -> &str {
-        &self.status
-    }
-
-    fn service_type(&self) -> AwsService {
-        AwsService::Rds
-    }
 }
 impl AwsInstance for SqsQueue {
     fn id(&self) -> &str {
         &self.url
-    }
-
-    fn name(&self) -> Option<&str> {
-        Some(&self.name)
-    }
-
-    fn status(&self) -> &str {
-        &self.queue_type
-    }
-
-    fn service_type(&self) -> AwsService {
-        AwsService::Sqs
     }
 }
 #[derive(Debug)]
@@ -95,10 +70,6 @@ pub struct MetricData {
     pub failed_sql_server_agent_jobs_count: f64,  // Count/minute - SQL Server agent jobs
     pub checkpoint_lag: f64,                      // Seconds - checkpoint lag
     pub connection_attempts: f64,                 // Count - MySQL connection attempts
-
-    // RDS Instance characteristics for intelligent metric filtering
-    #[allow(dead_code)]
-    pub instance_characteristics: Option<crate::aws::metric_types::RdsInstanceCharacteristics>,
 
     // Historical data for 3 hours (36 data points at 5min intervals)
     pub timestamps: Vec<SystemTime>,
@@ -180,97 +151,6 @@ pub struct SqsMetricData {
     pub deduplicated_sent_messages_history: Vec<f64>,    // FIFO only
 }
 
-/// Dynamic metrics data structure for discovered CloudWatch metrics
-/// This replaces hardcoded metric structures with flexible key-value storage
-#[derive(Debug, Clone)]
-pub struct DynamicMetricData {
-    /// Current metric values (metric_name -> value)
-    #[allow(dead_code)]
-    pub current_values: HashMap<String, f64>,
-    
-    /// Historical data (metric_name -> history)
-    #[allow(dead_code)]
-    pub history: HashMap<String, Vec<f64>>,
-    
-    /// Timestamps for historical data points
-    #[allow(dead_code)]
-    pub timestamps: Vec<SystemTime>,
-    
-    /// Resource ID this data belongs to
-    #[allow(dead_code)]
-    pub resource_id: String,
-    
-    /// Service type (RDS, SQS, etc.)
-    #[allow(dead_code)]
-    pub service: AwsService,
-}
-
-impl Default for DynamicMetricData {
-    fn default() -> Self {
-        Self {
-            current_values: HashMap::new(),
-            history: HashMap::new(),
-            timestamps: Vec::new(),
-            resource_id: String::new(),
-            service: AwsService::Rds,
-        }
-    }
-}
-
-impl DynamicMetricData {
-    #[allow(dead_code)]
-    pub fn new(resource_id: String, service: AwsService) -> Self {
-        Self {
-            resource_id,
-            service,
-            ..Default::default()
-        }
-    }
-    
-    /// Get available metrics based on what has been discovered
-    #[allow(dead_code)]
-    pub fn get_available_metrics(&self) -> Vec<MetricType> {
-        self.current_values
-            .keys()
-            .map(|name| MetricType::Dynamic(name.clone()))
-            .collect()
-    }
-    
-    /// Get metric history for a specific metric
-    #[allow(dead_code)]
-    pub fn get_metric_history(&self, metric_name: &str) -> Option<&Vec<f64>> {
-        self.history.get(metric_name)
-    }
-    
-    /// Get current value for a metric
-    #[allow(dead_code)]
-    pub fn get_current_value(&self, metric_name: &str) -> Option<f64> {
-        self.current_values.get(metric_name).copied()
-    }
-    
-    /// Add or update a metric value
-    #[allow(dead_code)]
-    pub fn update_metric(&mut self, metric_name: String, value: f64) {
-        self.current_values.insert(metric_name.clone(), value);
-        
-        // Update history
-        let history = self.history.entry(metric_name).or_insert_with(Vec::new);
-        history.push(value);
-        
-        // Keep only last 36 data points (3 hours at 5min intervals)
-        if history.len() > 36 {
-            history.remove(0);
-        }
-    }
-    
-    // Removed unused metric definition methods
-    
-    /// Count metrics with data
-    #[allow(dead_code)]
-    pub fn count_available_metrics(&self) -> usize {
-        self.current_values.len()
-    }
-}
 
 impl Default for SqsMetricData {
     fn default() -> Self {
@@ -312,35 +192,6 @@ impl Default for SqsMetricData {
 }
 
 impl SqsMetricData {
-    #[allow(dead_code)]
-    pub fn count_available_metrics(&self) -> usize {
-        let mut count = 0;
-
-        let histories = [
-            &self.messages_sent_history,
-            &self.messages_received_history,
-            &self.messages_deleted_history,
-            &self.queue_depth_history,
-            &self.messages_visible_history,
-            &self.messages_not_visible_history,
-            &self.oldest_message_age_history,
-            &self.empty_receives_history,
-            &self.messages_delayed_history,
-            &self.sent_message_size_history,
-            &self.dlq_messages_history,
-            &self.groups_with_inflight_messages_history,
-            &self.deduplicated_sent_messages_history,
-        ];
-
-        for history in histories.iter() {
-            if !history.is_empty() {
-                count += 1;
-            }
-        }
-
-        count
-    }
-
     pub fn get_available_metrics(&self) -> Vec<MetricType> {
         let mut available_metrics = Vec::new();
 
@@ -388,39 +239,6 @@ impl SqsMetricData {
 
         available_metrics
     }
-
-    #[allow(dead_code)]
-    #[allow(dead_code)]
-    pub fn get_metric_history(&self, metric_type: &MetricType) -> &Vec<f64> {
-        match metric_type {
-            MetricType::NumberOfMessagesSent => &self.messages_sent_history,
-            MetricType::NumberOfMessagesReceived => &self.messages_received_history,
-            MetricType::NumberOfMessagesDeleted => &self.messages_deleted_history,
-            MetricType::ApproximateNumberOfMessages => &self.queue_depth_history,
-            MetricType::ApproximateNumberOfMessagesVisible => &self.messages_visible_history,
-            MetricType::ApproximateNumberOfMessagesNotVisible => &self.messages_not_visible_history,
-            MetricType::ApproximateAgeOfOldestMessage => &self.oldest_message_age_history,
-            MetricType::NumberOfEmptyReceives => &self.empty_receives_history,
-            MetricType::ApproximateNumberOfMessagesDelayed => &self.messages_delayed_history,
-            MetricType::SentMessageSize => &self.sent_message_size_history,
-            MetricType::NumberOfMessagesInDlq => &self.dlq_messages_history,
-
-            // FIFO-specific metrics
-            MetricType::ApproximateNumberOfGroupsWithInflightMessages => {
-                &self.groups_with_inflight_messages_history
-            }
-            MetricType::NumberOfDeduplicatedSentMessages => {
-                &self.deduplicated_sent_messages_history
-            }
-
-            // RDS metrics - return empty for SQS MetricData
-            _ => {
-                // Use a static empty vector to avoid temporary value issues
-                static EMPTY_VEC: Vec<f64> = Vec::new();
-                &EMPTY_VEC
-            }
-        }
-    }
 }
 
 impl Default for MetricData {
@@ -462,9 +280,6 @@ impl Default for MetricData {
             checkpoint_lag: 0.0,
             connection_attempts: 0.0,
 
-            // RDS Instance characteristics for intelligent metric filtering
-            instance_characteristics: None,
-
             cpu_history: Vec::new(),
             connections_history: Vec::new(),
             read_iops_history: Vec::new(),
@@ -505,133 +320,7 @@ impl Default for MetricData {
 }
 
 impl MetricData {
-    #[allow(dead_code)]
-    pub fn count_available_metrics(&self) -> usize {
-        let mut count = 0;
-
-        // Core metrics (14) - always counted if they have data
-        let core_metric_names = [
-            "cpu_history",
-            "connections_history",
-            "read_iops_history",
-            "write_iops_history",
-            "read_latency_history",
-            "write_latency_history",
-            "free_storage_space_history",
-            "read_throughput_history",
-            "write_throughput_history",
-            "network_receive_history",
-            "network_transmit_history",
-            "freeable_memory_history",
-            "swap_usage_history",
-            "queue_depth_history",
-        ];
-
-        let core_histories = [
-            &self.cpu_history,
-            &self.connections_history,
-            &self.read_iops_history,
-            &self.write_iops_history,
-            &self.read_latency_history,
-            &self.write_latency_history,
-            &self.free_storage_space_history,
-            &self.read_throughput_history,
-            &self.write_throughput_history,
-            &self.network_receive_history,
-            &self.network_transmit_history,
-            &self.freeable_memory_history,
-            &self.swap_usage_history,
-            &self.queue_depth_history,
-        ];
-
-        for (_, history) in core_metric_names.iter().zip(core_histories.iter()) {
-            if !history.is_empty() {
-                count += 1;
-            }
-        }
-
-        // Advanced metrics (13) - only counted if they have data
-        let advanced_metric_names = [
-            "burst_balance_history",
-            "cpu_credit_usage_history",
-            "cpu_credit_balance_history",
-            "bin_log_disk_usage_history",
-            "replica_lag_history",
-            "maximum_used_transaction_ids_history",
-            "oldest_replication_slot_lag_history",
-            "replication_slot_disk_usage_history",
-            "transaction_logs_disk_usage_history",
-            "transaction_logs_generation_history",
-            "failed_sql_server_agent_jobs_count_history",
-            "checkpoint_lag_history",
-            "connection_attempts_history",
-        ];
-
-        let advanced_histories = [
-            &self.burst_balance_history,
-            &self.cpu_credit_usage_history,
-            &self.cpu_credit_balance_history,
-            &self.bin_log_disk_usage_history,
-            &self.replica_lag_history,
-            &self.maximum_used_transaction_ids_history,
-            &self.oldest_replication_slot_lag_history,
-            &self.replication_slot_disk_usage_history,
-            &self.transaction_logs_disk_usage_history,
-            &self.transaction_logs_generation_history,
-            &self.failed_sql_server_agent_jobs_count_history,
-            &self.checkpoint_lag_history,
-            &self.connection_attempts_history,
-        ];
-
-        for (_, history) in advanced_metric_names.iter().zip(advanced_histories.iter()) {
-            if !history.is_empty() {
-                count += 1;
-            }
-        }
-
-        count
-    }
-
-    #[allow(dead_code)]
-    pub fn get_available_metrics(&self) -> Vec<MetricType> {
-        // Use intelligent filtering based on instance characteristics if available
-        if let Some(ref characteristics) = self.instance_characteristics {
-            log::info!(
-                "Using intelligent filtering for {} {} instance",
-                characteristics.engine,
-                characteristics.instance_class
-            );
-            let metrics = characteristics.get_relevant_metrics();
-            log::info!("Intelligent filtering returned {} metrics", metrics.len());
-            return metrics;
-        } else {
-            log::info!(
-                "No instance characteristics found, using intelligent filtering for PostgreSQL"
-            );
-            // For PostgreSQL instances, use intelligent filtering by default
-            use crate::aws::metric_types::RdsInstanceCharacteristics;
-
-            let characteristics = RdsInstanceCharacteristics {
-                engine: "postgres".to_string(),
-                instance_class: "db.t3.micro".to_string(),
-                is_read_replica: false,
-                multi_az: false,
-            };
-
-            let intelligent_metrics = characteristics.get_relevant_metrics();
-            log::info!(
-                "PostgreSQL intelligent filtering returned {} metrics",
-                intelligent_metrics.len()
-            );
-
-            // Always use intelligent filtering - it shows what metrics should be available
-            // even if CloudWatch doesn't currently have data for them
-            return intelligent_metrics;
-        }
-    }
-
     /// Get only metrics that have actual historical data (fallback method)
-    #[allow(dead_code)]
     pub fn get_available_metrics_with_data(&self) -> Vec<MetricType> {
         let mut available_metrics = Vec::new();
 
@@ -722,69 +411,6 @@ impl MetricData {
 
         available_metrics
     }
-
-    pub fn get_metric_history(&self, metric_type: &MetricType) -> &Vec<f64> {
-        match metric_type {
-            MetricType::CpuUtilization => &self.cpu_history,
-            MetricType::DatabaseConnections => &self.connections_history,
-            MetricType::FreeStorageSpace => &self.free_storage_space_history,
-            MetricType::ReadIops => &self.read_iops_history,
-            MetricType::WriteIops => &self.write_iops_history,
-            MetricType::ReadLatency => &self.read_latency_history,
-            MetricType::WriteLatency => &self.write_latency_history,
-            MetricType::ReadThroughput => &self.read_throughput_history,
-            MetricType::WriteThroughput => &self.write_throughput_history,
-            MetricType::NetworkReceiveThroughput => &self.network_receive_history,
-            MetricType::NetworkTransmitThroughput => &self.network_transmit_history,
-            MetricType::FreeableMemory => &self.freeable_memory_history,
-            MetricType::SwapUsage => &self.swap_usage_history,
-            MetricType::QueueDepth => &self.queue_depth_history,
-            MetricType::BurstBalance => &self.burst_balance_history,
-            MetricType::CpuCreditUsage => &self.cpu_credit_usage_history,
-            MetricType::CpuCreditBalance => &self.cpu_credit_balance_history,
-            MetricType::CpuSurplusCreditBalance => &self.cpu_surplus_credit_balance_history,
-            MetricType::CpuSurplusCreditsCharged => &self.cpu_surplus_credits_charged_history,
-            MetricType::EbsByteBalance => &self.ebs_byte_balance_history,
-            MetricType::EbsIoBalance => &self.ebs_io_balance_history,
-            MetricType::BinLogDiskUsage => &self.bin_log_disk_usage_history,
-            MetricType::ReplicaLag => &self.replica_lag_history,
-            MetricType::MaximumUsedTransactionIds => &self.maximum_used_transaction_ids_history,
-            MetricType::OldestReplicationSlotLag => &self.oldest_replication_slot_lag_history,
-            MetricType::OldestLogicalReplicationSlotLag => {
-                &self.oldest_logical_replication_slot_lag_history
-            }
-            MetricType::ReplicationSlotDiskUsage => &self.replication_slot_disk_usage_history,
-            MetricType::TransactionLogsDiskUsage => &self.transaction_logs_disk_usage_history,
-            MetricType::TransactionLogsGeneration => &self.transaction_logs_generation_history,
-            MetricType::FailedSqlServerAgentJobsCount => {
-                &self.failed_sql_server_agent_jobs_count_history
-            }
-            MetricType::CheckpointLag => &self.checkpoint_lag_history,
-            MetricType::ConnectionAttempts => &self.connection_attempts_history,
-            // SQS metrics - return empty for RDS MetricData
-            MetricType::NumberOfMessagesSent
-            | MetricType::NumberOfMessagesReceived
-            | MetricType::NumberOfMessagesDeleted
-            | MetricType::ApproximateNumberOfMessages
-            | MetricType::ApproximateNumberOfMessagesVisible
-            | MetricType::ApproximateNumberOfMessagesNotVisible
-            | MetricType::ApproximateAgeOfOldestMessage
-            | MetricType::NumberOfEmptyReceives
-            | MetricType::ApproximateNumberOfMessagesDelayed
-            | MetricType::SentMessageSize
-            | MetricType::NumberOfMessagesInDlq
-            | MetricType::ApproximateNumberOfGroupsWithInflightMessages
-            | MetricType::NumberOfDeduplicatedSentMessages => {
-                static EMPTY_VEC: Vec<f64> = Vec::new();
-                &EMPTY_VEC
-            }
-            // Dynamic metrics - return empty for now (will be handled by DynamicMetricData)
-            MetricType::Dynamic(_) => {
-                static EMPTY_VEC: Vec<f64> = Vec::new();
-                &EMPTY_VEC
-            }
-        }
-    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AwsService {
@@ -800,7 +426,6 @@ impl AwsService {
         }
     }
 
-    #[allow(dead_code)]
     pub fn short_name(&self) -> &'static str {
         match self {
             AwsService::Rds => "RDS",
@@ -829,12 +454,8 @@ impl ServiceInstance {
 }
 
 // Generic instance trait that different AWS services can implement
-#[allow(dead_code)]
 pub trait AwsInstance {
     fn id(&self) -> &str;
-    fn name(&self) -> Option<&str>;
-    fn status(&self) -> &str;
-    fn service_type(&self) -> AwsService;
 }
 
 #[derive(Debug, PartialEq)]
@@ -908,87 +529,9 @@ pub enum MetricType {
     // FIFO-specific SQS Metrics
     ApproximateNumberOfGroupsWithInflightMessages, // FIFO only
     NumberOfDeduplicatedSentMessages,              // FIFO only
-
-    // Dynamic metric discovered from CloudWatch API
-    Dynamic(String),
 }
 
-impl MetricType {
-    #[allow(dead_code)]
-    pub fn display_name(&self) -> String {
-        match self {
-            // RDS Metrics
-            MetricType::CpuUtilization => "CPU Utilization".to_string(),
-            MetricType::DatabaseConnections => "Database Connections".to_string(),
-            MetricType::FreeStorageSpace => "Free Storage Space".to_string(),
-            MetricType::ReadIops => "Read IOPS".to_string(),
-            MetricType::WriteIops => "Write IOPS".to_string(),
-            MetricType::ReadLatency => "Read Latency".to_string(),
-            MetricType::WriteLatency => "Write Latency".to_string(),
-            MetricType::ReadThroughput => "Read Throughput".to_string(),
-            MetricType::WriteThroughput => "Write Throughput".to_string(),
-            MetricType::NetworkReceiveThroughput => "Network Receive Throughput".to_string(),
-            MetricType::NetworkTransmitThroughput => "Network Transmit Throughput".to_string(),
-            MetricType::SwapUsage => "Swap Usage".to_string(),
-            MetricType::FreeableMemory => "Freeable Memory".to_string(),
-            MetricType::QueueDepth => "Queue Depth".to_string(),
-            MetricType::BurstBalance => "Burst Balance".to_string(),
-            MetricType::CpuCreditUsage => "CPU Credit Usage".to_string(),
-            MetricType::CpuCreditBalance => "CPU Credit Balance".to_string(),
-            MetricType::CpuSurplusCreditBalance => "CPU Surplus Credit Balance".to_string(),
-            MetricType::CpuSurplusCreditsCharged => "CPU Surplus Credits Charged".to_string(),
-            MetricType::EbsByteBalance => "EBS Byte Balance".to_string(),
-            MetricType::EbsIoBalance => "EBS IO Balance".to_string(),
-            MetricType::BinLogDiskUsage => "Binary Log Disk Usage".to_string(),
-            MetricType::ReplicaLag => "Replica Lag".to_string(),
-            MetricType::MaximumUsedTransactionIds => "Maximum Used Transaction IDs".to_string(),
-            MetricType::OldestReplicationSlotLag => "Oldest Replication Slot Lag".to_string(),
-            MetricType::OldestLogicalReplicationSlotLag => "Oldest Logical Replication Slot Lag".to_string(),
-            MetricType::ReplicationSlotDiskUsage => "Replication Slot Disk Usage".to_string(),
-            MetricType::TransactionLogsDiskUsage => "Transaction Logs Disk Usage".to_string(),
-            MetricType::TransactionLogsGeneration => "Transaction Logs Generation".to_string(),
-            MetricType::FailedSqlServerAgentJobsCount => "Failed SQL Server Agent Jobs".to_string(),
-            MetricType::CheckpointLag => "Checkpoint Lag".to_string(),
-            MetricType::ConnectionAttempts => "Connection Attempts".to_string(),
 
-            // SQS Metrics (11 total)
-            MetricType::NumberOfMessagesSent => "Messages Sent".to_string(),
-            MetricType::NumberOfMessagesReceived => "Messages Received".to_string(),
-            MetricType::NumberOfMessagesDeleted => "Messages Deleted".to_string(),
-            MetricType::ApproximateNumberOfMessages => "Total Queue Depth".to_string(),
-            MetricType::ApproximateNumberOfMessagesVisible => "Messages Visible".to_string(),
-            MetricType::ApproximateNumberOfMessagesNotVisible => "Messages Not Visible".to_string(),
-            MetricType::ApproximateAgeOfOldestMessage => "Oldest Message Age".to_string(),
-            MetricType::NumberOfEmptyReceives => "Empty Receives".to_string(),
-            MetricType::ApproximateNumberOfMessagesDelayed => "Messages Delayed".to_string(),
-            MetricType::SentMessageSize => "Message Size".to_string(),
-            MetricType::NumberOfMessagesInDlq => "DLQ Messages".to_string(),
-
-            // FIFO-specific SQS Metrics
-            MetricType::ApproximateNumberOfGroupsWithInflightMessages => {
-                "Groups with In-flight Messages".to_string()
-            }
-            MetricType::NumberOfDeduplicatedSentMessages => "Deduplicated Messages".to_string(),
-
-            // Dynamic metrics discovered from CloudWatch
-            MetricType::Dynamic(name) => {
-                // Convert camelCase/PascalCase to human-readable format
-                let mut result = String::new();
-                let mut chars = name.chars().peekable();
-                
-                while let Some(c) = chars.next() {
-                    if c.is_uppercase() && !result.is_empty() {
-                        // Add space before uppercase letter (except at start)
-                        result.push(' ');
-                    }
-                    result.push(c);
-                }
-                
-                result
-            }
-        }
-    }
-}
 
 pub struct App {
     // Service selection state (focused on RDS for now)
@@ -1006,13 +549,9 @@ pub struct App {
     pub selected_instance: Option<usize>,
     pub metrics: MetricData,
     pub sqs_metrics: SqsMetricData,
-    #[allow(dead_code)]
-    pub dynamic_metrics: DynamicMetricData, // New dynamic metrics data
     pub metrics_loading: bool,
     pub last_refresh: Option<Instant>,
     pub auto_refresh_enabled: bool,
-    #[allow(dead_code)]
-    pub metrics_per_screen: usize,
     pub focused_panel: FocusedPanel, // Track which panel has focus (metrics or time ranges)
     pub saved_focused_panel: FocusedPanel, // Save focused panel state when transitioning to details
     pub time_range: TimeRange,

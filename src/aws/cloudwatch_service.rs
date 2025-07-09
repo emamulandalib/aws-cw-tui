@@ -714,9 +714,6 @@ fn build_metric_data_inline(core: CoreMetrics, advanced: AdvancedMetrics) -> cra
         failed_sql_server_agent_jobs_count_history: advanced.failed_sql_server_agent_jobs_count_history,
         checkpoint_lag_history: advanced.checkpoint_lag_history,
         connection_attempts_history: advanced.connection_attempts_history,
-        
-        // Optional characteristics
-        instance_characteristics: None,
     }
 }
 

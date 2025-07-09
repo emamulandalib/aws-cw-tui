@@ -8,15 +8,7 @@ pub struct HealthThresholds {
     pub reverse_logic: bool, // true for metrics where lower values are bad (like free memory)
 }
 
-#[derive(Debug, Clone)]
-pub enum MetricUnit {
-    Percent,
-    Count,
-    Seconds,
-    Bytes,
-    BytesPerSecond,
-    Credits,
-}
+
 
 #[derive(Debug, Clone)]
 pub enum DisplayFormat {
@@ -30,8 +22,6 @@ pub enum DisplayFormat {
 #[derive(Debug, Clone)]
 pub struct MetricDefinition {
     pub name: &'static str,
-    #[allow(dead_code)]
-    pub unit: MetricUnit,
     pub display_format: DisplayFormat,
     pub thresholds: Option<HealthThresholds>,
     pub color: Color,
@@ -78,18 +68,7 @@ impl MetricDefinition {
         }
     }
 
-    /// Get unit suffix for display
-    #[allow(dead_code)]
-    pub fn unit_suffix(&self) -> &'static str {
-        match &self.unit {
-            MetricUnit::Percent => "%",
-            MetricUnit::Count => "",
-            MetricUnit::Seconds => "s",
-            MetricUnit::Bytes => "B",
-            MetricUnit::BytesPerSecond => "B/s",
-            MetricUnit::Credits => " Credits",
-        }
-    }
+
 }
 
 /// AWS console-style metric definitions registry
@@ -109,7 +88,6 @@ impl MetricRegistry {
             // === RDS Core Metrics ===
             MetricType::CpuUtilization => MetricDefinition {
                 name: "CPU Utilization",
-                unit: MetricUnit::Percent,
                 display_format: DisplayFormat::Percentage,
                 thresholds: Some(HealthThresholds {
                     critical: 80.0,
@@ -122,7 +100,6 @@ impl MetricRegistry {
 
             MetricType::DatabaseConnections => MetricDefinition {
                 name: "Database Connections",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: Some(HealthThresholds {
                     critical: 1000.0,
@@ -135,7 +112,6 @@ impl MetricRegistry {
 
             MetricType::FreeStorageSpace => MetricDefinition {
                 name: "Free Storage Space",
-                unit: MetricUnit::Bytes,
                 display_format: DisplayFormat::Bytes,
                 thresholds: Some(HealthThresholds {
                     critical: 1_073_741_824.0, // 1 GB
@@ -148,7 +124,6 @@ impl MetricRegistry {
 
             MetricType::ReadLatency => MetricDefinition {
                 name: "Read Latency",
-                unit: MetricUnit::Seconds,
                 display_format: DisplayFormat::Duration,
                 thresholds: Some(HealthThresholds {
                     critical: 0.1, // 100ms
@@ -161,7 +136,6 @@ impl MetricRegistry {
 
             MetricType::WriteLatency => MetricDefinition {
                 name: "Write Latency",
-                unit: MetricUnit::Seconds,
                 display_format: DisplayFormat::Duration,
                 thresholds: Some(HealthThresholds {
                     critical: 0.1, // 100ms
@@ -174,7 +148,6 @@ impl MetricRegistry {
 
             MetricType::ReadIops => MetricDefinition {
                 name: "Read IOPS",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: None, // No universal thresholds for IOPS
                 color: Color::Green,
@@ -183,7 +156,6 @@ impl MetricRegistry {
 
             MetricType::WriteIops => MetricDefinition {
                 name: "Write IOPS",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: None,
                 color: Color::Yellow,
@@ -192,7 +164,6 @@ impl MetricRegistry {
 
             MetricType::ReadThroughput => MetricDefinition {
                 name: "Read Throughput",
-                unit: MetricUnit::BytesPerSecond,
                 display_format: DisplayFormat::Bytes,
                 thresholds: None,
                 color: Color::Cyan,
@@ -201,7 +172,6 @@ impl MetricRegistry {
 
             MetricType::WriteThroughput => MetricDefinition {
                 name: "Write Throughput",
-                unit: MetricUnit::BytesPerSecond,
                 display_format: DisplayFormat::Bytes,
                 thresholds: None,
                 color: Color::Magenta,
@@ -210,7 +180,6 @@ impl MetricRegistry {
 
             MetricType::NetworkReceiveThroughput => MetricDefinition {
                 name: "Network Receive Throughput",
-                unit: MetricUnit::BytesPerSecond,
                 display_format: DisplayFormat::Bytes,
                 thresholds: None,
                 color: Color::LightGreen,
@@ -219,7 +188,6 @@ impl MetricRegistry {
 
             MetricType::NetworkTransmitThroughput => MetricDefinition {
                 name: "Network Transmit Throughput",
-                unit: MetricUnit::BytesPerSecond,
                 display_format: DisplayFormat::Bytes,
                 thresholds: None,
                 color: Color::LightBlue,
@@ -228,7 +196,6 @@ impl MetricRegistry {
 
             MetricType::SwapUsage => MetricDefinition {
                 name: "Swap Usage",
-                unit: MetricUnit::Bytes,
                 display_format: DisplayFormat::Bytes,
                 thresholds: Some(HealthThresholds {
                     critical: 1_073_741_824.0, // 1 GB
@@ -241,7 +208,6 @@ impl MetricRegistry {
 
             MetricType::QueueDepth => MetricDefinition {
                 name: "Queue Depth",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: Some(HealthThresholds {
                     critical: 10.0,
@@ -254,7 +220,6 @@ impl MetricRegistry {
 
             MetricType::FreeableMemory => MetricDefinition {
                 name: "Freeable Memory",
-                unit: MetricUnit::Bytes,
                 display_format: DisplayFormat::Bytes,
                 thresholds: Some(HealthThresholds {
                     critical: 536_870_912.0,  // 512 MB
@@ -267,7 +232,6 @@ impl MetricRegistry {
 
             MetricType::BurstBalance => MetricDefinition {
                 name: "Burst Balance",
-                unit: MetricUnit::Percent,
                 display_format: DisplayFormat::Percentage,
                 thresholds: Some(HealthThresholds {
                     critical: 20.0,
@@ -280,7 +244,6 @@ impl MetricRegistry {
 
             MetricType::CpuCreditUsage => MetricDefinition {
                 name: "CPU Credit Usage",
-                unit: MetricUnit::Credits,
                 display_format: DisplayFormat::Decimal(2),
                 thresholds: None,
                 color: Color::LightMagenta,
@@ -289,7 +252,6 @@ impl MetricRegistry {
 
             MetricType::CpuCreditBalance => MetricDefinition {
                 name: "CPU Credit Balance",
-                unit: MetricUnit::Credits,
                 display_format: DisplayFormat::Decimal(2),
                 thresholds: Some(HealthThresholds {
                     critical: 50.0,
@@ -302,7 +264,6 @@ impl MetricRegistry {
 
             MetricType::CpuSurplusCreditBalance => MetricDefinition {
                 name: "CPU Surplus Credit Balance",
-                unit: MetricUnit::Credits,
                 display_format: DisplayFormat::Decimal(2),
                 thresholds: None,
                 color: Color::DarkGray,
@@ -311,7 +272,6 @@ impl MetricRegistry {
 
             MetricType::CpuSurplusCreditsCharged => MetricDefinition {
                 name: "CPU Surplus Credits Charged",
-                unit: MetricUnit::Credits,
                 display_format: DisplayFormat::Decimal(2),
                 thresholds: None,
                 color: Color::Gray,
@@ -320,7 +280,6 @@ impl MetricRegistry {
 
             MetricType::EbsByteBalance => MetricDefinition {
                 name: "EBS Byte Balance",
-                unit: MetricUnit::Percent,
                 display_format: DisplayFormat::Percentage,
                 thresholds: Some(HealthThresholds {
                     critical: 20.0,
@@ -333,7 +292,6 @@ impl MetricRegistry {
 
             MetricType::EbsIoBalance => MetricDefinition {
                 name: "EBS IO Balance",
-                unit: MetricUnit::Percent,
                 display_format: DisplayFormat::Percentage,
                 thresholds: Some(HealthThresholds {
                     critical: 20.0,
@@ -346,7 +304,6 @@ impl MetricRegistry {
 
             MetricType::BinLogDiskUsage => MetricDefinition {
                 name: "Binary Log Disk Usage",
-                unit: MetricUnit::Bytes,
                 display_format: DisplayFormat::Bytes,
                 thresholds: Some(HealthThresholds {
                     critical: 5_368_709_120.0, // 5 GB
@@ -359,7 +316,6 @@ impl MetricRegistry {
 
             MetricType::ReplicaLag => MetricDefinition {
                 name: "Replica Lag",
-                unit: MetricUnit::Seconds,
                 display_format: DisplayFormat::Duration,
                 thresholds: Some(HealthThresholds {
                     critical: 300.0, // 5 minutes
@@ -372,7 +328,6 @@ impl MetricRegistry {
 
             MetricType::MaximumUsedTransactionIds => MetricDefinition {
                 name: "Maximum Used Transaction IDs",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: Some(HealthThresholds {
                     critical: 1_500_000_000.0, // 1.5 billion
@@ -385,7 +340,6 @@ impl MetricRegistry {
 
             MetricType::OldestReplicationSlotLag => MetricDefinition {
                 name: "Oldest Replication Slot Lag",
-                unit: MetricUnit::Bytes,
                 display_format: DisplayFormat::Bytes,
                 thresholds: Some(HealthThresholds {
                     critical: 10_737_418_240.0, // 10 GB
@@ -398,7 +352,6 @@ impl MetricRegistry {
 
             MetricType::OldestLogicalReplicationSlotLag => MetricDefinition {
                 name: "Oldest Logical Replication Slot Lag",
-                unit: MetricUnit::Bytes,
                 display_format: DisplayFormat::Bytes,
                 thresholds: Some(HealthThresholds {
                     critical: 10_737_418_240.0, // 10 GB
@@ -411,7 +364,6 @@ impl MetricRegistry {
 
             MetricType::ReplicationSlotDiskUsage => MetricDefinition {
                 name: "Replication Slot Disk Usage",
-                unit: MetricUnit::Bytes,
                 display_format: DisplayFormat::Bytes,
                 thresholds: Some(HealthThresholds {
                     critical: 5_368_709_120.0, // 5 GB
@@ -424,7 +376,6 @@ impl MetricRegistry {
 
             MetricType::TransactionLogsDiskUsage => MetricDefinition {
                 name: "Transaction Logs Disk Usage",
-                unit: MetricUnit::Bytes,
                 display_format: DisplayFormat::Bytes,
                 thresholds: Some(HealthThresholds {
                     critical: 10_737_418_240.0, // 10 GB
@@ -437,7 +388,6 @@ impl MetricRegistry {
 
             MetricType::TransactionLogsGeneration => MetricDefinition {
                 name: "Transaction Logs Generation",
-                unit: MetricUnit::BytesPerSecond,
                 display_format: DisplayFormat::Bytes,
                 thresholds: None,
                 color: Color::LightMagenta,
@@ -446,7 +396,6 @@ impl MetricRegistry {
 
             MetricType::FailedSqlServerAgentJobsCount => MetricDefinition {
                 name: "Failed SQL Server Agent Jobs",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: Some(HealthThresholds {
                     critical: 3.0,
@@ -459,7 +408,6 @@ impl MetricRegistry {
 
             MetricType::CheckpointLag => MetricDefinition {
                 name: "Checkpoint Lag",
-                unit: MetricUnit::Seconds,
                 display_format: DisplayFormat::Duration,
                 thresholds: Some(HealthThresholds {
                     critical: 300.0, // 5 minutes
@@ -472,7 +420,6 @@ impl MetricRegistry {
 
             MetricType::ConnectionAttempts => MetricDefinition {
                 name: "Connection Attempts",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: None,
                 color: Color::Blue,
@@ -482,7 +429,6 @@ impl MetricRegistry {
             // === SQS Metrics ===
             MetricType::ApproximateNumberOfMessagesVisible => MetricDefinition {
                 name: "Messages Visible",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: Some(HealthThresholds {
                     critical: 1000.0,
@@ -495,7 +441,6 @@ impl MetricRegistry {
 
             MetricType::ApproximateNumberOfMessagesNotVisible => MetricDefinition {
                 name: "Messages Not Visible",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: Some(HealthThresholds {
                     critical: 500.0,
@@ -508,7 +453,6 @@ impl MetricRegistry {
 
             MetricType::ApproximateAgeOfOldestMessage => MetricDefinition {
                 name: "Oldest Message Age",
-                unit: MetricUnit::Seconds,
                 display_format: DisplayFormat::Duration,
                 thresholds: Some(HealthThresholds {
                     critical: 3600.0, // 1 hour
@@ -521,7 +465,6 @@ impl MetricRegistry {
 
             MetricType::ApproximateNumberOfMessagesDelayed => MetricDefinition {
                 name: "Messages Delayed",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: Some(HealthThresholds {
                     critical: 100.0,
@@ -534,7 +477,6 @@ impl MetricRegistry {
 
             MetricType::NumberOfMessagesSent => MetricDefinition {
                 name: "Messages Sent",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: None, // Throughput metrics don't have universal thresholds
                 color: Color::Green,
@@ -543,7 +485,6 @@ impl MetricRegistry {
 
             MetricType::NumberOfMessagesReceived => MetricDefinition {
                 name: "Messages Received",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: None,
                 color: Color::Blue,
@@ -552,7 +493,6 @@ impl MetricRegistry {
 
             MetricType::NumberOfMessagesDeleted => MetricDefinition {
                 name: "Messages Deleted",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: None,
                 color: Color::Yellow,
@@ -561,7 +501,6 @@ impl MetricRegistry {
 
             MetricType::NumberOfMessagesInDlq => MetricDefinition {
                 name: "DLQ Messages",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: Some(HealthThresholds {
                     critical: 10.0,
@@ -574,7 +513,6 @@ impl MetricRegistry {
 
             MetricType::ApproximateNumberOfMessages => MetricDefinition {
                 name: "Total Queue Depth",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: Some(HealthThresholds {
                     critical: 1000.0,
@@ -587,7 +525,6 @@ impl MetricRegistry {
 
             MetricType::SentMessageSize => MetricDefinition {
                 name: "Message Size",
-                unit: MetricUnit::Bytes,
                 display_format: DisplayFormat::Bytes,
                 thresholds: Some(HealthThresholds {
                     critical: 204_800.0, // 200 KB
@@ -600,7 +537,6 @@ impl MetricRegistry {
 
             MetricType::NumberOfEmptyReceives => MetricDefinition {
                 name: "Empty Receives",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: Some(HealthThresholds {
                     critical: 1000.0,
@@ -613,7 +549,6 @@ impl MetricRegistry {
 
             MetricType::ApproximateNumberOfGroupsWithInflightMessages => MetricDefinition {
                 name: "Groups with In-flight Messages",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: Some(HealthThresholds {
                     critical: 100.0,
@@ -626,75 +561,17 @@ impl MetricRegistry {
 
             MetricType::NumberOfDeduplicatedSentMessages => MetricDefinition {
                 name: "Deduplicated Messages",
-                unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: None,
                 color: Color::LightBlue,
                 description: "Number of messages sent after deduplication",
             },
 
-            // Dynamic metrics (simplified fallback)
-            MetricType::Dynamic(metric_name) => {
-                Self::create_fallback_dynamic_definition(metric_name)
-            }
-        }
-    }
 
-    // Removed create_dynamic_metric_definition (unused)
-
-    /// Create fallback definition for dynamic metrics without info
-    fn create_fallback_dynamic_definition(metric_name: &str) -> MetricDefinition {
-        let unit = Self::infer_unit_from_name(metric_name);
-        let display_format = Self::map_display_format(&unit);
-        let color = Self::get_metric_color(metric_name);
-        let description = format!("CloudWatch metric: {}", metric_name);
-
-        MetricDefinition {
-            name: Box::leak(metric_name.to_string().into_boxed_str()),
-            unit,
-            display_format,
-            thresholds: None,
-            color,
-            description: Box::leak(description.into_boxed_str()),
         }
     }
 
 
-
-    /// Infer unit from metric name
-    fn infer_unit_from_name(metric_name: &str) -> MetricUnit {
-        match metric_name {
-            name if name.contains("Utilization") || name.contains("Percent") || name.contains("Balance") => MetricUnit::Percent,
-            name if name.contains("Storage") || name.contains("Memory") || name.contains("Usage") || name.contains("Size") => MetricUnit::Bytes,
-            name if name.contains("Throughput") || name.contains("Generation") => MetricUnit::BytesPerSecond,
-            name if name.contains("Latency") || name.contains("Lag") || name.contains("Age") => MetricUnit::Seconds,
-            name if name.contains("Credit") => MetricUnit::Credits,
-            _ => MetricUnit::Count,
-        }
-    }
-
-    /// Map MetricUnit to DisplayFormat
-    fn map_display_format(unit: &MetricUnit) -> DisplayFormat {
-        match unit {
-            MetricUnit::Percent => DisplayFormat::Percentage,
-            MetricUnit::Bytes => DisplayFormat::Bytes,
-            MetricUnit::Seconds => DisplayFormat::Duration,
-            MetricUnit::BytesPerSecond => DisplayFormat::Bytes,
-            MetricUnit::Count | MetricUnit::Credits => DisplayFormat::Integer,
-        }
-    }
-
-    /// Get color for metric based on name
-    fn get_metric_color(metric_name: &str) -> Color {
-        // Use a simple hash-based color assignment for consistency
-        let hash = metric_name.chars().map(|c| c as u32).sum::<u32>();
-        let colors = [
-            Color::Blue, Color::Green, Color::Red, Color::Yellow,
-            Color::Cyan, Color::Magenta, Color::LightBlue, Color::LightGreen,
-            Color::LightRed, Color::LightYellow, Color::LightCyan, Color::LightMagenta,
-        ];
-        colors[hash as usize % colors.len()]
-    }
 
 
 

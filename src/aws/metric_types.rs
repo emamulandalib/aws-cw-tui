@@ -89,8 +89,6 @@ pub struct RdsInstanceCharacteristics {
     pub engine: String,
     pub instance_class: String,
     pub is_read_replica: bool,
-    #[allow(dead_code)]
-    pub multi_az: bool,
 }
 
 impl RdsInstanceCharacteristics {
@@ -101,7 +99,6 @@ impl RdsInstanceCharacteristics {
             instance_class: instance.instance_class.clone(),
             is_read_replica: instance.identifier.contains("-replica")
                 || instance.identifier.contains("-read"),
-            multi_az: false, // We'll enhance this later when we have more instance details
         }
     }
 
@@ -234,7 +231,6 @@ mod tests {
             engine: "postgres".to_string(),
             instance_class: "db.t3.micro".to_string(),
             is_read_replica: false,
-            multi_az: false,
         };
 
         let metrics = characteristics.get_relevant_metrics();
@@ -268,7 +264,6 @@ mod tests {
             engine: "mysql".to_string(),
             instance_class: "db.t3.micro".to_string(),
             is_read_replica: false,
-            multi_az: false,
         };
 
         let metrics = characteristics.get_relevant_metrics();
@@ -292,7 +287,6 @@ mod tests {
             engine: "postgres".to_string(),
             instance_class: "db.m5.large".to_string(),
             is_read_replica: false,
-            multi_az: false,
         };
 
         let metrics = characteristics.get_relevant_metrics();
@@ -308,7 +302,6 @@ mod tests {
             engine: "postgres".to_string(),
             instance_class: "db.t3.micro".to_string(),
             is_read_replica: true,
-            multi_az: false,
         };
 
         let metrics = characteristics.get_relevant_metrics();

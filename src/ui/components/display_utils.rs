@@ -1,13 +1,3 @@
-/// Truncate string to fit within specified length with ellipsis
-#[allow(dead_code)]
-pub fn truncate_string(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len.saturating_sub(3)])
-    }
-}
-
 /// Calculate responsive time panel width based on terminal width
 pub fn calculate_time_panel_width(total_width: u16) -> u16 {
     // Responsive breakpoints: min 20, max 25 chars based on available space

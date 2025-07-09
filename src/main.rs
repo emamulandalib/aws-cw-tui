@@ -1,6 +1,5 @@
 mod app;
 mod aws;
-mod config;
 mod event_handler;
 mod models;
 mod terminal;
