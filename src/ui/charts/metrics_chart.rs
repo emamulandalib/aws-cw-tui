@@ -59,29 +59,29 @@ pub fn render_metrics_unified(
 fn collect_available_metrics_unified(app: &crate::models::App) -> Vec<MetricTuple<'_>> {
     let mut individual_metrics = vec![];
 
-    // Use the unified available metrics from App
-    let available_metric_types = app.get_available_metrics();
-
-    for metric_type in available_metric_types {
-        let (name, formatted_value, history, color, max_val) = match app
-            .selected_service
-            .as_ref()
-            .unwrap_or(&crate::models::AwsService::Rds)
-        {
-            crate::models::AwsService::Rds => {
-                // Handle RDS metrics
-                get_rds_metric_display_info(&metric_type, &app.metrics)
+    // NEW: Check if dynamic metrics are available, otherwise fall back to legacy
+    if let Some(ref dynamic_metrics) = app.dynamic_metrics {
+        // Use dynamic metrics system
+        for metric_data in &dynamic_metrics.metrics {
+            if !metric_data.history.is_empty() {
+                let display_name = metric_data.display_name.as_str(); // Use AWS SDK metric name directly
+                let formatted_value = format_dynamic_metric_value(metric_data);
+                let color = get_dynamic_metric_color(&metric_data.metric_name);
+                let max_val = calculate_dynamic_metric_max(metric_data);
+                
+                individual_metrics.push((
+                    display_name,
+                    formatted_value,
+                    &metric_data.history,
+                    color,
+                    max_val,
+                    true
+                ));
             }
-            crate::models::AwsService::Sqs => {
-                // Handle SQS metrics
-                get_sqs_metric_display_info(&metric_type, &app.sqs_metrics)
-            }
-        };
-
-        // Only add metrics that have data
-        if !history.is_empty() {
-            individual_metrics.push((name, formatted_value, history, color, max_val, true));
         }
+    } else {
+        // LEGACY: Fall back to hardcoded metrics (empty for now since we're transitioning)
+        // This branch will be removed once dynamic metrics are fully working
     }
 
     individual_metrics
@@ -827,4 +827,110 @@ fn create_y_labels(y_bounds: [f64; 2], metric_name: &str) -> Vec<Line<'_>> {
             ))
         })
         .collect()
+}
+
+// ================================
+// NEW: Dynamic Metrics Helper Functions
+// ================================
+
+/// Get a user-friendly display name for a dynamic metric
+fn get_dynamic_metric_display_name(metric_name: &str) -> &'static str {
+    match metric_name {
+        "CPUUtilization" => "CPU Utilization",
+        "DatabaseConnections" => "DB Connections", 
+        "FreeStorageSpace" => "Free Storage",
+        "ReadIOPS" => "Read IOPS",
+        "WriteIOPS" => "Write IOPS",
+        "ReadLatency" => "Read Latency",
+        "WriteLatency" => "Write Latency", 
+        "ReadThroughput" => "Read Throughput",
+        "WriteThroughput" => "Write Throughput",
+        "NetworkReceiveThroughput" => "Network Receive",
+        "NetworkTransmitThroughput" => "Network Transmit",
+        "SwapUsage" => "Swap Usage",
+        "FreeableMemory" => "Freeable Memory",
+        "DiskQueueDepth" => "Queue Depth",
+        "BurstBalance" => "Burst Balance",
+        "CPUCreditUsage" => "CPU Credit Usage",
+        "CPUCreditBalance" => "CPU Credit Balance",
+        "BinLogDiskUsage" => "Binary Log Usage",
+        "ReplicaLag" => "Replica Lag",
+        "NumberOfMessagesSent" => "Messages Sent",
+        "NumberOfMessagesReceived" => "Messages Received",
+        "NumberOfMessagesDeleted" => "Messages Deleted",
+        "ApproximateNumberOfMessages" => "Queue Depth",
+        "ApproximateNumberOfMessagesVisible" => "Visible Messages",
+        "ApproximateNumberOfMessagesNotVisible" => "Hidden Messages",
+        "ApproximateAgeOfOldestMessage" => "Oldest Message Age",
+        "NumberOfEmptyReceives" => "Empty Receives",
+        _ => "Unknown Metric", // Fallback to static string
+    }
+}
+
+/// Format the current value of a dynamic metric for display
+fn format_dynamic_metric_value(metric_data: &crate::aws::dynamic_metric_discovery::DynamicMetricData) -> String {
+    match metric_data.metric_name.as_str() {
+        "CPUUtilization" | "BurstBalance" => format!("{:.1}%", metric_data.current_value),
+        "FreeStorageSpace" | "FreeableMemory" | "SwapUsage" | "BinLogDiskUsage" => {
+            format!("{:.1} GB", metric_data.current_value / 1024.0 / 1024.0 / 1024.0)
+        }
+        "ReadThroughput" | "WriteThroughput" | "NetworkReceiveThroughput" | "NetworkTransmitThroughput" => {
+            format!("{:.1} MB/s", metric_data.current_value / 1024.0 / 1024.0)
+        }
+        "ReadLatency" | "WriteLatency" => format!("{:.2} ms", metric_data.current_value * 1000.0),
+        "ReplicaLag" | "ApproximateAgeOfOldestMessage" => format!("{:.2} s", metric_data.current_value),
+        _ => format!("{:.1}", metric_data.current_value), // Default number formatting
+    }
+}
+
+/// Get the color for a dynamic metric based on its type
+fn get_dynamic_metric_color(metric_name: &str) -> ratatui::style::Color {
+    match metric_name {
+        "CPUUtilization" | "ReadLatency" | "WriteLatency" => ratatui::style::Color::Red,
+        "DatabaseConnections" | "CPUCreditUsage" => ratatui::style::Color::Blue,
+        "ReadIOPS" | "ReadThroughput" | "BurstBalance" => ratatui::style::Color::Green,
+        "WriteIOPS" | "WriteThroughput" => ratatui::style::Color::Yellow,
+        "NetworkReceiveThroughput" | "NetworkTransmitThroughput" => ratatui::style::Color::Cyan,
+        "FreeStorageSpace" | "FreeableMemory" => ratatui::style::Color::White,
+        "SwapUsage" => ratatui::style::Color::DarkGray,
+        "CPUCreditBalance" => ratatui::style::Color::LightBlue,
+        "BinLogDiskUsage" => ratatui::style::Color::Magenta,
+        "ReplicaLag" => ratatui::style::Color::Yellow,
+        "NumberOfMessagesSent" => ratatui::style::Color::Green,
+        "NumberOfMessagesReceived" => ratatui::style::Color::Blue,
+        "NumberOfMessagesDeleted" => ratatui::style::Color::Red,
+        "ApproximateNumberOfMessages" => ratatui::style::Color::Yellow,
+        "ApproximateNumberOfMessagesVisible" => ratatui::style::Color::LightGreen,
+        "ApproximateNumberOfMessagesNotVisible" => ratatui::style::Color::Gray,
+        _ => ratatui::style::Color::White, // Default color
+    }
+}
+
+/// Calculate maximum value for chart scaling
+fn calculate_dynamic_metric_max(metric_data: &crate::aws::dynamic_metric_discovery::DynamicMetricData) -> f64 {
+    match metric_data.metric_name.as_str() {
+        "CPUUtilization" | "BurstBalance" => 100.0,
+        "DatabaseConnections" => 200.0,
+        "ReadIOPS" | "WriteIOPS" => 1000.0,
+        "ReadLatency" | "WriteLatency" => 0.1,
+        "FreeStorageSpace" | "FreeableMemory" | "SwapUsage" | "BinLogDiskUsage" => 1_000_000_000.0,
+        "ReadThroughput" | "WriteThroughput" | "NetworkReceiveThroughput" | "NetworkTransmitThroughput" => 100_000_000.0,
+        "DiskQueueDepth" => 100.0,
+        "CPUCreditUsage" => 100.0,
+        "CPUCreditBalance" => 1000.0,
+        "ReplicaLag" => 3600.0, // 1 hour max
+        "NumberOfMessagesSent" | "NumberOfMessagesReceived" | "NumberOfMessagesDeleted" => 1000.0,
+        "ApproximateNumberOfMessages" | "ApproximateNumberOfMessagesVisible" | "ApproximateNumberOfMessagesNotVisible" => 10000.0,
+        "ApproximateAgeOfOldestMessage" => 86400.0, // 1 day max
+        "NumberOfEmptyReceives" => 100.0,
+        _ => {
+            // Dynamic calculation based on history
+            if !metric_data.history.is_empty() {
+                let max_in_history = metric_data.history.iter().fold(0.0_f64, |a, &b| a.max(b));
+                (max_in_history * 1.2_f64).max(1.0_f64) // 20% buffer, minimum 1.0
+            } else {
+                100.0 // Default fallback
+            }
+        }
+    }
 }

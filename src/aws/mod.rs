@@ -1,10 +1,9 @@
 // AWS module exports
 pub mod cloudwatch_service;
+pub mod dynamic_metric_discovery;
 pub mod rds_service;
 pub mod sqs_metrics;
 pub mod sqs_service;
-
-// Dynamic metrics discovery - removed (unused)
 
 // Error handling utilities
 pub mod error_utils;

@@ -1,4 +1,5 @@
 use super::metric_definitions::{MetricDefinition, MetricRegistry};
+use crate::aws::dynamic_metric_discovery::DynamicMetricData;
 use crate::models::{App, MetricType};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -64,58 +65,117 @@ impl AwsMetricsGrid {
             None => return,
         };
 
-        // Get available metrics for the service using data-based filtering (only metrics with actual data)
-        let available_metrics = match service {
-            crate::models::AwsService::Rds => app.metrics.get_available_metrics_with_data(),
-            crate::models::AwsService::Sqs => app.sqs_metrics.get_available_metrics(),
-        };
+        // Check if we have dynamic metrics available (new system)
+        if let Some(ref dynamic_metrics) = app.dynamic_metrics {
+            let available_metrics = dynamic_metrics.get_available_metric_names();
+            
+            if available_metrics.is_empty() {
+                Self::render_no_metrics(f, area);
+                return;
+            }
 
-        if available_metrics.is_empty() {
-            Self::render_no_metrics(f, area);
-            return;
+            // Create metric chart data from dynamic metrics
+            let all_chart_data: Vec<MetricChartData> = dynamic_metrics.metrics
+                .iter()
+                .map(|metric_data| MetricChartData {
+                    metric_type: MetricType::CpuUtilization, // Placeholder - we'll use the metric name
+                    current_value: metric_data.current_value,
+                    history: metric_data.history.clone(),
+                    timestamps: metric_data.timestamps.clone(),
+                })
+                .collect();
+
+            if all_chart_data.is_empty() {
+                Self::render_loading_state(f, area);
+                return;
+            }
+
+            // Force 2x2 grid layout (4 metrics per screen)
+            let metrics_per_row = 2;
+            let metrics_per_screen = 4; // Always show 4 metrics in 2x2 grid
+
+            let total_metrics = all_chart_data.len();
+            let selected_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
+
+            // CRITICAL: Bounds check to prevent crashes - clamp selected_index to available data
+            let safe_selected_index = selected_index.min(total_metrics.saturating_sub(1));
+
+            // Calculate which metrics to show in the current 2x2 grid
+            let current_page = safe_selected_index / metrics_per_screen;
+            let start_index = current_page * metrics_per_screen;
+            let end_index = (start_index + metrics_per_screen).min(total_metrics);
+
+            // Get the metrics to display in current 2x2 grid
+            let visible_metrics: Vec<MetricChartData> = all_chart_data[start_index..end_index].to_vec();
+
+            // Always use 2x2 grid layout
+            let grid_layout = calculate_scrollable_grid_layout(visible_metrics.len(), metrics_per_row);
+
+            // Render the 2x2 grid of metrics
+            Self::render_metrics_grid_dynamic(
+                f,
+                area,
+                &visible_metrics,
+                &dynamic_metrics.metrics[start_index..end_index],
+                grid_layout,
+                app,
+                safe_selected_index - start_index,
+            );
+        } else {
+            // Fallback to legacy system for backward compatibility
+            // Get available metrics for the service using data-based filtering (only metrics with actual data)
+            let available_metrics = match service {
+                crate::models::AwsService::Rds => app.metrics.get_available_metrics_with_data(),
+                crate::models::AwsService::Sqs => app.sqs_metrics.get_available_metrics(),
+            };
+
+            if available_metrics.is_empty() {
+                Self::render_no_metrics(f, area);
+                return;
+            }
+
+            // Create metric chart data for all available metrics
+            let all_chart_data: Vec<MetricChartData> = available_metrics
+                .into_iter()
+                .filter_map(|metric_type| MetricChartData::from_app(app, metric_type))
+                .collect();
+
+            if all_chart_data.is_empty() {
+                Self::render_loading_state(f, area);
+                return;
+            }
+
+            // Force 2x2 grid layout (4 metrics per screen)
+            let metrics_per_row = 2;
+            let metrics_per_screen = 4; // Always show 4 metrics in 2x2 grid
+
+            let total_metrics = all_chart_data.len();
+            let selected_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
+
+            // CRITICAL: Bounds check to prevent crashes - clamp selected_index to available data
+            let safe_selected_index = selected_index.min(total_metrics.saturating_sub(1));
+
+            // Calculate which metrics to show in the current 2x2 grid
+            let current_page = safe_selected_index / metrics_per_screen;
+            let start_index = current_page * metrics_per_screen;
+            let end_index = (start_index + metrics_per_screen).min(total_metrics);
+
+            // Get the metrics to display in current 2x2 grid
+            let visible_metrics: Vec<MetricChartData> = all_chart_data[start_index..end_index].to_vec();
+
+            // Always use 2x2 grid layout
+            let grid_layout = calculate_scrollable_grid_layout(visible_metrics.len(), metrics_per_row);
+
+            // Render the 2x2 grid of metrics
+            Self::render_metrics_grid(
+                f,
+                area,
+                &visible_metrics,
+                grid_layout,
+                app,
+                safe_selected_index - start_index,
+            );
         }
-
-        // Create metric chart data for all available metrics
-        let all_chart_data: Vec<MetricChartData> = available_metrics
-            .into_iter()
-            .filter_map(|metric_type| MetricChartData::from_app(app, metric_type))
-            .collect();
-
-        if all_chart_data.is_empty() {
-            Self::render_loading_state(f, area);
-            return;
-        }
-
-        // Force 2x2 grid layout (4 metrics per screen)
-        let metrics_per_row = 2;
-        let metrics_per_screen = 4; // Always show 4 metrics in 2x2 grid
-
-        let total_metrics = all_chart_data.len();
-        let selected_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
-
-        // CRITICAL: Bounds check to prevent crashes - clamp selected_index to available data
-        let safe_selected_index = selected_index.min(total_metrics.saturating_sub(1));
-
-        // Calculate which metrics to show in the current 2x2 grid
-        let current_page = safe_selected_index / metrics_per_screen;
-        let start_index = current_page * metrics_per_screen;
-        let end_index = (start_index + metrics_per_screen).min(total_metrics);
-
-        // Get the metrics to display in current 2x2 grid
-        let visible_metrics: Vec<MetricChartData> = all_chart_data[start_index..end_index].to_vec();
-
-        // Always use 2x2 grid layout
-        let grid_layout = calculate_scrollable_grid_layout(visible_metrics.len(), metrics_per_row);
-
-        // Render the 2x2 grid of metrics
-        Self::render_metrics_grid(
-            f,
-            area,
-            &visible_metrics,
-            grid_layout,
-            app,
-            safe_selected_index - start_index,
-        );
     }
 
     /// Render individual metric chart in AWS console style
@@ -423,6 +483,243 @@ impl AwsMetricsGrid {
             }
         }
     }
+
+    /// Render metrics in grid layout for dynamic metrics
+    fn render_metrics_grid_dynamic(
+        f: &mut Frame,
+        area: Rect,
+        chart_data: &[MetricChartData],
+        dynamic_metrics: &[DynamicMetricData],
+        grid_layout: GridLayout,
+        _app: &App,
+        selected_metric_index: usize,
+    ) {
+        // Calculate the height for each row to fit within available area
+        let min_row_height = 12u16;
+        let available_height = area.height;
+        let rows_to_render = grid_layout.rows;
+
+        // Calculate actual row height - distribute available space evenly
+        // but ensure minimum height if possible
+        let _row_height = if rows_to_render == 0 {
+            available_height
+        } else {
+            let calculated_height = available_height / rows_to_render as u16;
+            calculated_height
+                .max(min_row_height)
+                .min(available_height / rows_to_render.max(1) as u16)
+        };
+
+        // Create row constraints that respect the container bounds
+        let row_constraints: Vec<Constraint> =
+            if rows_to_render * min_row_height as usize <= available_height as usize {
+                // If we have enough space, use minimum height
+                (0..rows_to_render)
+                    .map(|_| Constraint::Min(min_row_height))
+                    .collect()
+            } else {
+                // Otherwise, use percentage to fit within bounds
+                (0..rows_to_render)
+                    .map(|_| Constraint::Percentage(100 / rows_to_render as u16))
+                    .collect()
+            };
+
+        let row_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(row_constraints)
+            .split(area);
+
+        // Render each row
+        for (row_idx, row_area) in row_chunks.iter().enumerate() {
+            // Create column constraints for this row (always 2 columns)
+            let col_constraints: Vec<Constraint> = (0..grid_layout.cols)
+                .map(|_| Constraint::Percentage(100 / grid_layout.cols as u16))
+                .collect();
+
+            let col_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints(col_constraints)
+                .split(*row_area);
+
+            // Render metrics in this row
+            for (col_idx, col_area) in col_chunks.iter().enumerate() {
+                let metric_idx = row_idx * grid_layout.cols + col_idx;
+                if let Some(dynamic_metric) = dynamic_metrics.get(metric_idx) {
+                    // Check if this metric is the currently selected one in the 2x2 grid
+                    let is_focused = metric_idx == selected_metric_index;
+                    Self::render_dynamic_metric_chart(f, *col_area, dynamic_metric, is_focused);
+                }
+            }
+        }
+    }
+
+    /// Render individual dynamic metric chart
+    fn render_dynamic_metric_chart(
+        f: &mut Frame,
+        area: Rect,
+        metric_data: &DynamicMetricData,
+        is_focused: bool,
+    ) {
+        let border_color = if is_focused {
+            Color::Yellow
+        } else {
+            Color::White
+        };
+
+        // Calculate layout for title and chart
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Title area
+                Constraint::Min(8),    // Chart area
+            ])
+            .split(area);
+
+        // Render title with current value
+        Self::render_dynamic_metric_title(
+            f,
+            chunks[0],
+            metric_data,
+            border_color,
+        );
+
+        // Render chart if we have enough space and data
+        if chunks[1].height >= 8 && !metric_data.history.is_empty() {
+            Self::render_dynamic_time_series_chart(
+                f,
+                chunks[1],
+                metric_data,
+                border_color,
+            );
+        } else {
+            Self::render_dynamic_simple_metric(
+                f,
+                chunks[1],
+                metric_data,
+                border_color,
+            );
+        }
+    }
+
+    /// Render dynamic metric title with current value
+    fn render_dynamic_metric_title(
+        f: &mut Frame,
+        area: Rect,
+        metric_data: &DynamicMetricData,
+        border_color: Color,
+    ) {
+        let unit_str = metric_data.unit.as_deref().unwrap_or("");
+        let formatted_value = if unit_str.contains("Percent") {
+            format!("{:.1}%", metric_data.current_value)
+        } else if unit_str.contains("Bytes") && metric_data.current_value > 1_000_000.0 {
+            format!("{:.1} MB", metric_data.current_value / 1_000_000.0)
+        } else if metric_data.current_value > 1000.0 {
+            format!("{:.0}", metric_data.current_value)
+        } else {
+            format!("{:.2}", metric_data.current_value)
+        };
+
+        let title_text = format!(
+            "{}: {}",
+            metric_data.display_name,
+            formatted_value
+        );
+
+        let title_widget = Paragraph::new(title_text)
+            .style(
+                Style::default()
+                    .fg(Color::Green) // Default to green for dynamic metrics
+                    .add_modifier(Modifier::BOLD),
+            )
+            .alignment(ratatui::layout::Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(border_color)),
+            );
+
+        f.render_widget(title_widget, area);
+    }
+
+    /// Render dynamic time series chart
+    fn render_dynamic_time_series_chart(
+        f: &mut Frame,
+        area: Rect,
+        metric_data: &DynamicMetricData,
+        border_color: Color,
+    ) {
+        let y_bounds = calculate_y_bounds(&metric_data.history);
+        let x_labels = create_time_labels(&metric_data.timestamps);
+        let y_labels = create_dynamic_value_labels(y_bounds, metric_data);
+
+        let chart_data: Vec<(f64, f64)> = metric_data.history
+            .iter()
+            .enumerate()
+            .map(|(i, &y)| (i as f64, y))
+            .collect();
+
+        let datasets = vec![Dataset::default()
+            .name("")
+            .marker(symbols::Marker::Braille)
+            .style(Style::default().fg(Color::Green))
+            .graph_type(GraphType::Line)
+            .data(&chart_data)];
+
+        let chart = Chart::new(datasets)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(border_color)),
+            )
+            .x_axis(
+                Axis::default()
+                    .style(Style::default().fg(Color::DarkGray))
+                    .labels(x_labels)
+                    .bounds([0.0, metric_data.history.len().max(1) as f64 - 1.0]),
+            )
+            .y_axis(
+                Axis::default()
+                    .style(Style::default().fg(Color::DarkGray))
+                    .labels(y_labels)
+                    .bounds(y_bounds),
+            );
+
+        f.render_widget(chart, area);
+    }
+
+    /// Render simple dynamic metric (when space is limited)
+    fn render_dynamic_simple_metric(
+        f: &mut Frame,
+        area: Rect,
+        metric_data: &DynamicMetricData,
+        border_color: Color,
+    ) {
+        let unit_str = metric_data.unit.as_deref().unwrap_or("");
+        let formatted_value = if unit_str.contains("Percent") {
+            format!("{:.1}%", metric_data.current_value)
+        } else if unit_str.contains("Bytes") && metric_data.current_value > 1_000_000.0 {
+            format!("{:.1} MB", metric_data.current_value / 1_000_000.0)
+        } else if metric_data.current_value > 1000.0 {
+            format!("{:.0}", metric_data.current_value)
+        } else {
+            format!("{:.2}", metric_data.current_value)
+        };
+
+        let simple_widget = Paragraph::new(formatted_value)
+            .style(
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .alignment(ratatui::layout::Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(border_color)),
+            );
+
+        f.render_widget(simple_widget, area);
+    }
 }
 
 /// Grid layout configuration
@@ -522,6 +819,24 @@ fn create_value_labels(y_bounds: [f64; 2], definition: &MetricDefinition) -> Vec
 
             Line::from(Span::styled(
                 definition.format_value(value),
+                Style::default().fg(Color::DarkGray),
+            ))
+        })
+        .collect()
+}
+
+/// Create dynamic value labels for Y axis
+fn create_dynamic_value_labels(y_bounds: [f64; 2], metric_data: &DynamicMetricData) -> Vec<Line<'_>> {
+    let num_labels = 5;
+    let range = y_bounds[1] - y_bounds[0];
+
+    (0..num_labels)
+        .map(|i| {
+            let ratio = i as f64 / (num_labels - 1) as f64;
+            let value = y_bounds[0] + ratio * range;
+
+            Line::from(Span::styled(
+                format!("{:.2}", value),
                 Style::default().fg(Color::DarkGray),
             ))
         })

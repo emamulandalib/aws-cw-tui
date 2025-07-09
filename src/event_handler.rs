@@ -76,6 +76,16 @@ async fn handle_rds_list_event(app: &mut App, key_code: KeyCode) -> Result<bool>
             }
             Ok(false)
         }
+        KeyCode::Char('d') => {
+            // NEW: Test dynamic metrics loading with 'd' key
+            info!("User triggered dynamic metrics loading test");
+            app.enter_metrics_summary();
+            if let Some(instance_id) = app.get_selected_instance_id() {
+                info!("Loading dynamic metrics for instance: {}", instance_id);
+                app.load_metrics_dynamic(&instance_id).await?;
+            }
+            Ok(false)
+        }
         KeyCode::Char('r') => {
             info!("User triggered manual refresh");
             app.loading = true;

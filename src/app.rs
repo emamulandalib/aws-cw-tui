@@ -1,10 +1,10 @@
 use crate::aws::time_range::{TimeRange, TimeUnit};
 use crate::aws::{
-    cloudwatch_service::{load_metrics, load_metrics_with_instance},
+    cloudwatch_service::load_dynamic_metrics,
     load_rds_instances,
 };
 use crate::models::{
-    App, AppState, AwsService, FocusedPanel, MetricType, ServiceInstance, TimeRangeMode, Timezone,
+    App, AppState, AwsService, FocusedPanel, ServiceInstance, TimeRangeMode, Timezone,
 };
 use anyhow::Result;
 use log::info;
@@ -31,8 +31,9 @@ impl App {
             loading: false,
             state: AppState::ServiceList, // Start with service selection
             selected_instance: None,
-            metrics: crate::models::MetricData::default(),
-            sqs_metrics: crate::models::SqsMetricData::default(),
+            dynamic_metrics: None, // Initialize as None, will be populated when metrics are loaded
+            metrics: crate::models::MetricData::default(), // TEMPORARY: Legacy compatibility
+            sqs_metrics: crate::models::SqsMetricData::default(), // TEMPORARY: Legacy compatibility
             metrics_loading: false,
             last_refresh: None,
             auto_refresh_enabled: true,
@@ -41,7 +42,8 @@ impl App {
             time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(),
 
             // Initialize sparkline grid state
-            selected_metric: None,
+            selected_metric_name: None,
+            selected_metric: None, // TEMPORARY: Legacy compatibility
             sparkline_grid_selected_index: 0,
             saved_sparkline_grid_selected_index: 0,
             sparkline_grid_list_state: ratatui::widgets::ListState::default(),
@@ -379,147 +381,135 @@ impl App {
     // 6. METRICS MANAGEMENT
     // ================================
 
+    /// NEW: Load metrics dynamically using CloudWatch list_metrics API
+    /// This method discovers available metrics instead of using hardcoded lists
+    pub async fn load_metrics_dynamic(&mut self, instance_id: &str) -> Result<()> {
+        self.metrics_loading = true;
+
+        let service = self.selected_service.as_ref().unwrap_or(&AwsService::Rds);
+
+        log::info!("Loading dynamic metrics for {:?} service, instance: {}", service, instance_id);
+
+        match load_dynamic_metrics(service, instance_id, self.time_range).await {
+            Ok(dynamic_metrics) => {
+                log::info!("Successfully loaded {} dynamic metrics", dynamic_metrics.len());
+                self.dynamic_metrics = Some(dynamic_metrics);
+                self.metrics_loading = false;
+                self.clear_error();
+                self.initialize_sparkline_grid_dynamic();
+                self.mark_refreshed();
+                Ok(())
+            }
+            Err(e) => {
+                log::error!("Failed to load dynamic metrics: {}", e);
+                self.metrics_loading = false;
+                self.error_message = Some(format!("CloudWatch Dynamic Error: {e}"));
+                self.dynamic_metrics = None;
+                self.selected_metric_name = None;
+                self.sparkline_grid_selected_index = 0;
+                Ok(())
+            }
+        }
+    }
+
+
+
+    /// Get available dynamic metric names
+    pub fn get_available_dynamic_metrics(&self) -> Vec<String> {
+        self.dynamic_metrics
+            .as_ref()
+            .map(|dm| dm.get_available_metric_names())
+            .unwrap_or_default()
+    }
+
+    /// Load metrics using dynamic discovery system
     pub async fn load_metrics(&mut self, instance_id: &str) -> Result<()> {
         self.metrics_loading = true;
 
         let service = self.selected_service.as_ref().unwrap_or(&AwsService::Rds);
 
-        match service {
-            AwsService::Rds => {
-                // Load RDS metrics with intelligent filtering
-                if let Some(rds_instance) = self.get_selected_rds_instance() {
-                    log::info!(
-                        "Loading metrics with intelligent filtering for RDS instance: {} ({})",
-                        rds_instance.identifier,
-                        rds_instance.engine
-                    );
-                    match load_metrics_with_instance(rds_instance, self.time_range).await {
-                        Ok(metrics) => {
-                            log::info!("Successfully loaded metrics with characteristics");
-                            self.metrics = metrics;
-                            self.metrics_loading = false;
-                            self.clear_error();
-                            self.initialize_sparkline_grid();
-                            self.mark_refreshed();
-                            Ok(())
-                        }
-                        Err(e) => {
-                            log::error!("Failed to load metrics with characteristics: {}", e);
-                            self.metrics_loading = false;
-                            self.error_message = Some(format!("CloudWatch Error: {e}"));
-                            self.metrics = crate::models::MetricData::default();
-                            self.selected_metric = None;
-                            self.sparkline_grid_selected_index = 0;
-                            Ok(())
-                        }
-                    }
-                } else {
-                    log::warn!("No RDS instance selected, falling back to old method");
-                    // Fallback to old method if no RDS instance is selected
-                    match load_metrics(instance_id, self.time_range).await {
-                        Ok(metrics) => {
-                            self.metrics = metrics;
-                            self.metrics_loading = false;
-                            self.clear_error();
-                            self.initialize_sparkline_grid();
-                            self.mark_refreshed();
-                            Ok(())
-                        }
-                        Err(e) => {
-                            self.metrics_loading = false;
-                            self.error_message = Some(format!("CloudWatch Error: {e}"));
-                            self.metrics = crate::models::MetricData::default();
-                            self.selected_metric = None;
-                            self.sparkline_grid_selected_index = 0;
-                            Ok(())
-                        }
-                    }
-                }
+        log::info!("Loading dynamic metrics for {:?} service, instance: {}", service, instance_id);
+
+        // Use the new dynamic metrics loading system
+        match load_dynamic_metrics(service, instance_id, self.time_range).await {
+            Ok(dynamic_metrics) => {
+                log::info!("Successfully loaded {} dynamic metrics for instance: {}", 
+                          dynamic_metrics.len(), instance_id);
+                
+                self.dynamic_metrics = Some(dynamic_metrics);
+                self.initialize_sparkline_grid_dynamic();
+                self.metrics_loading = false;
+                self.clear_error();
+                self.mark_refreshed();
+                Ok(())
             }
-            AwsService::Sqs => {
-                // Load SQS metrics
-                if let Some(queue) = self.get_selected_sqs_queue() {
-                    match crate::aws::sqs_metrics::fetch_sqs_metrics(queue, &self.time_range).await
-                    {
-                        Ok(sqs_metrics) => {
-                            self.sqs_metrics = sqs_metrics;
-                            self.metrics_loading = false;
-                            self.clear_error();
-                            self.initialize_sparkline_grid_for_sqs();
-                            self.mark_refreshed();
-                            Ok(())
-                        }
-                        Err(e) => {
-                            self.metrics_loading = false;
-                            self.error_message = Some(format!("CloudWatch SQS Error: {e}"));
-                            self.sqs_metrics = crate::models::SqsMetricData::default();
-                            self.selected_metric = None;
-                            self.sparkline_grid_selected_index = 0;
-                            Ok(())
-                        }
-                    }
-                } else {
-                    self.metrics_loading = false;
-                    self.error_message = Some("No SQS queue selected".to_string());
-                    Ok(())
-                }
+            Err(e) => {
+                log::error!("Failed to load dynamic metrics: {}", e);
+                self.dynamic_metrics = None;
+                self.selected_metric_name = None;
+                self.metrics_loading = false;
+                self.error_message = Some(format!("Failed to load metrics: {}", e));
+                Ok(())
             }
         }
     }
 
-    pub fn get_available_metrics(&self) -> Vec<MetricType> {
-        match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-            AwsService::Rds => self.metrics.get_available_metrics_with_data(),
-            AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
+    pub fn get_available_metrics(&self) -> Vec<String> {
+        // Return dynamic metric names instead of hardcoded types
+        if let Some(ref dynamic_metrics) = self.dynamic_metrics {
+            dynamic_metrics.get_available_metric_names()
+        } else {
+            Vec::new()
         }
     }
 
     // Removed unused get_sparkline_grid_selected_index method
 
     pub fn update_selected_metric(&mut self) {
-        match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-            AwsService::Rds => {
-                let available_metrics = self.metrics.get_available_metrics_with_data();
-                if let Some(metric) = available_metrics.get(self.sparkline_grid_selected_index) {
-                    self.selected_metric = Some(metric.clone());
-                }
-            }
-            AwsService::Sqs => {
-                let available_metrics = self.sqs_metrics.get_available_metrics();
-                if let Some(metric) = available_metrics.get(self.sparkline_grid_selected_index) {
-                    self.selected_metric = Some(metric.clone());
-                }
+        // Update selected metric name using dynamic metrics
+        if let Some(ref dynamic_metrics) = self.dynamic_metrics {
+            let available_metrics = dynamic_metrics.get_available_metric_names();
+            if let Some(metric_name) = available_metrics.get(self.sparkline_grid_selected_index) {
+                self.selected_metric_name = Some(metric_name.clone());
             }
         }
     }
 
-    pub fn initialize_sparkline_grid(&mut self) {
-        // Initialize the list state with the first item selected
-        self.sparkline_grid_list_state.select(Some(0));
-
+    /// NEW: Initialize sparkline grid using dynamic metrics
+    pub fn initialize_sparkline_grid_dynamic(&mut self) {
+        // Initialize with dynamic metrics if available
+        if let Some(ref dynamic_metrics) = self.dynamic_metrics {
+            let available_metrics = dynamic_metrics.get_available_metric_names();
+            if !available_metrics.is_empty() {
+                self.selected_metric_name = Some(available_metrics[0].clone());
+                self.sparkline_grid_selected_index = 0;
+                self.sparkline_grid_list_state.select(Some(0));
+            } else {
+                self.selected_metric_name = None;
+                self.sparkline_grid_selected_index = 0;
+                self.sparkline_grid_list_state.select(None);
+            }
+        } else {
+            // No dynamic metrics available
+            self.selected_metric_name = None;
+            self.sparkline_grid_selected_index = 0;
+            self.sparkline_grid_list_state.select(None);
+        }
+        
         // Legacy fields for compatibility
-        self.sparkline_grid_selected_index = 0;
         self.saved_sparkline_grid_selected_index = 0;
     }
 
+    /// LEGACY: This method is now handled by initialize_sparkline_grid_dynamic  
+    pub fn initialize_sparkline_grid(&mut self) {
+        // Redirect to dynamic method
+        self.initialize_sparkline_grid_dynamic();
+    }
+
+    /// LEGACY: This method is now handled by initialize_sparkline_grid_dynamic
     pub fn initialize_sparkline_grid_for_sqs(&mut self) {
-        let available_metrics = self.sqs_metrics.get_available_metrics();
-        if !available_metrics.is_empty() {
-            if self.selected_metric.is_none() {
-                self.selected_metric = Some(available_metrics[0].clone());
-                self.sparkline_grid_selected_index = 0;
-            } else if let Some(ref current_metric) = self.selected_metric {
-                if let Some(index) = available_metrics.iter().position(|m| m == current_metric) {
-                    self.sparkline_grid_selected_index = index;
-                } else {
-                    self.selected_metric = Some(available_metrics[0].clone());
-                    self.sparkline_grid_selected_index = 0;
-                }
-            }
-        } else {
-            self.selected_metric = None;
-            self.sparkline_grid_selected_index = 0;
-        }
+        // Redirect to dynamic method
+        self.initialize_sparkline_grid_dynamic();
     }
 
     // ================================
