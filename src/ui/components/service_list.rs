@@ -2,7 +2,9 @@ use crate::models::App;
 use ratatui::{
     prelude::*,
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
+    widgets::{
+        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    },
     Frame,
 };
 
@@ -52,23 +54,18 @@ fn render_services(f: &mut Frame, area: Rect, app: &mut App) {
                 .title("Available Services")
                 .border_style(Style::default().white()),
         )
-        .highlight_style(
-            Style::default()
-                .on_dark_gray()
-                .bold(),
-        );
+        .highlight_style(Style::default().on_dark_gray().bold());
 
     f.render_stateful_widget(services_list, area, &mut app.service_list_state);
-    
+
     // Add scrollbar if there are more services than can fit on screen
     if app.available_services.len() > (area.height.saturating_sub(2)) as usize {
-        let scrollbar = Scrollbar::default()
-            .orientation(ScrollbarOrientation::VerticalRight);
-        
+        let scrollbar = Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight);
+
         let mut scrollbar_state = ScrollbarState::default()
             .content_length(app.available_services.len())
             .position(app.service_list_state.selected().unwrap_or(0));
-            
+
         f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
     }
 }

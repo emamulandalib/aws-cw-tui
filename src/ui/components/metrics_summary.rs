@@ -1,6 +1,10 @@
 use super::{
-    display_utils::calculate_time_panel_width, instance_details::render_metrics_loading,
-    time_range_utils::{render_aws_console_time_range_panel, render_period_selection_panel, render_timezone_selection_panel},
+    display_utils::calculate_time_panel_width,
+    instance_details::render_metrics_loading,
+    time_range_utils::{
+        render_aws_console_time_range_panel, render_period_selection_panel,
+        render_timezone_selection_panel,
+    },
 };
 use crate::models::{App, TimeRangeMode};
 
@@ -60,13 +64,13 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
                 Constraint::Min(0),     // Time range panel
             ])
             .split(content_chunks[0]);
-        
+
         // Render timezone selection panel
         render_timezone_selection_panel(f, app, time_panel_chunks[0]);
-        
+
         // Render period selection panel
         render_period_selection_panel(f, app, time_panel_chunks[1]);
-        
+
         // Render time range panel
         render_aws_console_time_range_panel(f, app, time_panel_chunks[2]);
 
@@ -132,10 +136,7 @@ fn render_sqs_instance_info(
         ]),
         Line::from(vec![
             Span::styled("URL: ", Style::default().white()),
-            Span::styled(
-                &queue.url,
-                Style::default().cyan(),
-            ),
+            Span::styled(&queue.url, Style::default().cyan()),
         ]),
     ];
 
@@ -167,7 +168,7 @@ fn render_controls(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
         TimeRangeMode::Absolute => "Absolute",
         TimeRangeMode::Relative => "Relative",
     };
-    
+
     let controls = Paragraph::new(format!(
         "Up/Down: Navigate • Tab: Switch Panels • t: Toggle Mode ({}) • Enter: Select • r: Refresh • b/Esc: Back • q: Quit", 
         mode_text

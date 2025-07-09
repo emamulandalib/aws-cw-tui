@@ -4,7 +4,6 @@ use aws_sdk_cloudwatch::Client as CloudWatchClient;
 use std::time::SystemTime;
 
 // Import our new modules
-use super::metric_builder::{build_metric_data, build_metric_data_with_characteristics};
 use super::metric_fetcher::fetch_comprehensive_metric;
 use super::metric_types::{AdvancedMetrics, CoreMetrics, MetricFetchParams};
 use super::session::AwsSessionManager;
@@ -44,13 +43,13 @@ pub async fn load_metrics(instance_id: &str, time_range: TimeRange) -> Result<Me
     )
     .await;
 
-    Ok(build_metric_data(core_metrics, advanced_metrics))
+    Ok(build_metric_data_inline(core_metrics, advanced_metrics))
 }
 
 /// Load metrics with instance characteristics for intelligent filtering
 pub async fn load_metrics_with_instance(
-    instance: &crate::models::RdsInstance, 
-    time_range: TimeRange
+    instance: &crate::models::RdsInstance,
+    time_range: TimeRange,
 ) -> Result<MetricData> {
     // Use shared AWS session manager for CloudWatch client
     let client = AwsSessionManager::cloudwatch_client().await;
@@ -89,9 +88,9 @@ pub async fn load_metrics_with_instance(
     .await;
 
     Ok(build_metric_data_with_characteristics(
-        core_metrics, 
-        advanced_metrics, 
-        Some(characteristics)
+        core_metrics,
+        advanced_metrics,
+        Some(characteristics),
     ))
 }
 
@@ -621,65 +620,9 @@ async fn fetch_relevant_core_metrics(
     start_time: SystemTime,
     end_time: SystemTime,
     period_seconds: i32,
-    relevant_metrics: &[crate::models::MetricType],
+    _relevant_metrics: &[crate::models::MetricType],
 ) -> CoreMetrics {
-    use crate::models::MetricType;
-    
-    // Check which core metrics are relevant for this instance
-    let fetch_cpu = relevant_metrics.contains(&MetricType::CpuUtilization);
-    let fetch_connections = relevant_metrics.contains(&MetricType::DatabaseConnections);
-    let fetch_free_storage = relevant_metrics.contains(&MetricType::FreeStorageSpace);
-    let fetch_read_iops = relevant_metrics.contains(&MetricType::ReadIops);
-    let fetch_write_iops = relevant_metrics.contains(&MetricType::WriteIops);
-    let fetch_read_latency = relevant_metrics.contains(&MetricType::ReadLatency);
-    let fetch_write_latency = relevant_metrics.contains(&MetricType::WriteLatency);
-    let fetch_read_throughput = relevant_metrics.contains(&MetricType::ReadThroughput);
-    let fetch_write_throughput = relevant_metrics.contains(&MetricType::WriteThroughput);
-    let fetch_net_receive = relevant_metrics.contains(&MetricType::NetworkReceiveThroughput);
-    let fetch_net_transmit = relevant_metrics.contains(&MetricType::NetworkTransmitThroughput);
-    let fetch_swap = relevant_metrics.contains(&MetricType::SwapUsage);
-    let fetch_memory = relevant_metrics.contains(&MetricType::FreeableMemory);
-    let fetch_queue_depth = relevant_metrics.contains(&MetricType::QueueDepth);
-
-    // Fetch only relevant metrics concurrently
-    let tasks = vec![
-        // CPU Utilization (always relevant)
-        if fetch_cpu {
-            Some(fetch_comprehensive_metric(
-                client,
-                MetricFetchParams {
-                    metric_name: "CPUUtilization".to_string(),
-                    namespace: "AWS/RDS".to_string(),
-                    instance_id: instance_id.to_string(),
-                    unit: Some("Percent".to_string()),
-                },
-                start_time,
-                end_time,
-                period_seconds
-            ))
-        } else { None },
-        
-        // Database Connections (always relevant)
-        if fetch_connections {
-            Some(fetch_comprehensive_metric(
-                client,
-                MetricFetchParams {
-                    metric_name: "DatabaseConnections".to_string(),
-                    namespace: "AWS/RDS".to_string(),
-                    instance_id: instance_id.to_string(),
-                    unit: Some("Count".to_string()),
-                },
-                start_time,
-                end_time,
-                period_seconds
-            ))
-        } else { None },
-
-        // Add more metrics as needed...
-    ];
-
-    // For now, let's fetch all core metrics and filter later
-    // This is simpler and we can optimize it further if needed
+    // For now, fetch all core metrics (dynamic filtering can be added later)
     fetch_core_metrics(client, instance_id, start_time, end_time, period_seconds).await
 }
 
@@ -689,9 +632,100 @@ async fn fetch_relevant_advanced_metrics(
     start_time: SystemTime,
     end_time: SystemTime,
     period_seconds: i32,
-    relevant_metrics: &[crate::models::MetricType],
+    _relevant_metrics: &[crate::models::MetricType],
 ) -> AdvancedMetrics {
-    // For now, let's fetch all advanced metrics and filter later
-    // This is simpler and we can optimize it further if needed
+    // For now, fetch all advanced metrics (dynamic filtering can be added later)
     fetch_advanced_metrics(client, instance_id, start_time, end_time, period_seconds).await
+}
+
+/// Build MetricData from core and advanced metrics
+fn build_metric_data_inline(core: CoreMetrics, advanced: AdvancedMetrics) -> crate::models::MetricData {
+    crate::models::MetricData {
+        timestamps: core.timestamps,
+        
+        // Core metrics
+        cpu_utilization: core.cpu_utilization,
+        database_connections: core.database_connections,
+        free_storage_space: core.free_storage_space,
+        read_iops: core.read_iops,
+        write_iops: core.write_iops,
+        read_latency: core.read_latency,
+        write_latency: core.write_latency,
+        read_throughput: core.read_throughput,
+        write_throughput: core.write_throughput,
+        network_receive_throughput: core.network_receive_throughput,
+        network_transmit_throughput: core.network_transmit_throughput,
+        swap_usage: core.swap_usage,
+        freeable_memory: core.freeable_memory,
+        queue_depth: core.queue_depth,
+        
+        // Advanced metrics
+        burst_balance: advanced.burst_balance,
+        cpu_credit_usage: advanced.cpu_credit_usage,
+        cpu_credit_balance: advanced.cpu_credit_balance,
+        cpu_surplus_credit_balance: advanced.cpu_surplus_credit_balance,
+        cpu_surplus_credits_charged: advanced.cpu_surplus_credits_charged,
+        ebs_byte_balance: advanced.ebs_byte_balance,
+        ebs_io_balance: advanced.ebs_io_balance,
+        bin_log_disk_usage: advanced.bin_log_disk_usage,
+        replica_lag: advanced.replica_lag,
+        maximum_used_transaction_ids: advanced.maximum_used_transaction_ids,
+        oldest_replication_slot_lag: advanced.oldest_replication_slot_lag,
+        oldest_logical_replication_slot_lag: advanced.oldest_logical_replication_slot_lag,
+        replication_slot_disk_usage: advanced.replication_slot_disk_usage,
+        transaction_logs_disk_usage: advanced.transaction_logs_disk_usage,
+        transaction_logs_generation: advanced.transaction_logs_generation,
+        failed_sql_server_agent_jobs_count: advanced.failed_sql_server_agent_jobs_count,
+        checkpoint_lag: advanced.checkpoint_lag,
+        connection_attempts: advanced.connection_attempts,
+        
+        // History vectors
+        cpu_history: core.cpu_history,
+        connections_history: core.connections_history,
+        read_iops_history: core.read_iops_history,
+        write_iops_history: core.write_iops_history,
+        read_latency_history: core.read_latency_history,
+        write_latency_history: core.write_latency_history,
+        read_throughput_history: core.read_throughput_history,
+        write_throughput_history: core.write_throughput_history,
+        network_receive_history: core.network_receive_history,
+        network_transmit_history: core.network_transmit_history,
+        freeable_memory_history: core.freeable_memory_history,
+        swap_usage_history: core.swap_usage_history,
+        queue_depth_history: core.queue_depth_history,
+        free_storage_space_history: core.free_storage_space_history,
+        
+        // Advanced history vectors
+        burst_balance_history: advanced.burst_balance_history,
+        cpu_credit_usage_history: advanced.cpu_credit_usage_history,
+        cpu_credit_balance_history: advanced.cpu_credit_balance_history,
+        cpu_surplus_credit_balance_history: advanced.cpu_surplus_credit_balance_history,
+        cpu_surplus_credits_charged_history: advanced.cpu_surplus_credits_charged_history,
+        ebs_byte_balance_history: advanced.ebs_byte_balance_history,
+        ebs_io_balance_history: advanced.ebs_io_balance_history,
+        oldest_logical_replication_slot_lag_history: advanced.oldest_logical_replication_slot_lag_history,
+        bin_log_disk_usage_history: advanced.bin_log_disk_usage_history,
+        replica_lag_history: advanced.replica_lag_history,
+        maximum_used_transaction_ids_history: advanced.maximum_used_transaction_ids_history,
+        oldest_replication_slot_lag_history: advanced.oldest_replication_slot_lag_history,
+        replication_slot_disk_usage_history: advanced.replication_slot_disk_usage_history,
+        transaction_logs_disk_usage_history: advanced.transaction_logs_disk_usage_history,
+        transaction_logs_generation_history: advanced.transaction_logs_generation_history,
+        failed_sql_server_agent_jobs_count_history: advanced.failed_sql_server_agent_jobs_count_history,
+        checkpoint_lag_history: advanced.checkpoint_lag_history,
+        connection_attempts_history: advanced.connection_attempts_history,
+        
+        // Optional characteristics
+        instance_characteristics: None,
+    }
+}
+
+/// Build MetricData with characteristics  
+fn build_metric_data_with_characteristics(
+    core: CoreMetrics, 
+    advanced: AdvancedMetrics,
+    _characteristics: Option<crate::aws::metric_types::RdsInstanceCharacteristics>
+) -> crate::models::MetricData {
+    // For now, just ignore characteristics and use regular builder
+    build_metric_data_inline(core, advanced)
 }

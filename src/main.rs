@@ -8,9 +8,9 @@ mod ui;
 
 use anyhow::Result;
 use clap::Command;
-use log::{info, error, debug, warn};
 use crossterm::event;
-use ratatui::prelude::*;
+use log::{debug, error, info, warn};
+// Removed unused import
 
 use aws::session::AwsSessionManager;
 use event_handler::handle_event;
@@ -73,11 +73,20 @@ async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
             )
         {
             if let Some(service) = app.selected_service.clone() {
-                debug!("Auto-refresh triggered for service: {:?}, state: {:?}", service, app.state);
+                debug!(
+                    "Auto-refresh triggered for service: {:?}, state: {:?}",
+                    service, app.state
+                );
                 if let Err(e) = app.load_service_instances(&service).await {
-                    error!("Failed to load service instances during auto-refresh: {}", e);
+                    error!(
+                        "Failed to load service instances during auto-refresh: {}",
+                        e
+                    );
                 } else {
-                    debug!("Auto-refresh completed successfully for service: {:?}", service);
+                    debug!(
+                        "Auto-refresh completed successfully for service: {:?}",
+                        service
+                    );
                 }
             } else {
                 warn!("Auto-refresh triggered but no service selected");
@@ -91,17 +100,17 @@ async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
 fn init_logging() {
     use std::fs::OpenOptions;
     use std::io::Write;
-    
+
     // Ensure /tmp directory exists and create log file
     let log_file = "/tmp/aws-cw-tui.log";
-    
+
     env_logger::Builder::from_default_env()
         .target(env_logger::Target::Pipe(Box::new(
             OpenOptions::new()
                 .create(true)
                 .append(true)
                 .open(log_file)
-                .expect("Failed to create log file")
+                .expect("Failed to create log file"),
         )))
         .filter_level(log::LevelFilter::Debug)
         .format(|buf, record| {
@@ -121,9 +130,9 @@ fn init_logging() {
 async fn main() -> Result<()> {
     // Initialize logging to file
     init_logging();
-    
+
     info!("AWS CloudWatch TUI starting up");
-    
+
     Command::new("awscw")
         .version("0.1.0")
         .about("AWS CloudWatch TUI")

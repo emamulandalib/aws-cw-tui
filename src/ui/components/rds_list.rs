@@ -2,7 +2,9 @@ use crate::models::{App, RdsInstance, SqsQueue};
 use ratatui::{
     prelude::*,
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
+    widgets::{
+        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    },
     Frame,
 };
 
@@ -57,7 +59,9 @@ fn render_header(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
 }
 
 fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
-    let service_name = app.selected_service.as_ref()
+    let service_name = app
+        .selected_service
+        .as_ref()
         .map(|s| s.short_name())
         .unwrap_or("Service");
 
@@ -68,33 +72,40 @@ fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect, app: &App)
         "Loading will timeout after 30 seconds".to_string(),
     ];
 
-    let loading_msg = Paragraph::new(loading_text.join("
-"))
-        .style(Style::default().yellow())
-        .alignment(ratatui::layout::Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Status")
-                .border_style(Style::default().white()),
-        );
+    let loading_msg = Paragraph::new(loading_text.join(
+        "
+",
+    ))
+    .style(Style::default().yellow())
+    .alignment(ratatui::layout::Alignment::Center)
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Status")
+            .border_style(Style::default().white()),
+    );
     f.render_widget(loading_msg, area);
 }
 
 fn render_no_instances_message(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
-    let service_name = app.selected_service.as_ref()
+    let service_name = app
+        .selected_service
+        .as_ref()
         .map(|s| s.short_name())
         .unwrap_or("Service");
     let title = format!("{} Instances", service_name);
 
-    let no_instances = Paragraph::new(format!("No {} instances found in this account/region", service_name))
-        .style(Style::default().red())
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(title)
-                .border_style(Style::default().white()),
-        );
+    let no_instances = Paragraph::new(format!(
+        "No {} instances found in this account/region",
+        service_name
+    ))
+    .style(Style::default().red())
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .border_style(Style::default().white()),
+    );
     f.render_widget(no_instances, area);
 }
 
@@ -125,15 +136,9 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
     // Create items from instances
     let items: Vec<ListItem> = current_instances
         .iter()
-        .map(|service_instance| {
-            match service_instance {
-                crate::models::ServiceInstance::Rds(instance) => {
-                    create_rds_list_item(instance)
-                }
-                crate::models::ServiceInstance::Sqs(queue) => {
-                    create_sqs_list_item(queue)
-                }
-            }
+        .map(|service_instance| match service_instance {
+            crate::models::ServiceInstance::Rds(instance) => create_rds_list_item(instance),
+            crate::models::ServiceInstance::Sqs(queue) => create_sqs_list_item(queue),
         })
         .collect();
 
@@ -144,23 +149,18 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
                 .title(title)
                 .border_style(Style::default().white()),
         )
-        .highlight_style(
-            Style::default()
-                .on_dark_gray()
-                .bold(),
-        );
+        .highlight_style(Style::default().on_dark_gray().bold());
 
     f.render_stateful_widget(items_list, area, &mut app.list_state);
-    
+
     // Add scrollbar if there are more instances than can fit on screen
     if current_instances.len() > (area.height.saturating_sub(2)) as usize {
-        let scrollbar = Scrollbar::default()
-            .orientation(ScrollbarOrientation::VerticalRight);
-        
+        let scrollbar = Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight);
+
         let mut scrollbar_state = ScrollbarState::default()
             .content_length(current_instances.len())
             .position(app.list_state.selected().unwrap_or(0));
-            
+
         f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
     }
 }
@@ -169,9 +169,7 @@ fn create_rds_list_item(instance: &RdsInstance) -> ListItem<'_> {
     let lines = vec![Line::from(vec![
         Span::styled(
             instance.identifier.to_string(),
-            Style::default()
-                .white()
-                .bold(),
+            Style::default().white().bold(),
         ),
         Span::raw(" | "),
         Span::styled(&instance.engine, Style::default().green()),
@@ -185,31 +183,34 @@ fn create_rds_list_item(instance: &RdsInstance) -> ListItem<'_> {
 
 fn create_sqs_list_item(queue: &SqsQueue) -> ListItem<'_> {
     // Get queue depth from attributes if available
-    let queue_depth = queue.attributes
+    let queue_depth = queue
+        .attributes
         .get("ApproximateNumberOfMessages")
         .unwrap_or(&"0".to_string())
         .clone();
-    
+
     // Get message retention period for display
-    let retention_period = queue.attributes
+    let retention_period = queue
+        .attributes
         .get("MessageRetentionPeriod")
         .and_then(|p| p.parse::<u64>().ok())
         .map(|p| format!("{}d", p / 86400))
         .unwrap_or_else(|| "Unknown".to_string());
 
     let lines = vec![Line::from(vec![
-        Span::styled(
-            queue.name.to_string(),
-            Style::default()
-                .white()
-                .bold(),
-        ),
+        Span::styled(queue.name.to_string(), Style::default().white().bold()),
         Span::raw(" | "),
         Span::styled(&queue.queue_type, get_queue_type_style(&queue.queue_type)),
         Span::raw(" | "),
-        Span::styled(format!("Messages: {}", queue_depth), Style::default().cyan()),
+        Span::styled(
+            format!("Messages: {}", queue_depth),
+            Style::default().cyan(),
+        ),
         Span::raw(" | "),
-        Span::styled(format!("Retention: {}", retention_period), Style::default().yellow()),
+        Span::styled(
+            format!("Retention: {}", retention_period),
+            Style::default().yellow(),
+        ),
     ])];
     ListItem::new(lines)
 }

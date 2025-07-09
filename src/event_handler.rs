@@ -2,7 +2,7 @@ use crate::aws::cloudwatch_service::TimeUnit;
 use crate::models::{App, AppState};
 use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
-use log::{info, debug, warn};
+use log::{debug, info, warn};
 
 pub async fn handle_event(app: &mut App, event: Event) -> Result<bool> {
     if let Event::Key(key) = event {
@@ -161,7 +161,7 @@ async fn handle_metrics_summary_event(app: &mut App, key: KeyEvent) -> Result<bo
                 crate::models::FocusedPanel::Period => {
                     // Period selection completed - could trigger refresh or just visual feedback
                     // For now, just accept the selection (period will be used in future metrics calls)
-                    
+
                     // If there's a selected instance, reload metrics with new period
                     if let Some(instance_id) = app.get_selected_rds_instance_id() {
                         app.load_metrics(&instance_id).await?;

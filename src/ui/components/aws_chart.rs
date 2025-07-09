@@ -23,13 +23,13 @@ impl MetricChartData {
     /// Create chart data from app state
     pub fn from_app(app: &App, metric_type: MetricType) -> Option<Self> {
         let service = app.selected_service.as_ref()?;
-        
+
         match service {
             crate::models::AwsService::Rds => {
                 let metrics = &app.metrics;
                 let current_value = get_rds_current_value(metrics, &metric_type)?;
                 let history = get_rds_history(metrics, &metric_type)?;
-                
+
                 Some(MetricChartData {
                     metric_type,
                     current_value,
@@ -41,7 +41,7 @@ impl MetricChartData {
                 let metrics = &app.sqs_metrics;
                 let current_value = get_sqs_current_value(metrics, &metric_type)?;
                 let history = get_sqs_history(metrics, &metric_type)?;
-                
+
                 Some(MetricChartData {
                     metric_type,
                     current_value,
@@ -69,7 +69,7 @@ impl AwsMetricsGrid {
             crate::models::AwsService::Rds => app.metrics.get_available_metrics_with_data(),
             crate::models::AwsService::Sqs => app.sqs_metrics.get_available_metrics(),
         };
-        
+
         if available_metrics.is_empty() {
             Self::render_no_metrics(f, area);
             return;
@@ -89,26 +89,33 @@ impl AwsMetricsGrid {
         // Force 2x2 grid layout (4 metrics per screen)
         let metrics_per_row = 2;
         let metrics_per_screen = 4; // Always show 4 metrics in 2x2 grid
-        
+
         let total_metrics = all_chart_data.len();
         let selected_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
-        
+
         // CRITICAL: Bounds check to prevent crashes - clamp selected_index to available data
         let safe_selected_index = selected_index.min(total_metrics.saturating_sub(1));
-        
+
         // Calculate which metrics to show in the current 2x2 grid
         let current_page = safe_selected_index / metrics_per_screen;
         let start_index = current_page * metrics_per_screen;
         let end_index = (start_index + metrics_per_screen).min(total_metrics);
-        
+
         // Get the metrics to display in current 2x2 grid
         let visible_metrics: Vec<MetricChartData> = all_chart_data[start_index..end_index].to_vec();
-        
+
         // Always use 2x2 grid layout
         let grid_layout = calculate_scrollable_grid_layout(visible_metrics.len(), metrics_per_row);
-        
+
         // Render the 2x2 grid of metrics
-        Self::render_metrics_grid(f, area, &visible_metrics, grid_layout, app, safe_selected_index - start_index);
+        Self::render_metrics_grid(
+            f,
+            area,
+            &visible_metrics,
+            grid_layout,
+            app,
+            safe_selected_index - start_index,
+        );
     }
 
     /// Render individual metric chart in AWS console style
@@ -119,10 +126,14 @@ impl AwsMetricsGrid {
         is_focused: bool,
     ) {
         let definition = MetricRegistry::get_definition(&chart_data.metric_type);
-        
+
         // Get health color based on current value
         let health_color = definition.get_health_color(chart_data.current_value);
-        let border_color = if is_focused { Color::Yellow } else { Color::White };
+        let border_color = if is_focused {
+            Color::Yellow
+        } else {
+            Color::White
+        };
 
         // Calculate layout for title and chart
         let chunks = Layout::default()
@@ -134,13 +145,34 @@ impl AwsMetricsGrid {
             .split(area);
 
         // Render title with current value
-        Self::render_metric_title(f, chunks[0], &definition, chart_data, health_color, border_color);
+        Self::render_metric_title(
+            f,
+            chunks[0],
+            &definition,
+            chart_data,
+            health_color,
+            border_color,
+        );
 
         // Render chart if we have enough space and data
         if chunks[1].height >= 8 && !chart_data.history.is_empty() {
-            Self::render_time_series_chart(f, chunks[1], chart_data, &definition, health_color, border_color);
+            Self::render_time_series_chart(
+                f,
+                chunks[1],
+                chart_data,
+                &definition,
+                health_color,
+                border_color,
+            );
         } else {
-            Self::render_simple_metric(f, chunks[1], chart_data, &definition, health_color, border_color);
+            Self::render_simple_metric(
+                f,
+                chunks[1],
+                chart_data,
+                &definition,
+                health_color,
+                border_color,
+            );
         }
     }
 
@@ -160,12 +192,16 @@ impl AwsMetricsGrid {
         );
 
         let title_widget = Paragraph::new(title_text)
-            .style(Style::default().fg(health_color).add_modifier(Modifier::BOLD))
+            .style(
+                Style::default()
+                    .fg(health_color)
+                    .add_modifier(Modifier::BOLD),
+            )
             .alignment(ratatui::layout::Alignment::Center)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(border_color))
+                    .border_style(Style::default().fg(border_color)),
             );
 
         f.render_widget(title_widget, area);
@@ -187,11 +223,13 @@ impl AwsMetricsGrid {
 
         // Convert timestamps to seconds for x-axis
         let start_time = chart_data.timestamps[0];
-        let data_points: Vec<(f64, f64)> = chart_data.timestamps
+        let data_points: Vec<(f64, f64)> = chart_data
+            .timestamps
             .iter()
             .zip(chart_data.history.iter())
             .map(|(timestamp, value)| {
-                let seconds = timestamp.duration_since(start_time)
+                let seconds = timestamp
+                    .duration_since(start_time)
                     .unwrap_or_default()
                     .as_secs() as f64;
                 (seconds, *value)
@@ -218,19 +256,19 @@ impl AwsMetricsGrid {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(border_color))
+                    .border_style(Style::default().fg(border_color)),
             )
             .x_axis(
                 Axis::default()
                     .style(Style::default().fg(Color::Gray))
                     .bounds(x_bounds)
-                    .labels(x_labels)
+                    .labels(x_labels),
             )
             .y_axis(
                 Axis::default()
                     .style(Style::default().fg(Color::Gray))
                     .bounds(y_bounds)
-                    .labels(y_labels)
+                    .labels(y_labels),
             );
 
         f.render_widget(chart, area);
@@ -268,7 +306,7 @@ impl AwsMetricsGrid {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(border_color))
+                    .border_style(Style::default().fg(border_color)),
             );
 
         f.render_widget(simple_widget, area);
@@ -283,7 +321,7 @@ impl AwsMetricsGrid {
                 Block::default()
                     .borders(Borders::ALL)
                     .title("Metrics")
-                    .border_style(Style::default().fg(Color::White))
+                    .border_style(Style::default().fg(Color::White)),
             );
 
         f.render_widget(loading_widget, area);
@@ -298,7 +336,7 @@ impl AwsMetricsGrid {
                 Block::default()
                     .borders(Borders::ALL)
                     .title("Metrics")
-                    .border_style(Style::default().fg(Color::White))
+                    .border_style(Style::default().fg(Color::White)),
             );
 
         f.render_widget(no_metrics_widget, area);
@@ -312,7 +350,7 @@ impl AwsMetricsGrid {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(border_color))
+                    .border_style(Style::default().fg(border_color)),
             );
 
         f.render_widget(no_data_widget, area);
@@ -324,35 +362,38 @@ impl AwsMetricsGrid {
         area: Rect,
         chart_data: &[MetricChartData],
         grid_layout: GridLayout,
-        app: &App,
+        _app: &App,
         selected_metric_index: usize,
     ) {
         // Calculate the height for each row to fit within available area
         let min_row_height = 12u16;
         let available_height = area.height;
         let rows_to_render = grid_layout.rows;
-        
+
         // Calculate actual row height - distribute available space evenly
         // but ensure minimum height if possible
-        let row_height = if rows_to_render == 0 {
+        let _row_height = if rows_to_render == 0 {
             available_height
         } else {
             let calculated_height = available_height / rows_to_render as u16;
-            calculated_height.max(min_row_height).min(available_height / rows_to_render.max(1) as u16)
+            calculated_height
+                .max(min_row_height)
+                .min(available_height / rows_to_render.max(1) as u16)
         };
-        
+
         // Create row constraints that respect the container bounds
-        let row_constraints: Vec<Constraint> = if rows_to_render * min_row_height as usize <= available_height as usize {
-            // If we have enough space, use minimum height
-            (0..rows_to_render)
-                .map(|_| Constraint::Min(min_row_height))
-                .collect()
-        } else {
-            // Otherwise, use percentage to fit within bounds
-            (0..rows_to_render)
-                .map(|_| Constraint::Percentage(100 / rows_to_render as u16))
-                .collect()
-        };
+        let row_constraints: Vec<Constraint> =
+            if rows_to_render * min_row_height as usize <= available_height as usize {
+                // If we have enough space, use minimum height
+                (0..rows_to_render)
+                    .map(|_| Constraint::Min(min_row_height))
+                    .collect()
+            } else {
+                // Otherwise, use percentage to fit within bounds
+                (0..rows_to_render)
+                    .map(|_| Constraint::Percentage(100 / rows_to_render as u16))
+                    .collect()
+            };
 
         let row_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -392,7 +433,10 @@ struct GridLayout {
 }
 
 /// Calculate scrollable grid layout (always 2 columns for readability)
-fn calculate_scrollable_grid_layout(visible_metric_count: usize, metrics_per_row: usize) -> GridLayout {
+fn calculate_scrollable_grid_layout(
+    visible_metric_count: usize,
+    metrics_per_row: usize,
+) -> GridLayout {
     if visible_metric_count == 0 {
         return GridLayout { rows: 1, cols: 1 };
     }
@@ -411,16 +455,24 @@ fn calculate_y_bounds(history: &[f64]) -> [f64; 2] {
 
     if history.len() == 1 {
         let val = history[0];
-        let margin = if val.abs() > 1.0 { val.abs() * 0.1 } else { 1.0 };
+        let margin = if val.abs() > 1.0 {
+            val.abs() * 0.1
+        } else {
+            1.0
+        };
         [val - margin, val + margin]
     } else {
         let min_val = history.iter().cloned().fold(f64::INFINITY, f64::min);
         let max_val = history.iter().cloned().fold(-f64::INFINITY, f64::max);
-        
+
         if min_val.is_finite() && max_val.is_finite() && min_val != max_val {
             let range = max_val - min_val;
             let padding = range * 0.1;
-            let y_min = if min_val >= 0.0 { (min_val - padding).max(0.0) } else { min_val - padding };
+            let y_min = if min_val >= 0.0 {
+                (min_val - padding).max(0.0)
+            } else {
+                min_val - padding
+            };
             [y_min, max_val + padding]
         } else {
             [0.0, 1.0]
@@ -437,7 +489,7 @@ fn create_time_labels(timestamps: &[SystemTime]) -> Vec<Line<'_>> {
     }
 
     let num_labels = 4.min(timestamps.len());
-    
+
     (0..num_labels)
         .map(|i| {
             let idx = if num_labels == 1 {
@@ -462,12 +514,12 @@ fn create_time_labels(timestamps: &[SystemTime]) -> Vec<Line<'_>> {
 fn create_value_labels(y_bounds: [f64; 2], definition: &MetricDefinition) -> Vec<Line<'_>> {
     let num_labels = 5;
     let range = y_bounds[1] - y_bounds[0];
-    
+
     (0..num_labels)
         .map(|i| {
             let ratio = i as f64 / (num_labels - 1) as f64;
             let value = y_bounds[0] + ratio * range;
-            
+
             Line::from(Span::styled(
                 definition.format_value(value),
                 Style::default().fg(Color::DarkGray),
@@ -477,7 +529,10 @@ fn create_value_labels(y_bounds: [f64; 2], definition: &MetricDefinition) -> Vec
 }
 
 // Helper functions to extract current values and history from different metric types
-fn get_rds_current_value(metrics: &crate::models::MetricData, metric_type: &MetricType) -> Option<f64> {
+fn get_rds_current_value(
+    metrics: &crate::models::MetricData,
+    metric_type: &MetricType,
+) -> Option<f64> {
     match metric_type {
         MetricType::CpuUtilization => Some(metrics.cpu_utilization),
         MetricType::DatabaseConnections => Some(metrics.database_connections),
@@ -503,14 +558,19 @@ fn get_rds_current_value(metrics: &crate::models::MetricData, metric_type: &Metr
         MetricType::MaximumUsedTransactionIds => Some(metrics.maximum_used_transaction_ids),
         MetricType::OldestReplicationSlotLag => Some(metrics.oldest_replication_slot_lag),
         MetricType::ReplicationSlotDiskUsage => Some(metrics.replication_slot_disk_usage),
-        MetricType::FailedSqlServerAgentJobsCount => Some(metrics.failed_sql_server_agent_jobs_count),
+        MetricType::FailedSqlServerAgentJobsCount => {
+            Some(metrics.failed_sql_server_agent_jobs_count)
+        }
         MetricType::CheckpointLag => Some(metrics.checkpoint_lag),
         MetricType::ConnectionAttempts => Some(metrics.connection_attempts),
         _ => None,
     }
 }
 
-fn get_rds_history<'a>(metrics: &'a crate::models::MetricData, metric_type: &MetricType) -> Option<&'a Vec<f64>> {
+fn get_rds_history<'a>(
+    metrics: &'a crate::models::MetricData,
+    metric_type: &MetricType,
+) -> Option<&'a Vec<f64>> {
     match metric_type {
         MetricType::CpuUtilization => Some(&metrics.cpu_history),
         MetricType::DatabaseConnections => Some(&metrics.connections_history),
@@ -533,40 +593,64 @@ fn get_rds_history<'a>(metrics: &'a crate::models::MetricData, metric_type: &Met
         MetricType::ReplicaLag => Some(&metrics.replica_lag_history),
         MetricType::TransactionLogsGeneration => Some(&metrics.transaction_logs_generation_history),
         MetricType::TransactionLogsDiskUsage => Some(&metrics.transaction_logs_disk_usage_history),
-        MetricType::MaximumUsedTransactionIds => Some(&metrics.maximum_used_transaction_ids_history),
+        MetricType::MaximumUsedTransactionIds => {
+            Some(&metrics.maximum_used_transaction_ids_history)
+        }
         MetricType::OldestReplicationSlotLag => Some(&metrics.oldest_replication_slot_lag_history),
         MetricType::ReplicationSlotDiskUsage => Some(&metrics.replication_slot_disk_usage_history),
-        MetricType::FailedSqlServerAgentJobsCount => Some(&metrics.failed_sql_server_agent_jobs_count_history),
+        MetricType::FailedSqlServerAgentJobsCount => {
+            Some(&metrics.failed_sql_server_agent_jobs_count_history)
+        }
         MetricType::CheckpointLag => Some(&metrics.checkpoint_lag_history),
         MetricType::ConnectionAttempts => Some(&metrics.connection_attempts_history),
         _ => None,
     }
 }
 
-fn get_sqs_current_value(metrics: &crate::models::SqsMetricData, metric_type: &MetricType) -> Option<f64> {
+fn get_sqs_current_value(
+    metrics: &crate::models::SqsMetricData,
+    metric_type: &MetricType,
+) -> Option<f64> {
     match metric_type {
         MetricType::ApproximateNumberOfMessages => Some(metrics.approximate_number_of_messages),
-        MetricType::ApproximateNumberOfMessagesVisible => Some(metrics.approximate_number_of_messages_visible),
-        MetricType::ApproximateNumberOfMessagesNotVisible => Some(metrics.approximate_number_of_messages_not_visible),
-        MetricType::ApproximateAgeOfOldestMessage => Some(metrics.approximate_age_of_oldest_message),
-        MetricType::ApproximateNumberOfMessagesDelayed => Some(metrics.approximate_number_of_messages_delayed),
+        MetricType::ApproximateNumberOfMessagesVisible => {
+            Some(metrics.approximate_number_of_messages_visible)
+        }
+        MetricType::ApproximateNumberOfMessagesNotVisible => {
+            Some(metrics.approximate_number_of_messages_not_visible)
+        }
+        MetricType::ApproximateAgeOfOldestMessage => {
+            Some(metrics.approximate_age_of_oldest_message)
+        }
+        MetricType::ApproximateNumberOfMessagesDelayed => {
+            Some(metrics.approximate_number_of_messages_delayed)
+        }
         MetricType::NumberOfMessagesSent => Some(metrics.number_of_messages_sent),
         MetricType::NumberOfMessagesReceived => Some(metrics.number_of_messages_received),
         MetricType::NumberOfMessagesDeleted => Some(metrics.number_of_messages_deleted),
         MetricType::NumberOfMessagesInDlq => Some(metrics.number_of_messages_in_dlq),
         MetricType::NumberOfEmptyReceives => Some(metrics.number_of_empty_receives),
         MetricType::SentMessageSize => Some(metrics.sent_message_size),
-        MetricType::ApproximateNumberOfGroupsWithInflightMessages => Some(metrics.approximate_number_of_groups_with_inflight_messages),
-        MetricType::NumberOfDeduplicatedSentMessages => Some(metrics.number_of_deduplicated_sent_messages),
+        MetricType::ApproximateNumberOfGroupsWithInflightMessages => {
+            Some(metrics.approximate_number_of_groups_with_inflight_messages)
+        }
+        MetricType::NumberOfDeduplicatedSentMessages => {
+            Some(metrics.number_of_deduplicated_sent_messages)
+        }
         _ => None,
     }
 }
 
-fn get_sqs_history<'a>(metrics: &'a crate::models::SqsMetricData, metric_type: &MetricType) -> Option<&'a Vec<f64>> {
+fn get_sqs_history<'a>(
+    metrics: &'a crate::models::SqsMetricData,
+    metric_type: &MetricType,
+) -> Option<&'a Vec<f64>> {
     match metric_type {
         MetricType::ApproximateNumberOfMessages => Some(&metrics.queue_depth_history),
         MetricType::ApproximateNumberOfMessagesVisible => Some(&metrics.messages_visible_history),
-        MetricType::ApproximateNumberOfMessagesNotVisible => Some(&metrics.messages_not_visible_history),
+        MetricType::ApproximateNumberOfMessagesNotVisible => {
+            Some(&metrics.messages_not_visible_history)
+        }
         MetricType::ApproximateAgeOfOldestMessage => Some(&metrics.oldest_message_age_history),
         MetricType::ApproximateNumberOfMessagesDelayed => Some(&metrics.messages_delayed_history),
         MetricType::NumberOfMessagesSent => Some(&metrics.messages_sent_history),
@@ -575,8 +659,12 @@ fn get_sqs_history<'a>(metrics: &'a crate::models::SqsMetricData, metric_type: &
         MetricType::NumberOfMessagesInDlq => Some(&metrics.dlq_messages_history),
         MetricType::NumberOfEmptyReceives => Some(&metrics.empty_receives_history),
         MetricType::SentMessageSize => Some(&metrics.sent_message_size_history),
-        MetricType::ApproximateNumberOfGroupsWithInflightMessages => Some(&metrics.groups_with_inflight_messages_history),
-        MetricType::NumberOfDeduplicatedSentMessages => Some(&metrics.deduplicated_sent_messages_history),
+        MetricType::ApproximateNumberOfGroupsWithInflightMessages => {
+            Some(&metrics.groups_with_inflight_messages_history)
+        }
+        MetricType::NumberOfDeduplicatedSentMessages => {
+            Some(&metrics.deduplicated_sent_messages_history)
+        }
         _ => None,
     }
-} 
+}

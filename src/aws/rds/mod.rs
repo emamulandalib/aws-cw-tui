@@ -1,6 +1,2 @@
-// RDS service module - centralized RDS operations
-pub mod client;
-pub mod instances;
-pub mod metrics;
-
-pub use instances::*;
+// RDS service module - most functionality moved to rds_service.rs
+// This module is kept for future RDS-specific organization

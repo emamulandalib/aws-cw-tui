@@ -1,9 +1,14 @@
 use crate::aws::time_range::{TimeRange, TimeUnit};
-use crate::aws::{cloudwatch_service::{load_metrics, load_metrics_with_instance}, load_rds_instances, rds::RdsInstanceManager};
-use crate::models::{App, AppState, AwsService, FocusedPanel, MetricType, ServiceInstance, TimeRangeMode, Timezone};
+use crate::aws::{
+    cloudwatch_service::{load_metrics, load_metrics_with_instance},
+    load_rds_instances,
+};
+use crate::models::{
+    App, AppState, AwsService, FocusedPanel, MetricType, ServiceInstance, TimeRangeMode, Timezone,
+};
 use anyhow::Result;
-use std::time::{Duration, Instant};
 use log::info;
+use std::time::{Duration, Instant};
 
 use crate::models::{RdsInstance, SqsQueue};
 impl App {
@@ -28,6 +33,7 @@ impl App {
             selected_instance: None,
             metrics: crate::models::MetricData::default(),
             sqs_metrics: crate::models::SqsMetricData::default(),
+            dynamic_metrics: crate::models::DynamicMetricData::default(),
             metrics_loading: false,
             last_refresh: None,
             auto_refresh_enabled: true,
@@ -64,10 +70,10 @@ impl App {
 
             // Initialize loading timeout
             loading_start_time: None,
-            
+
             // Initialize time range mode
             time_range_mode: TimeRangeMode::Relative,
-            
+
             // Initialize timezone selection
             timezone: Timezone::Utc, // Default to UTC timezone
         };
@@ -252,10 +258,7 @@ impl App {
                 match crate::aws::sqs_service::load_sqs_queues().await {
                     Ok(sqs_queues) => {
                         self.sqs_queues = sqs_queues.clone();
-                        self.instances = sqs_queues
-                            .into_iter()
-                            .map(ServiceInstance::Sqs)
-                            .collect();
+                        self.instances = sqs_queues.into_iter().map(ServiceInstance::Sqs).collect();
                         self.clear_error();
                         self.loading = false;
                         self.mark_refreshed();
@@ -286,36 +289,7 @@ impl App {
         }
     }
 
-    pub async fn load_rds_instances(&mut self) -> Result<()> {
-        self.loading = true;
-        self.loading_start_time = Some(Instant::now());
-        self.error_message = None;
-
-        match RdsInstanceManager::load_instances().await {
-            Ok(instances) => {
-                // Store in both places for compatibility
-                self.rds_instances = instances.clone();
-                self.instances = instances.into_iter().map(ServiceInstance::Rds).collect();
-
-                self.loading = false;
-                self.loading_start_time = None;
-                self.list_state = ratatui::widgets::ListState::default();
-                if !self.instances.is_empty() {
-                    self.list_state.select(Some(0));
-                }
-
-                // Mark as refreshed to prevent continuous refresh loops
-                self.mark_refreshed();
-            }
-            Err(e) => {
-                self.loading = false;
-                self.loading_start_time = None;
-                self.error_message = Some(e.to_string());
-            }
-        }
-
-        Ok(())
-    }
+    // Removed unused load_rds_instances method
 
     // ================================
     // 5. INSTANCE ACCESS HELPERS
@@ -326,13 +300,20 @@ impl App {
     }
 
     pub fn get_selected_instance(&self) -> Option<&ServiceInstance> {
-        log::info!("Getting selected instance, list_state.selected(): {:?}, instances.len(): {}", 
-            self.list_state.selected(), self.instances.len());
+        log::info!(
+            "Getting selected instance, list_state.selected(): {:?}, instances.len(): {}",
+            self.list_state.selected(),
+            self.instances.len()
+        );
         if let Some(index) = self.list_state.selected() {
             log::info!("List state has selected index: {}", index);
             let instance = self.instances.get(index);
             if let Some(inst) = instance {
-                log::info!("Found instance at index {}: {:?}", index, inst.as_aws_instance().id());
+                log::info!(
+                    "Found instance at index {}: {:?}",
+                    index,
+                    inst.as_aws_instance().id()
+                );
             } else {
                 log::warn!("No instance found at index {}", index);
             }
@@ -350,14 +331,21 @@ impl App {
 
     /// Safely get the selected RDS instance with bounds checking
     pub fn get_selected_rds_instance(&self) -> Option<&RdsInstance> {
-        log::info!("Getting selected RDS instance, selected_instance: {:?}", self.selected_instance);
+        log::info!(
+            "Getting selected RDS instance, selected_instance: {:?}",
+            self.selected_instance
+        );
         if let Some(instance) = self.get_selected_instance() {
             log::info!("Found selected instance, checking type...");
             match instance {
                 ServiceInstance::Rds(rds) => {
-                    log::info!("Selected instance is RDS: {} ({})", rds.identifier, rds.engine);
+                    log::info!(
+                        "Selected instance is RDS: {} ({})",
+                        rds.identifier,
+                        rds.engine
+                    );
                     Some(rds)
-                },
+                }
                 _ => {
                     log::info!("Selected instance is not RDS type");
                     None
@@ -387,134 +375,130 @@ impl App {
         }
     }
 
-    /// Count available metrics based on the current service
-    pub fn count_available_metrics(&self) -> usize {
-        match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-            AwsService::Rds => self.metrics.get_available_metrics_with_data().len(),
-            AwsService::Sqs => self.sqs_metrics.get_available_metrics().len(),
-        }
-    }
+    // Removed unused count_available_metrics method
 
     // ================================
     // 6. METRICS MANAGEMENT
     // ================================
 
     pub async fn load_metrics(&mut self, instance_id: &str) -> Result<()> {
-    self.metrics_loading = true;
+        self.metrics_loading = true;
 
-    let service = self.selected_service.as_ref().unwrap_or(&AwsService::Rds);
+        let service = self.selected_service.as_ref().unwrap_or(&AwsService::Rds);
 
-    match service {
-        AwsService::Rds => {
-            // Load RDS metrics with intelligent filtering
-            if let Some(rds_instance) = self.get_selected_rds_instance() {
-                log::info!("Loading metrics with intelligent filtering for RDS instance: {} ({})", 
-                    rds_instance.identifier, rds_instance.engine);
-                match load_metrics_with_instance(rds_instance, self.time_range).await {
-                    Ok(metrics) => {
-                        log::info!("Successfully loaded metrics with characteristics");
-                        self.metrics = metrics;
-                        self.metrics_loading = false;
-                        self.clear_error();
-                        self.initialize_sparkline_grid();
-                        self.mark_refreshed();
-                        Ok(())
+        match service {
+            AwsService::Rds => {
+                // Load RDS metrics with intelligent filtering
+                if let Some(rds_instance) = self.get_selected_rds_instance() {
+                    log::info!(
+                        "Loading metrics with intelligent filtering for RDS instance: {} ({})",
+                        rds_instance.identifier,
+                        rds_instance.engine
+                    );
+                    match load_metrics_with_instance(rds_instance, self.time_range).await {
+                        Ok(metrics) => {
+                            log::info!("Successfully loaded metrics with characteristics");
+                            self.metrics = metrics;
+                            self.metrics_loading = false;
+                            self.clear_error();
+                            self.initialize_sparkline_grid();
+                            self.mark_refreshed();
+                            Ok(())
+                        }
+                        Err(e) => {
+                            log::error!("Failed to load metrics with characteristics: {}", e);
+                            self.metrics_loading = false;
+                            self.error_message = Some(format!("CloudWatch Error: {e}"));
+                            self.metrics = crate::models::MetricData::default();
+                            self.selected_metric = None;
+                            self.sparkline_grid_selected_index = 0;
+                            Ok(())
+                        }
                     }
-                    Err(e) => {
-                        log::error!("Failed to load metrics with characteristics: {}", e);
-                        self.metrics_loading = false;
-                        self.error_message = Some(format!("CloudWatch Error: {e}"));
-                        self.metrics = crate::models::MetricData::default();
-                        self.selected_metric = None;
-                        self.sparkline_grid_selected_index = 0;
-                        Ok(())
-                    }
-                }
-            } else {
-                log::warn!("No RDS instance selected, falling back to old method");
-                // Fallback to old method if no RDS instance is selected
-                match load_metrics(instance_id, self.time_range).await {
-                    Ok(metrics) => {
-                        self.metrics = metrics;
-                        self.metrics_loading = false;
-                        self.clear_error();
-                        self.initialize_sparkline_grid();
-                        self.mark_refreshed();
-                        Ok(())
-                    }
-                    Err(e) => {
-                        self.metrics_loading = false;
-                        self.error_message = Some(format!("CloudWatch Error: {e}"));
-                        self.metrics = crate::models::MetricData::default();
-                        self.selected_metric = None;
-                        self.sparkline_grid_selected_index = 0;
-                        Ok(())
+                } else {
+                    log::warn!("No RDS instance selected, falling back to old method");
+                    // Fallback to old method if no RDS instance is selected
+                    match load_metrics(instance_id, self.time_range).await {
+                        Ok(metrics) => {
+                            self.metrics = metrics;
+                            self.metrics_loading = false;
+                            self.clear_error();
+                            self.initialize_sparkline_grid();
+                            self.mark_refreshed();
+                            Ok(())
+                        }
+                        Err(e) => {
+                            self.metrics_loading = false;
+                            self.error_message = Some(format!("CloudWatch Error: {e}"));
+                            self.metrics = crate::models::MetricData::default();
+                            self.selected_metric = None;
+                            self.sparkline_grid_selected_index = 0;
+                            Ok(())
+                        }
                     }
                 }
             }
-        }
-        AwsService::Sqs => {
-            // Load SQS metrics
-            if let Some(queue) = self.get_selected_sqs_queue() {
-                match crate::aws::sqs_metrics::fetch_sqs_metrics(queue, &self.time_range).await {
-                    Ok(sqs_metrics) => {
-                        self.sqs_metrics = sqs_metrics;
-                        self.metrics_loading = false;
-                        self.clear_error();
-                        self.initialize_sparkline_grid_for_sqs();
-                        self.mark_refreshed();
-                        Ok(())
+            AwsService::Sqs => {
+                // Load SQS metrics
+                if let Some(queue) = self.get_selected_sqs_queue() {
+                    match crate::aws::sqs_metrics::fetch_sqs_metrics(queue, &self.time_range).await
+                    {
+                        Ok(sqs_metrics) => {
+                            self.sqs_metrics = sqs_metrics;
+                            self.metrics_loading = false;
+                            self.clear_error();
+                            self.initialize_sparkline_grid_for_sqs();
+                            self.mark_refreshed();
+                            Ok(())
+                        }
+                        Err(e) => {
+                            self.metrics_loading = false;
+                            self.error_message = Some(format!("CloudWatch SQS Error: {e}"));
+                            self.sqs_metrics = crate::models::SqsMetricData::default();
+                            self.selected_metric = None;
+                            self.sparkline_grid_selected_index = 0;
+                            Ok(())
+                        }
                     }
-                    Err(e) => {
-                        self.metrics_loading = false;
-                        self.error_message = Some(format!("CloudWatch SQS Error: {e}"));
-                        self.sqs_metrics = crate::models::SqsMetricData::default();
-                        self.selected_metric = None;
-                        self.sparkline_grid_selected_index = 0;
-                        Ok(())
-                    }
+                } else {
+                    self.metrics_loading = false;
+                    self.error_message = Some("No SQS queue selected".to_string());
+                    Ok(())
                 }
-            } else {
-                self.metrics_loading = false;
-                self.error_message = Some("No SQS queue selected".to_string());
-                Ok(())
             }
         }
     }
-}
 
     pub fn get_available_metrics(&self) -> Vec<MetricType> {
-    match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-        AwsService::Rds => self.metrics.get_available_metrics_with_data(),
-        AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
+        match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+            AwsService::Rds => self.metrics.get_available_metrics_with_data(),
+            AwsService::Sqs => self.sqs_metrics.get_available_metrics(),
+        }
     }
-}
 
-    pub fn get_sparkline_grid_selected_index(&self) -> usize {
-        self.sparkline_grid_selected_index
-    }
+    // Removed unused get_sparkline_grid_selected_index method
 
     pub fn update_selected_metric(&mut self) {
-    match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
-        AwsService::Rds => {
-            let available_metrics = self.metrics.get_available_metrics_with_data();
-            if let Some(metric) = available_metrics.get(self.sparkline_grid_selected_index) {
-                self.selected_metric = Some(metric.clone());
+        match self.selected_service.as_ref().unwrap_or(&AwsService::Rds) {
+            AwsService::Rds => {
+                let available_metrics = self.metrics.get_available_metrics_with_data();
+                if let Some(metric) = available_metrics.get(self.sparkline_grid_selected_index) {
+                    self.selected_metric = Some(metric.clone());
+                }
             }
-        }
-        AwsService::Sqs => {
-            let available_metrics = self.sqs_metrics.get_available_metrics();
-            if let Some(metric) = available_metrics.get(self.sparkline_grid_selected_index) {
-                self.selected_metric = Some(metric.clone());
+            AwsService::Sqs => {
+                let available_metrics = self.sqs_metrics.get_available_metrics();
+                if let Some(metric) = available_metrics.get(self.sparkline_grid_selected_index) {
+                    self.selected_metric = Some(metric.clone());
+                }
             }
         }
     }
-}
 
-        pub fn initialize_sparkline_grid(&mut self) {
+    pub fn initialize_sparkline_grid(&mut self) {
         // Initialize the list state with the first item selected
         self.sparkline_grid_list_state.select(Some(0));
-        
+
         // Legacy fields for compatibility
         self.sparkline_grid_selected_index = 0;
         self.saved_sparkline_grid_selected_index = 0;
@@ -563,7 +547,6 @@ impl App {
             ("15 minutes", 15, TimeUnit::Minutes, 1),
             ("30 minutes", 30, TimeUnit::Minutes, 1),
             ("45 minutes", 45, TimeUnit::Minutes, 1),
-            
             // Hours
             ("1 hour", 1, TimeUnit::Hours, 1),
             ("2 hours", 2, TimeUnit::Hours, 1),
@@ -571,7 +554,6 @@ impl App {
             ("6 hours", 6, TimeUnit::Hours, 1),
             ("8 hours", 8, TimeUnit::Hours, 1),
             ("12 hours", 12, TimeUnit::Hours, 1),
-            
             // Days
             ("1 day", 1, TimeUnit::Days, 1),
             ("2 days", 2, TimeUnit::Days, 1),
@@ -579,13 +561,11 @@ impl App {
             ("4 days", 4, TimeUnit::Days, 1),
             ("5 days", 5, TimeUnit::Days, 1),
             ("6 days", 6, TimeUnit::Days, 1),
-            
             // Weeks
             ("1 week", 1, TimeUnit::Weeks, 7),
             ("2 weeks", 2, TimeUnit::Weeks, 14),
             ("4 weeks", 4, TimeUnit::Weeks, 28),
             ("6 weeks", 6, TimeUnit::Weeks, 42),
-            
             // Months
             ("3 months", 3, TimeUnit::Months, 90),
             ("6 months", 6, TimeUnit::Months, 180),
@@ -623,24 +603,24 @@ impl App {
             self.time_range_list_state.select(Some(current + 1));
         }
     }
-    
+
     pub fn time_range_scroll_left(&mut self) {
         // In simple vertical list, left arrow acts like up arrow (previous item)
         self.time_range_scroll_up();
     }
-    
+
     pub fn time_range_scroll_right(&mut self) {
-        // In simple vertical list, right arrow acts like down arrow (next item)  
+        // In simple vertical list, right arrow acts like down arrow (next item)
         self.time_range_scroll_down();
     }
-    
+
     pub fn toggle_time_range_mode(&mut self) {
         self.time_range_mode = match self.time_range_mode {
             TimeRangeMode::Absolute => TimeRangeMode::Relative,
             TimeRangeMode::Relative => TimeRangeMode::Absolute,
         };
     }
-    
+
     pub fn get_time_range_mode(&self) -> &TimeRangeMode {
         &self.time_range_mode
     }
@@ -681,20 +661,20 @@ impl App {
             self.period_list_state.select(Some(current + 1));
         }
     }
-    
+
     // Timezone selection methods
     pub fn get_timezone_options() -> Vec<Timezone> {
         Timezone::get_timezone_options()
     }
-    
+
     pub fn get_current_timezone(&self) -> &Timezone {
         &self.timezone
     }
-    
+
     pub fn get_current_timezone_index(&self) -> usize {
         self.timezone_list_state.selected().unwrap_or(0)
     }
-    
+
     pub fn timezone_scroll_up(&mut self) {
         let current = self.timezone_list_state.selected().unwrap_or(0);
         if current > 0 {
@@ -705,7 +685,7 @@ impl App {
             }
         }
     }
-    
+
     pub fn timezone_scroll_down(&mut self) {
         let options = Self::get_timezone_options();
         let current = self.timezone_list_state.selected().unwrap_or(0);
@@ -819,7 +799,7 @@ impl App {
         self.sparkline_grid_selected_index = 0;
         self.saved_sparkline_grid_selected_index = 0;
         self.sparkline_grid_list_state = ratatui::widgets::ListState::default();
-        
+
         self.initialize_sparkline_grid();
     }
 
@@ -836,13 +816,7 @@ impl App {
         &self.focused_panel
     }
 
-    /// Update metrics_per_screen based on available area
-    /// This should be called before rendering to ensure navigation functions work correctly
-    pub fn update_metrics_per_screen(&mut self, area_height: u16) {
-        // Force 2x2 grid layout (4 metrics per screen)
-        // This ensures consistency with the aws_chart.rs implementation
-        self.metrics_per_screen = 4;
-    }
+    // Removed unused update_metrics_per_screen method
 
     // ================================
     // 10. ENHANCED LIST NAVIGATION
@@ -854,10 +828,10 @@ impl App {
         if available_metrics.is_empty() {
             return;
         }
-        
+
         let current_index = self.sparkline_grid_list_state.selected().unwrap_or(0);
         let metrics_per_row = 2;
-        
+
         // Move up by one row (simplified grid navigation)
         if current_index >= metrics_per_row {
             let new_index = current_index - metrics_per_row;
@@ -870,11 +844,11 @@ impl App {
         if available_metrics.is_empty() {
             return;
         }
-        
+
         let current_index = self.sparkline_grid_list_state.selected().unwrap_or(0);
         let metrics_per_row = 2;
         let total_metrics = available_metrics.len();
-        
+
         // Move down by one row (simplified grid navigation)
         let new_index = current_index + metrics_per_row;
         if new_index < total_metrics {
@@ -887,12 +861,13 @@ impl App {
         if available_metrics.is_empty() {
             return;
         }
-        
+
         let current_index = self.sparkline_grid_list_state.selected().unwrap_or(0);
-        
+
         // Move left within current row (simplified navigation)
         if current_index > 0 && current_index % 2 == 1 {
-            self.sparkline_grid_list_state.select(Some(current_index - 1));
+            self.sparkline_grid_list_state
+                .select(Some(current_index - 1));
         }
     }
 
@@ -901,56 +876,18 @@ impl App {
         if available_metrics.is_empty() {
             return;
         }
-        
+
         let current_index = self.sparkline_grid_list_state.selected().unwrap_or(0);
         let total_metrics = available_metrics.len();
-        
+
         // Move right within current row (simplified navigation)
         if current_index % 2 == 0 && current_index + 1 < total_metrics {
-            self.sparkline_grid_list_state.select(Some(current_index + 1));
+            self.sparkline_grid_list_state
+                .select(Some(current_index + 1));
         }
     }
 
-    // Enhanced navigation methods using ListState's built-in capabilities
-    pub fn sparkline_grid_go_to_first(&mut self) {
-        let available_metrics = self.get_available_metrics();
-        if !available_metrics.is_empty() {
-            self.sparkline_grid_list_state.select(Some(0));
-        }
-    }
-
-    pub fn sparkline_grid_go_to_last(&mut self) {
-        let available_metrics = self.get_available_metrics();
-        if !available_metrics.is_empty() {
-            self.sparkline_grid_list_state.select(Some(available_metrics.len() - 1));
-        }
-    }
-
-    pub fn sparkline_grid_page_up(&mut self) {
-        let available_metrics = self.get_available_metrics();
-        if available_metrics.is_empty() {
-            return;
-        }
-        
-        let current_index = self.sparkline_grid_list_state.selected().unwrap_or(0);
-        let page_size = self.metrics_per_screen.max(4); // At least 4 items per page
-        let new_index = current_index.saturating_sub(page_size);
-        self.sparkline_grid_list_state.select(Some(new_index));
-    }
-
-    pub fn sparkline_grid_page_down(&mut self) {
-        let available_metrics = self.get_available_metrics();
-        if available_metrics.is_empty() {
-            return;
-        }
-        
-        let current_index = self.sparkline_grid_list_state.selected().unwrap_or(0);
-        let page_size = self.metrics_per_screen.max(4); // At least 4 items per page
-        let total_metrics = available_metrics.len();
-        let new_index = (current_index + page_size).min(total_metrics - 1);
-        self.sparkline_grid_list_state.select(Some(new_index));
-    }
+    // Removed unused navigation methods
 
     // This function is no longer needed as ratatui's ListState handles scrolling automatically
 }
-

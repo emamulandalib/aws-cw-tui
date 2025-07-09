@@ -1,8 +1,10 @@
 // AWS module exports
 pub mod cloudwatch_service;
 pub mod rds_service;
-pub mod sqs_service;
 pub mod sqs_metrics;
+pub mod sqs_service;
+
+// Dynamic metrics discovery - removed (unused)
 
 // Error handling utilities
 pub mod error_utils;
@@ -11,13 +13,11 @@ pub mod error_utils;
 pub mod session;
 
 // New refactored modules
-pub mod metric_builder;
 pub mod metric_fetcher;
 pub mod metric_types;
 pub mod time_range;
 
-// New modular metrics system
-pub mod metrics;
+// New modular metrics system - removed (unused)
 
 // RDS-focused service organization
 pub mod rds;

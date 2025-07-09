@@ -280,7 +280,7 @@ fn render_minimal_sparkline(
         } else if end < start * 0.9 {
             "↘" // Trending down
         } else {
-                            ">" // Stable
+            ">" // Stable
         }
     } else {
         "─" // No trend data

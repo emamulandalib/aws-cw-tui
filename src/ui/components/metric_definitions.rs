@@ -30,6 +30,7 @@ pub enum DisplayFormat {
 #[derive(Debug, Clone)]
 pub struct MetricDefinition {
     pub name: &'static str,
+    #[allow(dead_code)]
     pub unit: MetricUnit,
     pub display_format: DisplayFormat,
     pub thresholds: Option<HealthThresholds>,
@@ -78,6 +79,7 @@ impl MetricDefinition {
     }
 
     /// Get unit suffix for display
+    #[allow(dead_code)]
     pub fn unit_suffix(&self) -> &'static str {
         match &self.unit {
             MetricUnit::Percent => "%",
@@ -96,6 +98,13 @@ pub struct MetricRegistry;
 impl MetricRegistry {
     /// Get metric definition for a given metric type
     pub fn get_definition(metric_type: &MetricType) -> MetricDefinition {
+        Self::get_definition_simplified(metric_type)
+    }
+
+    /// Get metric definition (simplified without dynamic info)
+    pub fn get_definition_simplified(
+        metric_type: &MetricType,
+    ) -> MetricDefinition {
         match metric_type {
             // === RDS Core Metrics ===
             MetricType::CpuUtilization => MetricDefinition {
@@ -111,6 +120,19 @@ impl MetricRegistry {
                 description: "Percentage of CPU utilization",
             },
 
+            MetricType::DatabaseConnections => MetricDefinition {
+                name: "Database Connections",
+                unit: MetricUnit::Count,
+                display_format: DisplayFormat::Integer,
+                thresholds: Some(HealthThresholds {
+                    critical: 1000.0,
+                    warning: 500.0,
+                    reverse_logic: false,
+                }),
+                color: Color::Green,
+                description: "Number of client network connections to the database",
+            },
+
             MetricType::FreeStorageSpace => MetricDefinition {
                 name: "Free Storage Space",
                 unit: MetricUnit::Bytes,
@@ -118,7 +140,7 @@ impl MetricRegistry {
                 thresholds: Some(HealthThresholds {
                     critical: 1_073_741_824.0, // 1 GB
                     warning: 5_368_709_120.0,  // 5 GB
-                    reverse_logic: true, // lower is worse
+                    reverse_logic: true,       // lower is worse
                 }),
                 color: Color::Cyan,
                 description: "Amount of available storage space",
@@ -130,7 +152,7 @@ impl MetricRegistry {
                 display_format: DisplayFormat::Duration,
                 thresholds: Some(HealthThresholds {
                     critical: 0.1, // 100ms
-                    warning: 0.05,  // 50ms
+                    warning: 0.05, // 50ms
                     reverse_logic: false,
                 }),
                 color: Color::Red,
@@ -143,7 +165,7 @@ impl MetricRegistry {
                 display_format: DisplayFormat::Duration,
                 thresholds: Some(HealthThresholds {
                     critical: 0.1, // 100ms
-                    warning: 0.05,  // 50ms
+                    warning: 0.05, // 50ms
                     reverse_logic: false,
                 }),
                 color: Color::Magenta,
@@ -211,7 +233,7 @@ impl MetricRegistry {
                 thresholds: Some(HealthThresholds {
                     critical: 1_073_741_824.0, // 1 GB
                     warning: 536_870_912.0,    // 512 MB
-                    reverse_logic: false, // higher is worse
+                    reverse_logic: false,      // higher is worse
                 }),
                 color: Color::LightRed,
                 description: "Amount of swap space used",
@@ -228,6 +250,19 @@ impl MetricRegistry {
                 }),
                 color: Color::LightYellow,
                 description: "Number of outstanding I/O requests",
+            },
+
+            MetricType::FreeableMemory => MetricDefinition {
+                name: "Freeable Memory",
+                unit: MetricUnit::Bytes,
+                display_format: DisplayFormat::Bytes,
+                thresholds: Some(HealthThresholds {
+                    critical: 536_870_912.0,  // 512 MB
+                    warning: 1_073_741_824.0, // 1 GB
+                    reverse_logic: true,
+                }),
+                color: Color::LightBlue,
+                description: "Amount of available RAM",
             },
 
             MetricType::BurstBalance => MetricDefinition {
@@ -314,8 +349,8 @@ impl MetricRegistry {
                 unit: MetricUnit::Bytes,
                 display_format: DisplayFormat::Bytes,
                 thresholds: Some(HealthThresholds {
-                    critical: 5_368_709_120.0,  // 5 GB
-                    warning: 1_073_741_824.0,   // 1 GB
+                    critical: 5_368_709_120.0, // 5 GB
+                    warning: 1_073_741_824.0,  // 1 GB
                     reverse_logic: false,
                 }),
                 color: Color::LightRed,
@@ -379,8 +414,8 @@ impl MetricRegistry {
                 unit: MetricUnit::Bytes,
                 display_format: DisplayFormat::Bytes,
                 thresholds: Some(HealthThresholds {
-                    critical: 5_368_709_120.0,  // 5 GB
-                    warning: 1_073_741_824.0,   // 1 GB
+                    critical: 5_368_709_120.0, // 5 GB
+                    warning: 1_073_741_824.0,  // 1 GB
                     reverse_logic: false,
                 }),
                 color: Color::LightCyan,
@@ -442,19 +477,6 @@ impl MetricRegistry {
                 thresholds: None,
                 color: Color::Blue,
                 description: "Number of connection attempts to the database",
-            },
-
-            MetricType::FreeableMemory => MetricDefinition {
-                name: "Freeable Memory",
-                unit: MetricUnit::Bytes,
-                display_format: DisplayFormat::Bytes,
-                thresholds: Some(HealthThresholds {
-                    critical: 536_870_912.0, // 512 MB
-                    warning: 1_073_741_824.0, // 1 GB
-                    reverse_logic: true,
-                }),
-                color: Color::LightBlue,
-                description: "Amount of available RAM",
             },
 
             // === SQS Metrics ===
@@ -520,7 +542,7 @@ impl MetricRegistry {
             },
 
             MetricType::NumberOfMessagesReceived => MetricDefinition {
-                name: "Messages Received", 
+                name: "Messages Received",
                 unit: MetricUnit::Count,
                 display_format: DisplayFormat::Integer,
                 thresholds: None,
@@ -611,44 +633,72 @@ impl MetricRegistry {
                 description: "Number of messages sent after deduplication",
             },
 
-            // Add more metrics as needed...
-            _ => MetricDefinition {
-                name: "Unknown Metric",
-                unit: MetricUnit::Count,
-                display_format: DisplayFormat::Decimal(2),
-                thresholds: None,
-                color: Color::Gray,
-                description: "Unknown metric type",
-            },
+            // Dynamic metrics (simplified fallback)
+            MetricType::Dynamic(metric_name) => {
+                Self::create_fallback_dynamic_definition(metric_name)
+            }
         }
     }
 
-    /// Get all available metrics for a service
-    pub fn get_available_metrics_for_service(service: &crate::models::AwsService) -> Vec<MetricType> {
-        match service {
-            crate::models::AwsService::Rds => vec![
-                MetricType::CpuUtilization,
-                MetricType::FreeStorageSpace,
-                MetricType::ReadLatency,
-                MetricType::WriteLatency,
-                MetricType::ReadIops,
-                MetricType::WriteIops,
-                MetricType::FreeableMemory,
-                // Add more RDS metrics...
-            ],
-            crate::models::AwsService::Sqs => vec![
-                MetricType::ApproximateNumberOfMessagesVisible,
-                MetricType::ApproximateNumberOfMessagesNotVisible,
-                MetricType::ApproximateAgeOfOldestMessage,
-                MetricType::ApproximateNumberOfMessagesDelayed,
-                MetricType::NumberOfMessagesSent,
-                MetricType::NumberOfMessagesReceived,
-                MetricType::NumberOfMessagesDeleted,
-                MetricType::NumberOfMessagesInDlq,
-                // Add more SQS metrics...
-            ],
+    // Removed create_dynamic_metric_definition (unused)
+
+    /// Create fallback definition for dynamic metrics without info
+    fn create_fallback_dynamic_definition(metric_name: &str) -> MetricDefinition {
+        let unit = Self::infer_unit_from_name(metric_name);
+        let display_format = Self::map_display_format(&unit);
+        let color = Self::get_metric_color(metric_name);
+        let description = format!("CloudWatch metric: {}", metric_name);
+
+        MetricDefinition {
+            name: Box::leak(metric_name.to_string().into_boxed_str()),
+            unit,
+            display_format,
+            thresholds: None,
+            color,
+            description: Box::leak(description.into_boxed_str()),
         }
     }
+
+
+
+    /// Infer unit from metric name
+    fn infer_unit_from_name(metric_name: &str) -> MetricUnit {
+        match metric_name {
+            name if name.contains("Utilization") || name.contains("Percent") || name.contains("Balance") => MetricUnit::Percent,
+            name if name.contains("Storage") || name.contains("Memory") || name.contains("Usage") || name.contains("Size") => MetricUnit::Bytes,
+            name if name.contains("Throughput") || name.contains("Generation") => MetricUnit::BytesPerSecond,
+            name if name.contains("Latency") || name.contains("Lag") || name.contains("Age") => MetricUnit::Seconds,
+            name if name.contains("Credit") => MetricUnit::Credits,
+            _ => MetricUnit::Count,
+        }
+    }
+
+    /// Map MetricUnit to DisplayFormat
+    fn map_display_format(unit: &MetricUnit) -> DisplayFormat {
+        match unit {
+            MetricUnit::Percent => DisplayFormat::Percentage,
+            MetricUnit::Bytes => DisplayFormat::Bytes,
+            MetricUnit::Seconds => DisplayFormat::Duration,
+            MetricUnit::BytesPerSecond => DisplayFormat::Bytes,
+            MetricUnit::Count | MetricUnit::Credits => DisplayFormat::Integer,
+        }
+    }
+
+    /// Get color for metric based on name
+    fn get_metric_color(metric_name: &str) -> Color {
+        // Use a simple hash-based color assignment for consistency
+        let hash = metric_name.chars().map(|c| c as u32).sum::<u32>();
+        let colors = [
+            Color::Blue, Color::Green, Color::Red, Color::Yellow,
+            Color::Cyan, Color::Magenta, Color::LightBlue, Color::LightGreen,
+            Color::LightRed, Color::LightYellow, Color::LightCyan, Color::LightMagenta,
+        ];
+        colors[hash as usize % colors.len()]
+    }
+
+
+
+
 }
 
 // Helper functions for formatting
@@ -680,4 +730,4 @@ fn format_duration(seconds: f64) -> String {
     } else {
         format!("{:.1} hr", seconds / 3600.0)
     }
-} 
+}

@@ -18,7 +18,11 @@ pub fn render_instance_details(f: &mut Frame, app: &mut App) {
         .split(f.area());
 
     // Handle both RDS and SQS instances
-    match app.selected_service.as_ref().unwrap_or(&crate::models::AwsService::Rds) {
+    match app
+        .selected_service
+        .as_ref()
+        .unwrap_or(&crate::models::AwsService::Rds)
+    {
         crate::models::AwsService::Rds => {
             let instance = match app.get_selected_rds_instance() {
                 Some(instance) => instance,
@@ -103,18 +107,21 @@ fn render_sqs_instance_info(
     queue: &crate::models::SqsQueue,
 ) {
     // Get queue attributes for display
-    let retention_period = queue.attributes
+    let retention_period = queue
+        .attributes
         .get("MessageRetentionPeriod")
         .and_then(|p| p.parse::<u64>().ok())
         .map(|p| format!("{}d", p / 86400))
         .unwrap_or_else(|| "Unknown".to_string());
-    
-    let visibility_timeout = queue.attributes
+
+    let visibility_timeout = queue
+        .attributes
         .get("VisibilityTimeout")
         .unwrap_or(&"30".to_string())
         .clone();
-    
-    let max_receive_count = queue.attributes
+
+    let max_receive_count = queue
+        .attributes
         .get("ApproximateNumberOfMessages")
         .unwrap_or(&"0".to_string())
         .clone();
@@ -134,17 +141,11 @@ fn render_sqs_instance_info(
         ]),
         Line::from(vec![
             Span::styled("URL: ", Style::default().fg(Color::White)),
-            Span::styled(
-                &queue.url,
-                Style::default().fg(Color::Cyan),
-            ),
+            Span::styled(&queue.url, Style::default().fg(Color::Cyan)),
         ]),
         Line::from(vec![
             Span::styled("Visibility Timeout: ", Style::default().fg(Color::White)),
-            Span::styled(
-                &visibility_timeout_str,
-                Style::default().fg(Color::Yellow),
-            ),
+            Span::styled(&visibility_timeout_str, Style::default().fg(Color::Yellow)),
         ]),
     ];
 

@@ -89,6 +89,7 @@ pub struct RdsInstanceCharacteristics {
     pub engine: String,
     pub instance_class: String,
     pub is_read_replica: bool,
+    #[allow(dead_code)]
     pub multi_az: bool,
 }
 
@@ -98,16 +99,17 @@ impl RdsInstanceCharacteristics {
         Self {
             engine: instance.engine.clone(),
             instance_class: instance.instance_class.clone(),
-            is_read_replica: instance.identifier.contains("-replica") || instance.identifier.contains("-read"),
+            is_read_replica: instance.identifier.contains("-replica")
+                || instance.identifier.contains("-read"),
             multi_az: false, // We'll enhance this later when we have more instance details
         }
     }
 
     /// Determine if this instance supports burstable performance (T-series)
     pub fn is_burstable(&self) -> bool {
-        self.instance_class.starts_with("db.t2.") || 
-        self.instance_class.starts_with("db.t3.") || 
-        self.instance_class.starts_with("db.t4g.")
+        self.instance_class.starts_with("db.t2.")
+            || self.instance_class.starts_with("db.t3.")
+            || self.instance_class.starts_with("db.t4g.")
     }
 
     /// Determine if this instance supports GP2 burst balance
@@ -135,11 +137,16 @@ impl RdsInstanceCharacteristics {
     /// Get relevant metrics for this instance
     pub fn get_relevant_metrics(&self) -> Vec<crate::models::MetricType> {
         use crate::models::MetricType;
-        
+
         let mut relevant_metrics = Vec::new();
 
-        log::info!("Getting relevant metrics for {} {} instance (burstable: {}, postgresql: {})", 
-            self.engine, self.instance_class, self.is_burstable(), self.is_postgresql());
+        log::info!(
+            "Getting relevant metrics for {} {} instance (burstable: {}, postgresql: {})",
+            self.engine,
+            self.instance_class,
+            self.is_burstable(),
+            self.is_postgresql()
+        );
 
         // Core metrics - always relevant for all RDS instances
         relevant_metrics.extend_from_slice(&[
@@ -231,21 +238,25 @@ mod tests {
         };
 
         let metrics = characteristics.get_relevant_metrics();
-        
+
         // PostgreSQL db.t3.micro should have:
         // 14 core metrics + 2 CPU credit metrics + 6 PostgreSQL specific = 22 metrics
-        assert!(metrics.len() >= 20, "PostgreSQL instance should have at least 20 metrics, got {}", metrics.len());
-        
+        assert!(
+            metrics.len() >= 20,
+            "PostgreSQL instance should have at least 20 metrics, got {}",
+            metrics.len()
+        );
+
         // Verify core metrics are included
         assert!(metrics.contains(&crate::models::MetricType::CpuUtilization));
         assert!(metrics.contains(&crate::models::MetricType::DatabaseConnections));
         assert!(metrics.contains(&crate::models::MetricType::FreeStorageSpace));
-        
+
         // Verify PostgreSQL specific metrics are included
         assert!(metrics.contains(&crate::models::MetricType::MaximumUsedTransactionIds));
         assert!(metrics.contains(&crate::models::MetricType::TransactionLogsDiskUsage));
         assert!(metrics.contains(&crate::models::MetricType::CheckpointLag));
-        
+
         // Verify burstable instance metrics are included
         assert!(metrics.contains(&crate::models::MetricType::CpuCreditUsage));
         assert!(metrics.contains(&crate::models::MetricType::CpuCreditBalance));
@@ -261,11 +272,15 @@ mod tests {
         };
 
         let metrics = characteristics.get_relevant_metrics();
-        
+
         // MySQL db.t3.micro should have:
         // 14 core metrics + 2 CPU credit metrics + 2 MySQL specific = 18 metrics
-        assert!(metrics.len() >= 16, "MySQL instance should have at least 16 metrics, got {}", metrics.len());
-        
+        assert!(
+            metrics.len() >= 16,
+            "MySQL instance should have at least 16 metrics, got {}",
+            metrics.len()
+        );
+
         // Verify MySQL specific metrics are included
         assert!(metrics.contains(&crate::models::MetricType::BinLogDiskUsage));
         assert!(metrics.contains(&crate::models::MetricType::ConnectionAttempts));
@@ -281,7 +296,7 @@ mod tests {
         };
 
         let metrics = characteristics.get_relevant_metrics();
-        
+
         // Should not include CPU credit metrics for non-burstable instances
         assert!(!metrics.contains(&crate::models::MetricType::CpuCreditUsage));
         assert!(!metrics.contains(&crate::models::MetricType::CpuCreditBalance));
@@ -297,7 +312,7 @@ mod tests {
         };
 
         let metrics = characteristics.get_relevant_metrics();
-        
+
         // Should include replica lag for read replicas
         assert!(metrics.contains(&crate::models::MetricType::ReplicaLag));
     }

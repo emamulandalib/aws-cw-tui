@@ -24,11 +24,7 @@ pub async fn load_sqs_queues() -> Result<Vec<SqsQueue>> {
     if let Some(queue_urls) = resp.queue_urls {
         for url in queue_urls {
             // Extract queue name from URL
-            let name = url
-                .split('/')
-                .last()
-                .unwrap_or("unknown")
-                .to_string();
+            let name = url.split('/').last().unwrap_or("unknown").to_string();
 
             // Determine queue type based on name (.fifo suffix)
             let queue_type = if name.ends_with(".fifo") {

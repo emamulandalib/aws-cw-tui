@@ -33,14 +33,18 @@ pub fn render_metrics_unified(
     let available_count = individual_metrics.len();
 
     // Get timestamps based on service type
-    let timestamps = match app.selected_service.as_ref().unwrap_or(&crate::models::AwsService::Rds) {
+    let timestamps = match app
+        .selected_service
+        .as_ref()
+        .unwrap_or(&crate::models::AwsService::Rds)
+    {
         crate::models::AwsService::Rds => &app.metrics.timestamps,
         crate::models::AwsService::Sqs => &app.sqs_metrics.timestamps,
     };
 
     // Use ListState-based selection instead of manual scroll_offset
     let selected_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
-    
+
     render_scrollable_individual_metrics(
         f,
         main_chunks[0],
@@ -53,6 +57,8 @@ pub fn render_metrics_unified(
     render_instructions(f, main_chunks[1], available_count, selected_index);
 }
 
+// This function is currently unused but may be needed for future metric collection
+#[allow(dead_code)]
 fn collect_available_metrics(metrics: &MetricData) -> Vec<MetricTuple<'_>> {
     let mut individual_metrics = vec![];
 
@@ -319,20 +325,24 @@ fn collect_available_metrics(metrics: &MetricData) -> Vec<MetricTuple<'_>> {
                 1000.0,
             ),
             // SQS Metrics - these should not appear in RDS metrics, but handle gracefully
-            crate::models::MetricType::NumberOfMessagesSent |
-            crate::models::MetricType::NumberOfMessagesReceived |
-            crate::models::MetricType::NumberOfMessagesDeleted |
-            crate::models::MetricType::ApproximateNumberOfMessages |
-            crate::models::MetricType::ApproximateNumberOfMessagesVisible |
-            crate::models::MetricType::ApproximateNumberOfMessagesNotVisible |
-            crate::models::MetricType::ApproximateAgeOfOldestMessage |
-            crate::models::MetricType::NumberOfEmptyReceives |
-            crate::models::MetricType::ApproximateNumberOfMessagesDelayed |
-            crate::models::MetricType::SentMessageSize |
-            crate::models::MetricType::NumberOfMessagesInDlq |
-            crate::models::MetricType::ApproximateNumberOfGroupsWithInflightMessages |
-            crate::models::MetricType::NumberOfDeduplicatedSentMessages => {
+            crate::models::MetricType::NumberOfMessagesSent
+            | crate::models::MetricType::NumberOfMessagesReceived
+            | crate::models::MetricType::NumberOfMessagesDeleted
+            | crate::models::MetricType::ApproximateNumberOfMessages
+            | crate::models::MetricType::ApproximateNumberOfMessagesVisible
+            | crate::models::MetricType::ApproximateNumberOfMessagesNotVisible
+            | crate::models::MetricType::ApproximateAgeOfOldestMessage
+            | crate::models::MetricType::NumberOfEmptyReceives
+            | crate::models::MetricType::ApproximateNumberOfMessagesDelayed
+            | crate::models::MetricType::SentMessageSize
+            | crate::models::MetricType::NumberOfMessagesInDlq
+            | crate::models::MetricType::ApproximateNumberOfGroupsWithInflightMessages
+            | crate::models::MetricType::NumberOfDeduplicatedSentMessages => {
                 // These should not be returned by RDS get_available_metrics(), but handle gracefully
+                continue;
+            }
+            crate::models::MetricType::Dynamic(_) => {
+                // Dynamic metrics not yet supported in this view
                 continue;
             }
         };
@@ -349,32 +359,45 @@ fn collect_available_metrics(metrics: &MetricData) -> Vec<MetricTuple<'_>> {
 
 fn collect_available_metrics_unified(app: &crate::models::App) -> Vec<MetricTuple<'_>> {
     let mut individual_metrics = vec![];
-    
+
     // Use the unified available metrics from App
     let available_metric_types = app.get_available_metrics();
-    
+
     for metric_type in available_metric_types {
-        let (name, formatted_value, history, color, max_val) = match app.selected_service.as_ref().unwrap_or(&crate::models::AwsService::Rds) {
+        let (name, formatted_value, history, color, max_val) = match app
+            .selected_service
+            .as_ref()
+            .unwrap_or(&crate::models::AwsService::Rds)
+        {
             crate::models::AwsService::Rds => {
                 // Handle RDS metrics
                 get_rds_metric_display_info(&metric_type, &app.metrics)
             }
             crate::models::AwsService::Sqs => {
-                // Handle SQS metrics  
+                // Handle SQS metrics
                 get_sqs_metric_display_info(&metric_type, &app.sqs_metrics)
             }
         };
-        
+
         // Only add metrics that have data
         if !history.is_empty() {
             individual_metrics.push((name, formatted_value, history, color, max_val, true));
         }
     }
-    
+
     individual_metrics
 }
 
-fn get_rds_metric_display_info<'a>(metric_type: &crate::models::MetricType, metrics: &'a crate::models::MetricData) -> (&'static str, String, &'a Vec<f64>, ratatui::style::Color, f64) {
+fn get_rds_metric_display_info<'a>(
+    metric_type: &crate::models::MetricType,
+    metrics: &'a crate::models::MetricData,
+) -> (
+    &'static str,
+    String,
+    &'a Vec<f64>,
+    ratatui::style::Color,
+    f64,
+) {
     match metric_type {
         crate::models::MetricType::CpuUtilization => (
             "CPU Utilization",
@@ -392,7 +415,10 @@ fn get_rds_metric_display_info<'a>(metric_type: &crate::models::MetricType, metr
         ),
         crate::models::MetricType::FreeStorageSpace => (
             "Free Storage",
-            format!("{:.1} GB", metrics.free_storage_space / 1024.0 / 1024.0 / 1024.0),
+            format!(
+                "{:.1} GB",
+                metrics.free_storage_space / 1024.0 / 1024.0 / 1024.0
+            ),
             &metrics.free_storage_space_history,
             ratatui::style::Color::White,
             1000.0,
@@ -422,124 +448,183 @@ fn get_rds_metric_display_info<'a>(metric_type: &crate::models::MetricType, metr
             "Write Latency",
             format!("{:.2} ms", metrics.write_latency * 1000.0),
             &metrics.write_latency_history,
-            ratatui::style::Color::Magenta,
+            ratatui::style::Color::Red,
             0.1,
         ),
         crate::models::MetricType::ReadThroughput => (
             "Read Throughput",
             format!("{:.1} MB/s", metrics.read_throughput / 1024.0 / 1024.0),
             &metrics.read_throughput_history,
-            ratatui::style::Color::Cyan,
+            ratatui::style::Color::Green,
             100_000_000.0,
         ),
         crate::models::MetricType::WriteThroughput => (
             "Write Throughput",
             format!("{:.1} MB/s", metrics.write_throughput / 1024.0 / 1024.0),
             &metrics.write_throughput_history,
-            ratatui::style::Color::LightYellow,
+            ratatui::style::Color::Yellow,
             100_000_000.0,
         ),
         crate::models::MetricType::NetworkReceiveThroughput => (
-            "Network RX",
-            format!("{:.1} MB/s", metrics.network_receive_throughput / 1024.0 / 1024.0),
+            "Network Receive",
+            format!(
+                "{:.1} MB/s",
+                metrics.network_receive_throughput / 1024.0 / 1024.0
+            ),
             &metrics.network_receive_history,
-            ratatui::style::Color::LightBlue,
+            ratatui::style::Color::Cyan,
             100_000_000.0,
         ),
         crate::models::MetricType::NetworkTransmitThroughput => (
-            "Network TX",
-            format!("{:.1} MB/s", metrics.network_transmit_throughput / 1024.0 / 1024.0),
+            "Network Transmit",
+            format!(
+                "{:.1} MB/s",
+                metrics.network_transmit_throughput / 1024.0 / 1024.0
+            ),
             &metrics.network_transmit_history,
-            ratatui::style::Color::LightGreen,
+            ratatui::style::Color::Cyan,
             100_000_000.0,
         ),
         crate::models::MetricType::SwapUsage => (
             "Swap Usage",
             format!("{:.1} MB", metrics.swap_usage / 1024.0 / 1024.0),
             &metrics.swap_usage_history,
-            ratatui::style::Color::Gray,
+            ratatui::style::Color::DarkGray,
             1_000_000_000.0,
         ),
         crate::models::MetricType::FreeableMemory => (
             "Freeable Memory",
-            format!("{:.1} GB", metrics.freeable_memory / 1024.0 / 1024.0 / 1024.0),
+            format!("{:.1} MB", metrics.freeable_memory / 1024.0 / 1024.0),
             &metrics.freeable_memory_history,
-            ratatui::style::Color::LightMagenta,
-            10_000_000_000.0,
+            ratatui::style::Color::White,
+            1_000_000_000.0,
         ),
         crate::models::MetricType::QueueDepth => (
             "Queue Depth",
-            format!("{:.2}", metrics.queue_depth),
+            format!("{:.1}", metrics.queue_depth),
             &metrics.queue_depth_history,
-            ratatui::style::Color::DarkGray,
+            ratatui::style::Color::Red,
             100.0,
         ),
         crate::models::MetricType::BurstBalance => (
             "Burst Balance",
             format!("{:.1}%", metrics.burst_balance),
             &metrics.burst_balance_history,
-            ratatui::style::Color::LightCyan,
+            ratatui::style::Color::LightGreen,
             100.0,
         ),
         crate::models::MetricType::CpuCreditUsage => (
             "CPU Credit Usage",
             format!("{:.1}", metrics.cpu_credit_usage),
             &metrics.cpu_credit_usage_history,
-            ratatui::style::Color::LightRed,
-            1000.0,
+            ratatui::style::Color::Blue,
+            100.0,
         ),
         crate::models::MetricType::CpuCreditBalance => (
             "CPU Credit Balance",
             format!("{:.1}", metrics.cpu_credit_balance),
             &metrics.cpu_credit_balance_history,
-            ratatui::style::Color::LightYellow,
+            ratatui::style::Color::LightBlue,
             1000.0,
         ),
+        // Missing CPU surplus credit metrics
+        crate::models::MetricType::CpuSurplusCreditBalance => (
+            "CPU Surplus Credit Balance",
+            format!("{:.1}", metrics.cpu_surplus_credit_balance),
+            &metrics.cpu_surplus_credit_balance_history,
+            ratatui::style::Color::LightBlue,
+            1000.0,
+        ),
+        crate::models::MetricType::CpuSurplusCreditsCharged => (
+            "CPU Surplus Credits Charged",
+            format!("{:.1}", metrics.cpu_surplus_credits_charged),
+            &metrics.cpu_surplus_credits_charged_history,
+            ratatui::style::Color::LightRed,
+            1000.0,
+        ),
+        // Missing EBS performance metrics
+        crate::models::MetricType::EbsByteBalance => (
+            "EBS Byte Balance",
+            format!("{:.1}%", metrics.ebs_byte_balance),
+            &metrics.ebs_byte_balance_history,
+            ratatui::style::Color::LightGreen,
+            100.0,
+        ),
+        crate::models::MetricType::EbsIoBalance => (
+            "EBS IO Balance",
+            format!("{:.1}%", metrics.ebs_io_balance),
+            &metrics.ebs_io_balance_history,
+            ratatui::style::Color::LightGreen,
+            100.0,
+        ),
         crate::models::MetricType::BinLogDiskUsage => (
-            "Bin Log Usage",
+            "Binary Log Usage",
             format!("{:.1} MB", metrics.bin_log_disk_usage / 1024.0 / 1024.0),
             &metrics.bin_log_disk_usage_history,
-            ratatui::style::Color::Cyan,
-            100_000_000.0,
+            ratatui::style::Color::Magenta,
+            1_000_000_000.0,
         ),
         crate::models::MetricType::ReplicaLag => (
             "Replica Lag",
-            format!("{:.1} s", metrics.replica_lag),
+            format!("{:.2} s", metrics.replica_lag),
             &metrics.replica_lag_history,
             ratatui::style::Color::Red,
             60.0,
         ),
         crate::models::MetricType::MaximumUsedTransactionIds => (
-            "Max Transaction IDs",
+            "Max Used Transaction IDs",
             format!("{:.0}", metrics.maximum_used_transaction_ids),
             &metrics.maximum_used_transaction_ids_history,
-            ratatui::style::Color::Yellow,
+            ratatui::style::Color::Red,
             2_000_000_000.0,
         ),
         crate::models::MetricType::OldestReplicationSlotLag => (
-            "Replication Slot Lag",
-            format!("{:.1} MB", metrics.oldest_replication_slot_lag / 1024.0 / 1024.0),
+            "Oldest Replication Slot Lag",
+            format!(
+                "{:.1} MB",
+                metrics.oldest_replication_slot_lag / 1024.0 / 1024.0
+            ),
             &metrics.oldest_replication_slot_lag_history,
-            ratatui::style::Color::Magenta,
-            100_000_000.0,
+            ratatui::style::Color::Red,
+            1_000_000_000.0,
+        ),
+        // Missing logical replication slot lag metric
+        crate::models::MetricType::OldestLogicalReplicationSlotLag => (
+            "Oldest Logical Replication Slot Lag",
+            format!(
+                "{:.1} MB",
+                metrics.oldest_logical_replication_slot_lag / 1024.0 / 1024.0
+            ),
+            &metrics.oldest_logical_replication_slot_lag_history,
+            ratatui::style::Color::Red,
+            1_000_000_000.0,
         ),
         crate::models::MetricType::ReplicationSlotDiskUsage => (
             "Replication Slot Usage",
-            format!("{:.1} MB", metrics.replication_slot_disk_usage / 1024.0 / 1024.0),
+            format!(
+                "{:.1} MB",
+                metrics.replication_slot_disk_usage / 1024.0 / 1024.0
+            ),
             &metrics.replication_slot_disk_usage_history,
-            ratatui::style::Color::LightMagenta,
-            100_000_000.0,
+            ratatui::style::Color::Blue,
+            1_000_000_000.0,
         ),
         crate::models::MetricType::TransactionLogsDiskUsage => (
             "Transaction Logs Usage",
-            format!("{:.1} MB", metrics.transaction_logs_disk_usage / 1024.0 / 1024.0),
+            format!(
+                "{:.1} MB",
+                metrics.transaction_logs_disk_usage / 1024.0 / 1024.0
+            ),
             &metrics.transaction_logs_disk_usage_history,
             ratatui::style::Color::Green,
             100_000_000.0,
         ),
         crate::models::MetricType::TransactionLogsGeneration => (
             "Transaction Log Gen",
-            format!("{:.1} MB/s", metrics.transaction_logs_generation / 1024.0 / 1024.0),
+            format!(
+                "{:.1} MB/s",
+                metrics.transaction_logs_generation / 1024.0 / 1024.0
+            ),
             &metrics.transaction_logs_generation_history,
             ratatui::style::Color::LightGreen,
             10_000_000.0,
@@ -565,15 +650,54 @@ fn get_rds_metric_display_info<'a>(metric_type: &crate::models::MetricType, metr
             ratatui::style::Color::LightBlue,
             1000.0,
         ),
-        // SQS metrics should not appear for RDS
-        _ => {
+        // SQS metrics should not appear for RDS, but if they do, handle gracefully
+        crate::models::MetricType::NumberOfMessagesSent
+        | crate::models::MetricType::NumberOfMessagesReceived
+        | crate::models::MetricType::NumberOfMessagesDeleted
+        | crate::models::MetricType::ApproximateNumberOfMessages
+        | crate::models::MetricType::ApproximateNumberOfMessagesVisible
+        | crate::models::MetricType::ApproximateNumberOfMessagesNotVisible
+        | crate::models::MetricType::ApproximateAgeOfOldestMessage
+        | crate::models::MetricType::NumberOfEmptyReceives
+        | crate::models::MetricType::ApproximateNumberOfMessagesDelayed
+        | crate::models::MetricType::SentMessageSize
+        | crate::models::MetricType::NumberOfMessagesInDlq
+        | crate::models::MetricType::ApproximateNumberOfGroupsWithInflightMessages
+        | crate::models::MetricType::NumberOfDeduplicatedSentMessages => {
+            // These are SQS metrics that shouldn't appear for RDS
             static EMPTY_VEC: Vec<f64> = Vec::new();
-            ("Unknown", "0".to_string(), &EMPTY_VEC, ratatui::style::Color::Gray, 0.0)
+            (
+                "SQS Metric (Invalid)",
+                "0".to_string(),
+                &EMPTY_VEC,
+                ratatui::style::Color::Gray,
+                0.0,
+            )
+        }
+        crate::models::MetricType::Dynamic(_) => {
+            // Dynamic metrics not supported in RDS display for now
+            static EMPTY_VEC: Vec<f64> = Vec::new();
+            (
+                "Dynamic Metric",
+                "0".to_string(),
+                &EMPTY_VEC,
+                ratatui::style::Color::Gray,
+                0.0,
+            )
         }
     }
 }
 
-fn get_sqs_metric_display_info<'a>(metric_type: &crate::models::MetricType, metrics: &'a crate::models::SqsMetricData) -> (&'static str, String, &'a Vec<f64>, ratatui::style::Color, f64) {
+fn get_sqs_metric_display_info<'a>(
+    metric_type: &crate::models::MetricType,
+    metrics: &'a crate::models::SqsMetricData,
+) -> (
+    &'static str,
+    String,
+    &'a Vec<f64>,
+    ratatui::style::Color,
+    f64,
+) {
     match metric_type {
         crate::models::MetricType::NumberOfMessagesSent => (
             "Messages Sent",
@@ -654,7 +778,10 @@ fn get_sqs_metric_display_info<'a>(metric_type: &crate::models::MetricType, metr
         ),
         crate::models::MetricType::ApproximateNumberOfGroupsWithInflightMessages => (
             "Groups with In-flight Messages",
-            format!("{:.0}", metrics.approximate_number_of_groups_with_inflight_messages),
+            format!(
+                "{:.0}",
+                metrics.approximate_number_of_groups_with_inflight_messages
+            ),
             &metrics.groups_with_inflight_messages_history,
             ratatui::style::Color::LightYellow,
             100.0,
@@ -669,7 +796,13 @@ fn get_sqs_metric_display_info<'a>(metric_type: &crate::models::MetricType, metr
         // RDS metrics should not appear for SQS
         _ => {
             static EMPTY_VEC: Vec<f64> = Vec::new();
-            ("Unknown", "0".to_string(), &EMPTY_VEC, ratatui::style::Color::Gray, 0.0)
+            (
+                "Unknown",
+                "0".to_string(),
+                &EMPTY_VEC,
+                ratatui::style::Color::Gray,
+                0.0,
+            )
         }
     }
 }
@@ -680,7 +813,7 @@ fn render_scrollable_individual_metrics(
     timestamps: &[SystemTime],
     individual_metrics: &[MetricTuple],
     selected_index: usize, // Now using ListState-based selection index
-    metrics_per_screen: usize,
+    _metrics_per_screen: usize,
 ) {
     if individual_metrics.is_empty() {
         let no_data = Paragraph::new("No metrics to display")
@@ -693,10 +826,10 @@ fn render_scrollable_individual_metrics(
     // For enhanced user experience: show only the selected metric in full detail
     // This leverages ListState's built-in scrolling without manual viewport calculations
     let safe_selected_index = selected_index.min(individual_metrics.len().saturating_sub(1));
-    
+
     if let Some(selected_metric) = individual_metrics.get(safe_selected_index) {
         let (name, value, history, color, max_val, available) = selected_metric;
-        
+
         // Render the selected metric in full detail using the entire area
         render_large_metric_chart(
             f,

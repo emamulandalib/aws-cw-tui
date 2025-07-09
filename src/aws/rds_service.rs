@@ -2,11 +2,11 @@ use crate::aws::error_utils::AwsErrorHandler;
 use crate::aws::session::AwsSessionManager;
 use crate::models::RdsInstance;
 use anyhow::Result;
-use log::{info, error, debug, warn};
+use log::{debug, error, info, warn};
 
 pub async fn load_rds_instances() -> Result<Vec<RdsInstance>> {
     debug!("Starting RDS instance loading via AWS SDK...");
-    
+
     // Use shared AWS session manager for RDS client
     let client = AwsSessionManager::rds_client().await;
     debug!("RDS client obtained from session manager");
@@ -16,7 +16,7 @@ pub async fn load_rds_instances() -> Result<Vec<RdsInstance>> {
         Ok(resp) => {
             debug!("Successfully received RDS API response");
             resp
-        },
+        }
         Err(e) => {
             error!("RDS API call failed: {:?}", e);
             return Err(AwsErrorHandler::handle_aws_error(
@@ -30,10 +30,17 @@ pub async fn load_rds_instances() -> Result<Vec<RdsInstance>> {
     let mut instances = Vec::new();
 
     if let Some(db_instances) = resp.db_instances {
-        info!("Processing {} RDS instances from API response", db_instances.len());
-        
+        info!(
+            "Processing {} RDS instances from API response",
+            db_instances.len()
+        );
+
         for (index, instance) in db_instances.iter().enumerate() {
-            debug!("Processing RDS instance {}: {:?}", index + 1, instance.db_instance_identifier);
+            debug!(
+                "Processing RDS instance {}: {:?}",
+                index + 1,
+                instance.db_instance_identifier
+            );
             let rds_instance = RdsInstance {
                 identifier: instance.db_instance_identifier.clone().unwrap_or_default(),
                 engine: instance.engine.clone().unwrap_or_default(),

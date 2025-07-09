@@ -1,7 +1,7 @@
 use crate::aws::cloudwatch_service::TimeRange;
 use ratatui::widgets::ListState;
+use std::collections::HashMap;
 use std::time::{Instant, SystemTime};
-
 
 #[derive(Debug, Clone)]
 pub struct RdsInstance {
@@ -81,22 +81,23 @@ pub struct MetricData {
     pub cpu_surplus_credit_balance: f64, // Credits - CPU surplus credit balance
     pub cpu_surplus_credits_charged: f64, // Credits - CPU surplus credits charged
     // Missing EBS performance metrics
-    pub ebs_byte_balance: f64, // Percent - EBS byte balance
-    pub ebs_io_balance: f64, // Percent - EBS IO balance
-    pub bin_log_disk_usage: f64, // Bytes - MySQL/MariaDB binary logs
-    pub replica_lag: f64,        // Seconds - read replica lag
+    pub ebs_byte_balance: f64,             // Percent - EBS byte balance
+    pub ebs_io_balance: f64,               // Percent - EBS IO balance
+    pub bin_log_disk_usage: f64,           // Bytes - MySQL/MariaDB binary logs
+    pub replica_lag: f64,                  // Seconds - read replica lag
     pub maximum_used_transaction_ids: f64, // Count - PostgreSQL transaction IDs
-    pub oldest_replication_slot_lag: f64, // Bytes - PostgreSQL replication slot lag
+    pub oldest_replication_slot_lag: f64,  // Bytes - PostgreSQL replication slot lag
     // Missing logical replication slot lag metric
     pub oldest_logical_replication_slot_lag: f64, // Bytes - PostgreSQL logical replication slot lag
-    pub replication_slot_disk_usage: f64, // Bytes - PostgreSQL replication slots
-    pub transaction_logs_disk_usage: f64, // Bytes - PostgreSQL transaction logs
-    pub transaction_logs_generation: f64, // Bytes/second - PostgreSQL log generation
-    pub failed_sql_server_agent_jobs_count: f64, // Count/minute - SQL Server agent jobs
-    pub checkpoint_lag: f64,     // Seconds - checkpoint lag
-    pub connection_attempts: f64, // Count - MySQL connection attempts
+    pub replication_slot_disk_usage: f64,         // Bytes - PostgreSQL replication slots
+    pub transaction_logs_disk_usage: f64,         // Bytes - PostgreSQL transaction logs
+    pub transaction_logs_generation: f64,         // Bytes/second - PostgreSQL log generation
+    pub failed_sql_server_agent_jobs_count: f64,  // Count/minute - SQL Server agent jobs
+    pub checkpoint_lag: f64,                      // Seconds - checkpoint lag
+    pub connection_attempts: f64,                 // Count - MySQL connection attempts
 
     // RDS Instance characteristics for intelligent metric filtering
+    #[allow(dead_code)]
     pub instance_characteristics: Option<crate::aws::metric_types::RdsInstanceCharacteristics>,
 
     // Historical data for 3 hours (36 data points at 5min intervals)
@@ -153,14 +154,14 @@ pub struct SqsMetricData {
     pub approximate_age_of_oldest_message: f64,
     pub number_of_empty_receives: f64,
     pub approximate_number_of_messages_delayed: f64, // FIFO only
-    pub sent_message_size: f64, // Message size in bytes
+    pub sent_message_size: f64,                      // Message size in bytes
 
     // Dead Letter Queue Metrics
     pub number_of_messages_in_dlq: f64,
 
     // FIFO-specific Metrics
     pub approximate_number_of_groups_with_inflight_messages: f64, // FIFO only
-    pub number_of_deduplicated_sent_messages: f64, // FIFO only
+    pub number_of_deduplicated_sent_messages: f64,                // FIFO only
 
     // Historical data for 3 hours (36 data points at 5min intervals)
     pub timestamps: Vec<SystemTime>,
@@ -176,7 +177,99 @@ pub struct SqsMetricData {
     pub sent_message_size_history: Vec<f64>,
     pub dlq_messages_history: Vec<f64>,
     pub groups_with_inflight_messages_history: Vec<f64>, // FIFO only
-    pub deduplicated_sent_messages_history: Vec<f64>, // FIFO only
+    pub deduplicated_sent_messages_history: Vec<f64>,    // FIFO only
+}
+
+/// Dynamic metrics data structure for discovered CloudWatch metrics
+/// This replaces hardcoded metric structures with flexible key-value storage
+#[derive(Debug, Clone)]
+pub struct DynamicMetricData {
+    /// Current metric values (metric_name -> value)
+    #[allow(dead_code)]
+    pub current_values: HashMap<String, f64>,
+    
+    /// Historical data (metric_name -> history)
+    #[allow(dead_code)]
+    pub history: HashMap<String, Vec<f64>>,
+    
+    /// Timestamps for historical data points
+    #[allow(dead_code)]
+    pub timestamps: Vec<SystemTime>,
+    
+    /// Resource ID this data belongs to
+    #[allow(dead_code)]
+    pub resource_id: String,
+    
+    /// Service type (RDS, SQS, etc.)
+    #[allow(dead_code)]
+    pub service: AwsService,
+}
+
+impl Default for DynamicMetricData {
+    fn default() -> Self {
+        Self {
+            current_values: HashMap::new(),
+            history: HashMap::new(),
+            timestamps: Vec::new(),
+            resource_id: String::new(),
+            service: AwsService::Rds,
+        }
+    }
+}
+
+impl DynamicMetricData {
+    #[allow(dead_code)]
+    pub fn new(resource_id: String, service: AwsService) -> Self {
+        Self {
+            resource_id,
+            service,
+            ..Default::default()
+        }
+    }
+    
+    /// Get available metrics based on what has been discovered
+    #[allow(dead_code)]
+    pub fn get_available_metrics(&self) -> Vec<MetricType> {
+        self.current_values
+            .keys()
+            .map(|name| MetricType::Dynamic(name.clone()))
+            .collect()
+    }
+    
+    /// Get metric history for a specific metric
+    #[allow(dead_code)]
+    pub fn get_metric_history(&self, metric_name: &str) -> Option<&Vec<f64>> {
+        self.history.get(metric_name)
+    }
+    
+    /// Get current value for a metric
+    #[allow(dead_code)]
+    pub fn get_current_value(&self, metric_name: &str) -> Option<f64> {
+        self.current_values.get(metric_name).copied()
+    }
+    
+    /// Add or update a metric value
+    #[allow(dead_code)]
+    pub fn update_metric(&mut self, metric_name: String, value: f64) {
+        self.current_values.insert(metric_name.clone(), value);
+        
+        // Update history
+        let history = self.history.entry(metric_name).or_insert_with(Vec::new);
+        history.push(value);
+        
+        // Keep only last 36 data points (3 hours at 5min intervals)
+        if history.len() > 36 {
+            history.remove(0);
+        }
+    }
+    
+    // Removed unused metric definition methods
+    
+    /// Count metrics with data
+    #[allow(dead_code)]
+    pub fn count_available_metrics(&self) -> usize {
+        self.current_values.len()
+    }
 }
 
 impl Default for SqsMetricData {
@@ -194,7 +287,7 @@ impl Default for SqsMetricData {
             approximate_number_of_messages_delayed: 0.0,
             sent_message_size: 0.0,
             number_of_messages_in_dlq: 0.0,
-            
+
             // FIFO-specific metrics
             approximate_number_of_groups_with_inflight_messages: 0.0,
             number_of_deduplicated_sent_messages: 0.0,
@@ -219,6 +312,7 @@ impl Default for SqsMetricData {
 }
 
 impl SqsMetricData {
+    #[allow(dead_code)]
     pub fn count_available_metrics(&self) -> usize {
         let mut count = 0;
 
@@ -283,7 +377,7 @@ impl SqsMetricData {
         if !self.dlq_messages_history.is_empty() {
             available_metrics.push(MetricType::NumberOfMessagesInDlq);
         }
-        
+
         // FIFO-specific metrics
         if !self.groups_with_inflight_messages_history.is_empty() {
             available_metrics.push(MetricType::ApproximateNumberOfGroupsWithInflightMessages);
@@ -295,6 +389,8 @@ impl SqsMetricData {
         available_metrics
     }
 
+    #[allow(dead_code)]
+    #[allow(dead_code)]
     pub fn get_metric_history(&self, metric_type: &MetricType) -> &Vec<f64> {
         match metric_type {
             MetricType::NumberOfMessagesSent => &self.messages_sent_history,
@@ -308,11 +404,15 @@ impl SqsMetricData {
             MetricType::ApproximateNumberOfMessagesDelayed => &self.messages_delayed_history,
             MetricType::SentMessageSize => &self.sent_message_size_history,
             MetricType::NumberOfMessagesInDlq => &self.dlq_messages_history,
-            
+
             // FIFO-specific metrics
-            MetricType::ApproximateNumberOfGroupsWithInflightMessages => &self.groups_with_inflight_messages_history,
-            MetricType::NumberOfDeduplicatedSentMessages => &self.deduplicated_sent_messages_history,
-            
+            MetricType::ApproximateNumberOfGroupsWithInflightMessages => {
+                &self.groups_with_inflight_messages_history
+            }
+            MetricType::NumberOfDeduplicatedSentMessages => {
+                &self.deduplicated_sent_messages_history
+            }
+
             // RDS metrics - return empty for SQS MetricData
             _ => {
                 // Use a static empty vector to avoid temporary value issues
@@ -405,6 +505,7 @@ impl Default for MetricData {
 }
 
 impl MetricData {
+    #[allow(dead_code)]
     pub fn count_available_metrics(&self) -> usize {
         let mut count = 0;
 
@@ -491,29 +592,38 @@ impl MetricData {
         count
     }
 
+    #[allow(dead_code)]
     pub fn get_available_metrics(&self) -> Vec<MetricType> {
         // Use intelligent filtering based on instance characteristics if available
         if let Some(ref characteristics) = self.instance_characteristics {
-            log::info!("Using intelligent filtering for {} {} instance", 
-                characteristics.engine, characteristics.instance_class);
+            log::info!(
+                "Using intelligent filtering for {} {} instance",
+                characteristics.engine,
+                characteristics.instance_class
+            );
             let metrics = characteristics.get_relevant_metrics();
             log::info!("Intelligent filtering returned {} metrics", metrics.len());
             return metrics;
         } else {
-            log::info!("No instance characteristics found, using intelligent filtering for PostgreSQL");
+            log::info!(
+                "No instance characteristics found, using intelligent filtering for PostgreSQL"
+            );
             // For PostgreSQL instances, use intelligent filtering by default
             use crate::aws::metric_types::RdsInstanceCharacteristics;
-            
+
             let characteristics = RdsInstanceCharacteristics {
                 engine: "postgres".to_string(),
-                instance_class: "db.t3.micro".to_string(), 
+                instance_class: "db.t3.micro".to_string(),
                 is_read_replica: false,
                 multi_az: false,
             };
-            
+
             let intelligent_metrics = characteristics.get_relevant_metrics();
-            log::info!("PostgreSQL intelligent filtering returned {} metrics", intelligent_metrics.len());
-            
+            log::info!(
+                "PostgreSQL intelligent filtering returned {} metrics",
+                intelligent_metrics.len()
+            );
+
             // Always use intelligent filtering - it shows what metrics should be available
             // even if CloudWatch doesn't currently have data for them
             return intelligent_metrics;
@@ -521,6 +631,7 @@ impl MetricData {
     }
 
     /// Get only metrics that have actual historical data (fallback method)
+    #[allow(dead_code)]
     pub fn get_available_metrics_with_data(&self) -> Vec<MetricType> {
         let mut available_metrics = Vec::new();
 
@@ -639,7 +750,9 @@ impl MetricData {
             MetricType::ReplicaLag => &self.replica_lag_history,
             MetricType::MaximumUsedTransactionIds => &self.maximum_used_transaction_ids_history,
             MetricType::OldestReplicationSlotLag => &self.oldest_replication_slot_lag_history,
-            MetricType::OldestLogicalReplicationSlotLag => &self.oldest_logical_replication_slot_lag_history,
+            MetricType::OldestLogicalReplicationSlotLag => {
+                &self.oldest_logical_replication_slot_lag_history
+            }
             MetricType::ReplicationSlotDiskUsage => &self.replication_slot_disk_usage_history,
             MetricType::TransactionLogsDiskUsage => &self.transaction_logs_disk_usage_history,
             MetricType::TransactionLogsGeneration => &self.transaction_logs_generation_history,
@@ -649,19 +762,24 @@ impl MetricData {
             MetricType::CheckpointLag => &self.checkpoint_lag_history,
             MetricType::ConnectionAttempts => &self.connection_attempts_history,
             // SQS metrics - return empty for RDS MetricData
-            MetricType::NumberOfMessagesSent |
-            MetricType::NumberOfMessagesReceived |
-            MetricType::NumberOfMessagesDeleted |
-            MetricType::ApproximateNumberOfMessages |
-            MetricType::ApproximateNumberOfMessagesVisible |
-            MetricType::ApproximateNumberOfMessagesNotVisible |
-            MetricType::ApproximateAgeOfOldestMessage |
-            MetricType::NumberOfEmptyReceives |
-            MetricType::ApproximateNumberOfMessagesDelayed |
-            MetricType::SentMessageSize |
-            MetricType::NumberOfMessagesInDlq |
-            MetricType::ApproximateNumberOfGroupsWithInflightMessages |
-            MetricType::NumberOfDeduplicatedSentMessages => {
+            MetricType::NumberOfMessagesSent
+            | MetricType::NumberOfMessagesReceived
+            | MetricType::NumberOfMessagesDeleted
+            | MetricType::ApproximateNumberOfMessages
+            | MetricType::ApproximateNumberOfMessagesVisible
+            | MetricType::ApproximateNumberOfMessagesNotVisible
+            | MetricType::ApproximateAgeOfOldestMessage
+            | MetricType::NumberOfEmptyReceives
+            | MetricType::ApproximateNumberOfMessagesDelayed
+            | MetricType::SentMessageSize
+            | MetricType::NumberOfMessagesInDlq
+            | MetricType::ApproximateNumberOfGroupsWithInflightMessages
+            | MetricType::NumberOfDeduplicatedSentMessages => {
+                static EMPTY_VEC: Vec<f64> = Vec::new();
+                &EMPTY_VEC
+            }
+            // Dynamic metrics - return empty for now (will be handled by DynamicMetricData)
+            MetricType::Dynamic(_) => {
                 static EMPTY_VEC: Vec<f64> = Vec::new();
                 &EMPTY_VEC
             }
@@ -758,7 +876,7 @@ pub enum MetricType {
     // Missing CPU Surplus Credits metrics
     CpuSurplusCreditBalance,
     CpuSurplusCreditsCharged,
-    // Missing EBS metrics  
+    // Missing EBS metrics
     EbsByteBalance,
     EbsIoBalance,
     BinLogDiskUsage,
@@ -778,73 +896,96 @@ pub enum MetricType {
     NumberOfMessagesSent,
     NumberOfMessagesReceived,
     NumberOfMessagesDeleted,
-    ApproximateNumberOfMessages,               // Total queue depth (visible + not visible)
-    ApproximateNumberOfMessagesVisible,        // Currently available messages
+    ApproximateNumberOfMessages, // Total queue depth (visible + not visible)
+    ApproximateNumberOfMessagesVisible, // Currently available messages
     ApproximateNumberOfMessagesNotVisible,
     ApproximateAgeOfOldestMessage,
     NumberOfEmptyReceives,
     ApproximateNumberOfMessagesDelayed,
     NumberOfMessagesInDlq,
-    SentMessageSize,                          // Message size in bytes
+    SentMessageSize, // Message size in bytes
 
     // FIFO-specific SQS Metrics
-    ApproximateNumberOfGroupsWithInflightMessages,  // FIFO only
-    NumberOfDeduplicatedSentMessages,               // FIFO only
+    ApproximateNumberOfGroupsWithInflightMessages, // FIFO only
+    NumberOfDeduplicatedSentMessages,              // FIFO only
+
+    // Dynamic metric discovered from CloudWatch API
+    Dynamic(String),
 }
 
 impl MetricType {
-    pub fn display_name(&self) -> &'static str {
+    #[allow(dead_code)]
+    pub fn display_name(&self) -> String {
         match self {
             // RDS Metrics
-            MetricType::CpuUtilization => "CPU Utilization",
-            MetricType::DatabaseConnections => "Database Connections",
-            MetricType::FreeStorageSpace => "Free Storage Space",
-            MetricType::ReadIops => "Read IOPS",
-            MetricType::WriteIops => "Write IOPS",
-            MetricType::ReadLatency => "Read Latency",
-            MetricType::WriteLatency => "Write Latency",
-            MetricType::ReadThroughput => "Read Throughput",
-            MetricType::WriteThroughput => "Write Throughput",
-            MetricType::NetworkReceiveThroughput => "Network Receive Throughput",
-            MetricType::NetworkTransmitThroughput => "Network Transmit Throughput",
-            MetricType::SwapUsage => "Swap Usage",
-            MetricType::FreeableMemory => "Freeable Memory",
-            MetricType::QueueDepth => "Queue Depth",
-            MetricType::BurstBalance => "Burst Balance",
-            MetricType::CpuCreditUsage => "CPU Credit Usage",
-            MetricType::CpuCreditBalance => "CPU Credit Balance",
-            MetricType::CpuSurplusCreditBalance => "CPU Surplus Credit Balance",
-            MetricType::CpuSurplusCreditsCharged => "CPU Surplus Credits Charged", 
-            MetricType::EbsByteBalance => "EBS Byte Balance",
-            MetricType::EbsIoBalance => "EBS IO Balance",
-            MetricType::BinLogDiskUsage => "Binary Log Disk Usage",
-            MetricType::ReplicaLag => "Replica Lag",
-            MetricType::MaximumUsedTransactionIds => "Maximum Used Transaction IDs",
-            MetricType::OldestReplicationSlotLag => "Oldest Replication Slot Lag",
-            MetricType::OldestLogicalReplicationSlotLag => "Oldest Logical Replication Slot Lag",
-            MetricType::ReplicationSlotDiskUsage => "Replication Slot Disk Usage",
-            MetricType::TransactionLogsDiskUsage => "Transaction Logs Disk Usage",
-            MetricType::TransactionLogsGeneration => "Transaction Logs Generation",
-            MetricType::FailedSqlServerAgentJobsCount => "Failed SQL Server Agent Jobs",
-            MetricType::CheckpointLag => "Checkpoint Lag",
-            MetricType::ConnectionAttempts => "Connection Attempts",
+            MetricType::CpuUtilization => "CPU Utilization".to_string(),
+            MetricType::DatabaseConnections => "Database Connections".to_string(),
+            MetricType::FreeStorageSpace => "Free Storage Space".to_string(),
+            MetricType::ReadIops => "Read IOPS".to_string(),
+            MetricType::WriteIops => "Write IOPS".to_string(),
+            MetricType::ReadLatency => "Read Latency".to_string(),
+            MetricType::WriteLatency => "Write Latency".to_string(),
+            MetricType::ReadThroughput => "Read Throughput".to_string(),
+            MetricType::WriteThroughput => "Write Throughput".to_string(),
+            MetricType::NetworkReceiveThroughput => "Network Receive Throughput".to_string(),
+            MetricType::NetworkTransmitThroughput => "Network Transmit Throughput".to_string(),
+            MetricType::SwapUsage => "Swap Usage".to_string(),
+            MetricType::FreeableMemory => "Freeable Memory".to_string(),
+            MetricType::QueueDepth => "Queue Depth".to_string(),
+            MetricType::BurstBalance => "Burst Balance".to_string(),
+            MetricType::CpuCreditUsage => "CPU Credit Usage".to_string(),
+            MetricType::CpuCreditBalance => "CPU Credit Balance".to_string(),
+            MetricType::CpuSurplusCreditBalance => "CPU Surplus Credit Balance".to_string(),
+            MetricType::CpuSurplusCreditsCharged => "CPU Surplus Credits Charged".to_string(),
+            MetricType::EbsByteBalance => "EBS Byte Balance".to_string(),
+            MetricType::EbsIoBalance => "EBS IO Balance".to_string(),
+            MetricType::BinLogDiskUsage => "Binary Log Disk Usage".to_string(),
+            MetricType::ReplicaLag => "Replica Lag".to_string(),
+            MetricType::MaximumUsedTransactionIds => "Maximum Used Transaction IDs".to_string(),
+            MetricType::OldestReplicationSlotLag => "Oldest Replication Slot Lag".to_string(),
+            MetricType::OldestLogicalReplicationSlotLag => "Oldest Logical Replication Slot Lag".to_string(),
+            MetricType::ReplicationSlotDiskUsage => "Replication Slot Disk Usage".to_string(),
+            MetricType::TransactionLogsDiskUsage => "Transaction Logs Disk Usage".to_string(),
+            MetricType::TransactionLogsGeneration => "Transaction Logs Generation".to_string(),
+            MetricType::FailedSqlServerAgentJobsCount => "Failed SQL Server Agent Jobs".to_string(),
+            MetricType::CheckpointLag => "Checkpoint Lag".to_string(),
+            MetricType::ConnectionAttempts => "Connection Attempts".to_string(),
 
             // SQS Metrics (11 total)
-            MetricType::NumberOfMessagesSent => "Messages Sent",
-            MetricType::NumberOfMessagesReceived => "Messages Received",
-            MetricType::NumberOfMessagesDeleted => "Messages Deleted",
-            MetricType::ApproximateNumberOfMessages => "Total Queue Depth",
-            MetricType::ApproximateNumberOfMessagesVisible => "Messages Visible",
-            MetricType::ApproximateNumberOfMessagesNotVisible => "Messages Not Visible",
-            MetricType::ApproximateAgeOfOldestMessage => "Oldest Message Age",
-            MetricType::NumberOfEmptyReceives => "Empty Receives",
-            MetricType::ApproximateNumberOfMessagesDelayed => "Messages Delayed",
-            MetricType::SentMessageSize => "Message Size",
-            MetricType::NumberOfMessagesInDlq => "DLQ Messages",
-            
+            MetricType::NumberOfMessagesSent => "Messages Sent".to_string(),
+            MetricType::NumberOfMessagesReceived => "Messages Received".to_string(),
+            MetricType::NumberOfMessagesDeleted => "Messages Deleted".to_string(),
+            MetricType::ApproximateNumberOfMessages => "Total Queue Depth".to_string(),
+            MetricType::ApproximateNumberOfMessagesVisible => "Messages Visible".to_string(),
+            MetricType::ApproximateNumberOfMessagesNotVisible => "Messages Not Visible".to_string(),
+            MetricType::ApproximateAgeOfOldestMessage => "Oldest Message Age".to_string(),
+            MetricType::NumberOfEmptyReceives => "Empty Receives".to_string(),
+            MetricType::ApproximateNumberOfMessagesDelayed => "Messages Delayed".to_string(),
+            MetricType::SentMessageSize => "Message Size".to_string(),
+            MetricType::NumberOfMessagesInDlq => "DLQ Messages".to_string(),
+
             // FIFO-specific SQS Metrics
-            MetricType::ApproximateNumberOfGroupsWithInflightMessages => "Groups with In-flight Messages",
-            MetricType::NumberOfDeduplicatedSentMessages => "Deduplicated Messages",
+            MetricType::ApproximateNumberOfGroupsWithInflightMessages => {
+                "Groups with In-flight Messages".to_string()
+            }
+            MetricType::NumberOfDeduplicatedSentMessages => "Deduplicated Messages".to_string(),
+
+            // Dynamic metrics discovered from CloudWatch
+            MetricType::Dynamic(name) => {
+                // Convert camelCase/PascalCase to human-readable format
+                let mut result = String::new();
+                let mut chars = name.chars().peekable();
+                
+                while let Some(c) = chars.next() {
+                    if c.is_uppercase() && !result.is_empty() {
+                        // Add space before uppercase letter (except at start)
+                        result.push(' ');
+                    }
+                    result.push(c);
+                }
+                
+                result
+            }
         }
     }
 }
@@ -858,18 +999,21 @@ pub struct App {
     // Instance list state (generic for all services, but RDS-focused)
     pub instances: Vec<ServiceInstance>,
     pub rds_instances: Vec<RdsInstance>, // Keep for backward compatibility during transition
-    pub sqs_queues: Vec<SqsQueue>, // SQS queues for the selected service
+    pub sqs_queues: Vec<SqsQueue>,       // SQS queues for the selected service
     pub list_state: ListState,
     pub loading: bool,
     pub state: AppState,
     pub selected_instance: Option<usize>,
     pub metrics: MetricData,
     pub sqs_metrics: SqsMetricData,
+    #[allow(dead_code)]
+    pub dynamic_metrics: DynamicMetricData, // New dynamic metrics data
     pub metrics_loading: bool,
     pub last_refresh: Option<Instant>,
     pub auto_refresh_enabled: bool,
+    #[allow(dead_code)]
     pub metrics_per_screen: usize,
-    pub focused_panel: FocusedPanel,   // Track which panel has focus (metrics or time ranges)
+    pub focused_panel: FocusedPanel, // Track which panel has focus (metrics or time ranges)
     pub saved_focused_panel: FocusedPanel, // Save focused panel state when transitioning to details
     pub time_range: TimeRange,
 
@@ -877,22 +1021,22 @@ pub struct App {
     pub selected_metric: Option<MetricType>, // Currently selected metric in sparkline grid
     pub sparkline_grid_selected_index: usize, // Track currently selected metric index in grid
     pub saved_sparkline_grid_selected_index: usize, // Save selected metric index when transitioning to details
-    pub sparkline_grid_list_state: ListState, // Built-in ratatui state for proper scrolling
-    
+    pub sparkline_grid_list_state: ListState,       // Built-in ratatui state for proper scrolling
+
     // Built-in list states for all components (replacing manual scroll variables)
-    pub time_range_list_state: ListState,    // Built-in state for time range selection
-    pub period_list_state: ListState,        // Built-in state for period selection  
-    pub timezone_list_state: ListState,      // Built-in state for timezone selection
-    
+    pub time_range_list_state: ListState, // Built-in state for time range selection
+    pub period_list_state: ListState,     // Built-in state for period selection
+    pub timezone_list_state: ListState,   // Built-in state for timezone selection
+
     // Error handling
     pub error_message: Option<String>, // Store user-friendly error messages
 
     // Loading timeout management
     pub loading_start_time: Option<Instant>, // Track when loading started
-    
+
     // Time range display mode
     pub time_range_mode: TimeRangeMode, // Toggle between absolute and relative
-    
+
     // Timezone selection
     pub timezone: Timezone, // Current timezone selection
 }
@@ -916,7 +1060,7 @@ impl Timezone {
             Timezone::Local => "Local timezone",
         }
     }
-    
+
     pub fn get_timezone_options() -> Vec<Timezone> {
         vec![Timezone::Local, Timezone::Utc]
     }

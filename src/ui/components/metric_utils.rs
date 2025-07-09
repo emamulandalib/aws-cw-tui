@@ -2,6 +2,7 @@ use crate::models::{App, MetricData, MetricType, SqsMetricData};
 use ratatui::style::Color;
 
 /// Get the unit string for a given metric type
+#[allow(dead_code)]
 pub fn get_metric_unit(metric_type: &MetricType) -> &'static str {
     match metric_type {
         MetricType::CpuUtilization | MetricType::BurstBalance => "Percent",
@@ -28,8 +29,10 @@ pub fn get_metric_unit(metric_type: &MetricType) -> &'static str {
         | MetricType::NetworkReceiveThroughput
         | MetricType::NetworkTransmitThroughput
         | MetricType::TransactionLogsGeneration => "Bytes/Second",
-        MetricType::CpuCreditUsage | MetricType::CpuCreditBalance 
-        | MetricType::CpuSurplusCreditBalance | MetricType::CpuSurplusCreditsCharged => "Credits",
+        MetricType::CpuCreditUsage
+        | MetricType::CpuCreditBalance
+        | MetricType::CpuSurplusCreditBalance
+        | MetricType::CpuSurplusCreditsCharged => "Credits",
         MetricType::EbsByteBalance | MetricType::EbsIoBalance => "Percent",
         MetricType::OldestLogicalReplicationSlotLag => "Bytes",
         // SQS Metrics
@@ -46,23 +49,30 @@ pub fn get_metric_unit(metric_type: &MetricType) -> &'static str {
         | MetricType::NumberOfDeduplicatedSentMessages => "Count",
         MetricType::ApproximateAgeOfOldestMessage => "Seconds",
         MetricType::SentMessageSize => "Bytes",
+        MetricType::Dynamic(_) => "Count", // Default unit for dynamic metrics
     }
 }
 
 /// Get metrics data with history for enhanced display (unified for all services)
+#[allow(dead_code)]
 pub fn get_available_metrics_with_history_unified(
     app: &App,
-) -> Vec<(&'static str, f64, &Vec<f64>, &'static str)> {
-    match app.selected_service.as_ref().unwrap_or(&crate::models::AwsService::Rds) {
+) -> Vec<(String, f64, &Vec<f64>, &'static str)> {
+    match app
+        .selected_service
+        .as_ref()
+        .unwrap_or(&crate::models::AwsService::Rds)
+    {
         crate::models::AwsService::Rds => get_available_metrics_with_history(&app.metrics),
         crate::models::AwsService::Sqs => get_available_sqs_metrics_with_history(&app.sqs_metrics),
     }
 }
 
 /// Get metrics data with history for enhanced display (RDS)
+#[allow(dead_code)]
 pub fn get_available_metrics_with_history(
     metrics: &MetricData,
-) -> Vec<(&'static str, f64, &Vec<f64>, &'static str)> {
+) -> Vec<(String, f64, &Vec<f64>, &'static str)> {
     let mut available = Vec::new();
 
     // Use the same logic as MetricData.get_available_metrics() for consistency
@@ -107,7 +117,9 @@ pub fn get_available_metrics_with_history(
             MetricType::CpuSurplusCreditsCharged => metrics.cpu_surplus_credits_charged,
             MetricType::EbsByteBalance => metrics.ebs_byte_balance,
             MetricType::EbsIoBalance => metrics.ebs_io_balance,
-            MetricType::OldestLogicalReplicationSlotLag => metrics.oldest_logical_replication_slot_lag,
+            MetricType::OldestLogicalReplicationSlotLag => {
+                metrics.oldest_logical_replication_slot_lag
+            }
             // SQS Metrics - return 0.0 for RDS metrics function
             MetricType::NumberOfMessagesSent => 0.0,
             MetricType::NumberOfMessagesReceived => 0.0,
@@ -122,6 +134,7 @@ pub fn get_available_metrics_with_history(
             MetricType::NumberOfMessagesInDlq => 0.0,
             MetricType::ApproximateNumberOfGroupsWithInflightMessages => 0.0,
             MetricType::NumberOfDeduplicatedSentMessages => 0.0,
+            MetricType::Dynamic(_) => 0.0, // Dynamic metrics will be handled separately
         };
 
         available.push((metric_name, current_value, history, unit));
@@ -131,6 +144,7 @@ pub fn get_available_metrics_with_history(
 }
 
 /// Get color scheme for a metric based on its name and current value
+#[allow(dead_code)]
 pub fn get_metric_colors(metric_name: &str, current_value: f64) -> (Color, Color) {
     let (value_color, trend_color) = match metric_name {
         "CPU Utilization" => {
@@ -232,10 +246,12 @@ pub fn get_metric_colors(metric_name: &str, current_value: f64) -> (Color, Color
             // Age in seconds - older messages indicate processing delays
             if current_value > 3600.0 {
                 (Color::Red, Color::Red)
-            } // > 1 hour
+            }
+            // > 1 hour
             else if current_value > 300.0 {
                 (Color::Yellow, Color::Yellow)
-            } // > 5 minutes
+            }
+            // > 5 minutes
             else {
                 (Color::Green, Color::Green)
             }
@@ -275,6 +291,7 @@ pub fn get_metric_colors(metric_name: &str, current_value: f64) -> (Color, Color
 }
 
 /// Format a metric value based on its unit
+#[allow(dead_code)]
 pub fn format_value(value: f64, unit: &str) -> String {
     // Debug: Force display for debugging
     let formatted = match unit {
@@ -302,7 +319,7 @@ pub fn format_value(value: f64, unit: &str) -> String {
         }
         _ => format!("{value:.2}"),
     };
-    
+
     // Ensure we always return something visible (minimum 1 character)
     if formatted.is_empty() {
         "0".to_string()
@@ -312,6 +329,7 @@ pub fn format_value(value: f64, unit: &str) -> String {
 }
 
 /// Format bytes with appropriate unit (B, KB, MB, GB, TB)
+#[allow(dead_code)]
 pub fn format_bytes(bytes: f64) -> String {
     const UNITS: &[(&str, f64)] = &[
         ("TB", 1024.0 * 1024.0 * 1024.0 * 1024.0),
@@ -330,9 +348,10 @@ pub fn format_bytes(bytes: f64) -> String {
 }
 
 /// Get SQS metrics data with history for enhanced display
+#[allow(dead_code)]
 pub fn get_available_sqs_metrics_with_history(
     metrics: &SqsMetricData,
-) -> Vec<(&'static str, f64, &Vec<f64>, &'static str)> {
+) -> Vec<(String, f64, &Vec<f64>, &'static str)> {
     let mut available = Vec::new();
 
     // Use the same logic as SqsMetricData.get_available_metrics() for consistency
@@ -349,15 +368,25 @@ pub fn get_available_sqs_metrics_with_history(
             MetricType::NumberOfMessagesReceived => metrics.number_of_messages_received,
             MetricType::NumberOfMessagesDeleted => metrics.number_of_messages_deleted,
             MetricType::ApproximateNumberOfMessages => metrics.approximate_number_of_messages,
-            MetricType::ApproximateNumberOfMessagesVisible => metrics.approximate_number_of_messages_visible,
-            MetricType::ApproximateNumberOfMessagesNotVisible => metrics.approximate_number_of_messages_not_visible,
+            MetricType::ApproximateNumberOfMessagesVisible => {
+                metrics.approximate_number_of_messages_visible
+            }
+            MetricType::ApproximateNumberOfMessagesNotVisible => {
+                metrics.approximate_number_of_messages_not_visible
+            }
             MetricType::ApproximateAgeOfOldestMessage => metrics.approximate_age_of_oldest_message,
             MetricType::NumberOfEmptyReceives => metrics.number_of_empty_receives,
-            MetricType::ApproximateNumberOfMessagesDelayed => metrics.approximate_number_of_messages_delayed,
+            MetricType::ApproximateNumberOfMessagesDelayed => {
+                metrics.approximate_number_of_messages_delayed
+            }
             MetricType::SentMessageSize => metrics.sent_message_size,
             MetricType::NumberOfMessagesInDlq => metrics.number_of_messages_in_dlq,
-            MetricType::ApproximateNumberOfGroupsWithInflightMessages => metrics.approximate_number_of_groups_with_inflight_messages,
-            MetricType::NumberOfDeduplicatedSentMessages => metrics.number_of_deduplicated_sent_messages,
+            MetricType::ApproximateNumberOfGroupsWithInflightMessages => {
+                metrics.approximate_number_of_groups_with_inflight_messages
+            }
+            MetricType::NumberOfDeduplicatedSentMessages => {
+                metrics.number_of_deduplicated_sent_messages
+            }
             // RDS Metrics - return 0.0 for SQS metrics function
             _ => 0.0,
         };
