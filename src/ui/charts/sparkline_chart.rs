@@ -120,28 +120,28 @@ fn create_braille_lines_owned(
                 // Map the normalized value to the row position
                 let target_row = ((1.0 - normalized_value) * (height - 1) as f64) as usize;
 
-                // Choose Braille character based on position
+                // Choose simple character based on position
                 let char_to_use = if target_row == row {
-                    match (normalized_value * 8.0) as usize {
-                        0..=1 => '⣀', // Bottom dots
-                        2..=3 => '⣤', // Middle dots
-                        4..=5 => '⣶', // Upper-middle dots
-                        _ => '⣿',     // Full dots
+                    match (normalized_value * 4.0) as usize {
+                        0..=1 => '_', // Bottom level
+                        2..=3 => '=', // Middle level
+                        4..=5 => '^', // Upper level
+                        _ => '^',     // Full level
                     }
                 } else if target_row.abs_diff(row) <= 1 {
                     match (normalized_value * 4.0) as usize {
-                        0 => '⣀',
-                        1 => '⣄',
-                        2 => '⣆',
-                        _ => '⣇',
+                        0 => '_',
+                        1 => '-',
+                        2 => '=',
+                        _ => '^',
                     }
                 } else {
-                    '⠀' // Empty
+                    ' ' // Empty
                 };
 
                 line_chars.push(char_to_use);
             } else {
-                line_chars.push('⠀');
+                line_chars.push(' ');
             }
         }
 
@@ -280,7 +280,7 @@ fn render_minimal_sparkline(
         } else if end < start * 0.9 {
             "↘" // Trending down
         } else {
-            "→" // Stable
+                            ">" // Stable
         }
     } else {
         "─" // No trend data

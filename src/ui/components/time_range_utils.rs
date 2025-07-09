@@ -154,8 +154,7 @@ pub fn render_period_selection_panel(f: &mut Frame, app: &mut App, area: Rect) {
             Style::default()
                 .bg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
+        );
     
     // Use the app's built-in ListState for proper selection display and scrolling
     f.render_stateful_widget(list, area, &mut app.period_list_state);
@@ -163,11 +162,7 @@ pub fn render_period_selection_panel(f: &mut Frame, app: &mut App, area: Rect) {
     // Add scrollbar if there are more period options than can fit on screen
     if period_options.len() > (area.height.saturating_sub(2)) as usize {
         let scrollbar = Scrollbar::default()
-            .orientation(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(Some("↑"))
-            .end_symbol(Some("↓"))
-            .track_symbol(Some("│"))
-            .thumb_symbol("█");
+            .orientation(ScrollbarOrientation::VerticalRight);
         
         let mut scrollbar_state = ScrollbarState::default()
             .content_length(period_options.len())
@@ -249,8 +244,7 @@ fn render_relative_time_ranges(f: &mut Frame, app: &mut App, area: Rect) {
             Style::default()
                 .bg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
+        );
     
     // Use the app's built-in ListState for proper selection display and scrolling
     f.render_stateful_widget(list, area, &mut app.time_range_list_state);
@@ -258,11 +252,7 @@ fn render_relative_time_ranges(f: &mut Frame, app: &mut App, area: Rect) {
     // Add scrollbar if there are more time ranges than can fit on screen
     if time_ranges.len() > (area.height.saturating_sub(2)) as usize {
         let scrollbar = Scrollbar::default()
-            .orientation(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(Some("↑"))
-            .end_symbol(Some("↓"))
-            .track_symbol(Some("│"))
-            .thumb_symbol("█");
+            .orientation(ScrollbarOrientation::VerticalRight);
         
         let mut scrollbar_state = ScrollbarState::default()
             .content_length(time_ranges.len())
@@ -380,8 +370,7 @@ pub fn render_timezone_selection_panel(f: &mut Frame, app: &mut App, area: Rect)
             Style::default()
                 .bg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
+        );
     
     // Use the app's built-in ListState for proper selection display and scrolling
     f.render_stateful_widget(list, area, &mut app.timezone_list_state);
@@ -389,11 +378,7 @@ pub fn render_timezone_selection_panel(f: &mut Frame, app: &mut App, area: Rect)
     // Add scrollbar if there are more timezone options than can fit on screen
     if timezone_options.len() > (area.height.saturating_sub(2)) as usize {
         let scrollbar = Scrollbar::default()
-            .orientation(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(Some("↑"))
-            .end_symbol(Some("↓"))
-            .track_symbol(Some("│"))
-            .thumb_symbol("█");
+            .orientation(ScrollbarOrientation::VerticalRight);
         
         let mut scrollbar_state = ScrollbarState::default()
             .content_length(timezone_options.len())

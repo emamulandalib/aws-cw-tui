@@ -32,8 +32,8 @@ pub fn create_metric_block(params: MetricBlockParams) -> Vec<Line<'static>> {
     let total_width = content.chars().count();
 
     // Create the frame characters
-    let top_border = format!("┌{}┐", "─".repeat(total_width));
-    let bottom_border = format!("└{}┘", "─".repeat(total_width));
+    let top_border = format!("+{}+", "-".repeat(total_width));
+    let bottom_border = format!("+{}+", "-".repeat(total_width));
 
     if params.is_selected {
         // Selected metric with yellow background highlighting and yellow frame
@@ -56,7 +56,7 @@ fn create_selected_metric_block(
             Style::default().yellow(),
         )]),
         Line::from(vec![
-            Span::styled("│", Style::default().yellow()),
+            Span::styled("|", Style::default().yellow()),
             Span::styled(" ", Style::default().on_dark_gray()),
             Span::styled(
                 format!(
@@ -90,7 +90,7 @@ fn create_selected_metric_block(
                     .bold(),
             ),
             Span::styled(" ", Style::default().on_dark_gray()),
-            Span::styled("│", Style::default().yellow()),
+            Span::styled("|", Style::default().yellow()),
         ]),
         Line::from(vec![Span::styled(
             bottom_border,
@@ -111,7 +111,7 @@ fn create_regular_metric_block(
             Style::default().yellow(),
         )]),
         Line::from(vec![
-            Span::styled("│", Style::default().yellow()),
+            Span::styled("|", Style::default().yellow()),
             Span::styled(" ", Style::default()),
             Span::styled(
                 format!(
@@ -136,7 +136,7 @@ fn create_regular_metric_block(
                 Style::default().fg(params.value_color).bold(),
             ),
             Span::styled(" ", Style::default()),
-            Span::styled("│", Style::default().yellow()),
+            Span::styled("|", Style::default().yellow()),
         ]),
         Line::from(vec![Span::styled(
             bottom_border,

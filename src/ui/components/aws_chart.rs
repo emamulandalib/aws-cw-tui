@@ -86,34 +86,29 @@ impl AwsMetricsGrid {
             return;
         }
 
-        // Calculate optimal layout based on available space (2 per row for readability)
+        // Force 2x2 grid layout (4 metrics per screen)
         let metrics_per_row = 2;
-        let min_height_per_row = 12; // Minimum height needed for each row
-        let max_rows = (area.height as usize / min_height_per_row).max(1);
-        let metrics_per_screen = max_rows * metrics_per_row;
-
-        // Let ratatui handle scrolling automatically by rendering all metrics but only showing selected ones
+        let metrics_per_screen = 4; // Always show 4 metrics in 2x2 grid
+        
         let total_metrics = all_chart_data.len();
         let selected_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
         
         // CRITICAL: Bounds check to prevent crashes - clamp selected_index to available data
         let safe_selected_index = selected_index.min(total_metrics.saturating_sub(1));
         
-        // For single chart focus mode (1 metric per screen) or small metric counts
-        if metrics_per_screen >= total_metrics {
-            // Show all available metrics
-            let grid_layout = calculate_scrollable_grid_layout(total_metrics, metrics_per_row);
-            Self::render_metrics_grid(f, area, &all_chart_data, grid_layout, app, 0);
-        } else {
-            // Show only the selected metric for detailed view (single chart mode)
-            if let Some(selected_chart) = all_chart_data.get(safe_selected_index) {
-                let single_chart = vec![selected_chart.clone()];
-                let grid_layout = calculate_scrollable_grid_layout(1, 1); // 1x1 grid for single chart
-                Self::render_metrics_grid(f, area, &single_chart, grid_layout, app, safe_selected_index);
-            } else {
-                Self::render_no_data_chart(f, area, Color::White);
-            }
-        }
+        // Calculate which metrics to show in the current 2x2 grid
+        let current_page = safe_selected_index / metrics_per_screen;
+        let start_index = current_page * metrics_per_screen;
+        let end_index = (start_index + metrics_per_screen).min(total_metrics);
+        
+        // Get the metrics to display in current 2x2 grid
+        let visible_metrics: Vec<MetricChartData> = all_chart_data[start_index..end_index].to_vec();
+        
+        // Always use 2x2 grid layout
+        let grid_layout = calculate_scrollable_grid_layout(visible_metrics.len(), metrics_per_row);
+        
+        // Render the 2x2 grid of metrics
+        Self::render_metrics_grid(f, area, &visible_metrics, grid_layout, app, safe_selected_index - start_index);
     }
 
     /// Render individual metric chart in AWS console style
@@ -258,7 +253,7 @@ impl AwsMetricsGrid {
             } else if last < first * 0.9 {
                 " ↘"
             } else {
-                " →"
+                " >"
             }
         } else {
             ""
@@ -380,17 +375,8 @@ impl AwsMetricsGrid {
             for (col_idx, col_area) in col_chunks.iter().enumerate() {
                 let metric_idx = row_idx * grid_layout.cols + col_idx;
                 if let Some(chart) = chart_data.get(metric_idx) {
-                    // For focused chart display, the single visible chart is always focused
-                    // For grid layout, check if this metric matches the selected one
-                    let is_focused = if chart_data.len() == 1 {
-                        true // Single chart is always focused
-                    } else {
-                        // For multiple charts, check against selected index
-                        let selected_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
-                        
-                        // Check if this metric is the currently selected one
-                        metric_idx == selected_index
-                    };
+                    // Check if this metric is the currently selected one in the 2x2 grid
+                    let is_focused = metric_idx == selected_metric_index;
                     Self::render_metric_chart(f, *col_area, chart, is_focused);
                 }
             }

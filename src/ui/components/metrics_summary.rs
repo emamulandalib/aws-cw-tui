@@ -169,7 +169,7 @@ fn render_controls(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     };
     
     let controls = Paragraph::new(format!(
-        "↑/↓: Navigate • Tab: Switch Panels • t: Toggle Mode ({}) • Enter: Select • r: Refresh • b/Esc: Back • q: Quit", 
+        "Up/Down: Navigate • Tab: Switch Panels • t: Toggle Mode ({}) • Enter: Select • r: Refresh • b/Esc: Back • q: Quit", 
         mode_text
     ))
         .style(Style::default().gray());
