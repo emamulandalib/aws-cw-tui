@@ -4,7 +4,7 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
     Frame,
 };
 
@@ -155,13 +155,26 @@ pub fn render_period_selection_panel(f: &mut Frame, app: &mut App, area: Rect) {
                 .bg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
         )
-        .highlight_symbol("");
+        .highlight_symbol("▶ ");
     
-    // Create list state for proper selection display
-    let mut list_state = ratatui::widgets::ListState::default();
-    list_state.select(Some(current_selection));
+    // Use the app's built-in ListState for proper selection display and scrolling
+    f.render_stateful_widget(list, area, &mut app.period_list_state);
     
-    f.render_stateful_widget(list, area, &mut list_state);
+    // Add scrollbar if there are more period options than can fit on screen
+    if period_options.len() > (area.height.saturating_sub(2)) as usize {
+        let scrollbar = Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"))
+            .track_symbol(Some("│"))
+            .thumb_symbol("█");
+        
+        let mut scrollbar_state = ScrollbarState::default()
+            .content_length(period_options.len())
+            .position(current_selection);
+            
+        f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
+    }
 }
 
 /// Create time range panel with compact absolute/relative toggle
@@ -237,13 +250,26 @@ fn render_relative_time_ranges(f: &mut Frame, app: &mut App, area: Rect) {
                 .bg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
         )
-        .highlight_symbol("");
+        .highlight_symbol("▶ ");
     
-    // Create list state for proper selection display
-    let mut list_state = ratatui::widgets::ListState::default();
-    list_state.select(Some(current_selection));
+    // Use the app's built-in ListState for proper selection display and scrolling
+    f.render_stateful_widget(list, area, &mut app.time_range_list_state);
     
-    f.render_stateful_widget(list, area, &mut list_state);
+    // Add scrollbar if there are more time ranges than can fit on screen
+    if time_ranges.len() > (area.height.saturating_sub(2)) as usize {
+        let scrollbar = Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"))
+            .track_symbol(Some("│"))
+            .thumb_symbol("█");
+        
+        let mut scrollbar_state = ScrollbarState::default()
+            .content_length(time_ranges.len())
+            .position(current_selection);
+            
+        f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
+    }
 }
 
 /// Render absolute time picker (placeholder for now)
@@ -355,11 +381,24 @@ pub fn render_timezone_selection_panel(f: &mut Frame, app: &mut App, area: Rect)
                 .bg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
         )
-        .highlight_symbol("");
+        .highlight_symbol("▶ ");
     
-    // Create list state for proper selection display
-    let mut list_state = ratatui::widgets::ListState::default();
-    list_state.select(Some(current_selection));
+    // Use the app's built-in ListState for proper selection display and scrolling
+    f.render_stateful_widget(list, area, &mut app.timezone_list_state);
     
-    f.render_stateful_widget(list, area, &mut list_state);
+    // Add scrollbar if there are more timezone options than can fit on screen
+    if timezone_options.len() > (area.height.saturating_sub(2)) as usize {
+        let scrollbar = Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"))
+            .track_symbol(Some("│"))
+            .thumb_symbol("█");
+        
+        let mut scrollbar_state = ScrollbarState::default()
+            .content_length(timezone_options.len())
+            .position(current_selection);
+            
+        f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
+    }
 }

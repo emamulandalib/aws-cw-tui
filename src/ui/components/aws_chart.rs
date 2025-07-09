@@ -86,53 +86,34 @@ impl AwsMetricsGrid {
             return;
         }
 
-        // Calculate how many metrics can be shown on screen (2 per row for grid layout)
+        // Calculate optimal layout based on available space (2 per row for readability)
         let metrics_per_row = 2;
         let min_height_per_row = 12; // Minimum height needed for each row
         let max_rows = (area.height as usize / min_height_per_row).max(1);
         let metrics_per_screen = max_rows * metrics_per_row;
 
-        // Use scrolling to show a window of metrics
+        // Let ratatui handle scrolling automatically by rendering all metrics but only showing selected ones
         let total_metrics = all_chart_data.len();
         let selected_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
         
         // CRITICAL: Bounds check to prevent crashes - clamp selected_index to available data
         let safe_selected_index = selected_index.min(total_metrics.saturating_sub(1));
         
-        // Calculate scroll offset for smooth scrolling (not page-based)
-        let start_idx = if total_metrics <= metrics_per_screen {
-            0 // Show all if we have fewer metrics than screen space
+        // For single chart focus mode (1 metric per screen) or small metric counts
+        if metrics_per_screen >= total_metrics {
+            // Show all available metrics
+            let grid_layout = calculate_scrollable_grid_layout(total_metrics, metrics_per_row);
+            Self::render_metrics_grid(f, area, &all_chart_data, grid_layout, app, 0);
         } else {
-            // Calculate smooth scroll - ensure selected item is visible
-            let max_start = total_metrics.saturating_sub(metrics_per_screen);
-            
-            if safe_selected_index < metrics_per_screen / 2 {
-                // If near the beginning, start from 0
-                0
-            } else if safe_selected_index >= total_metrics.saturating_sub(metrics_per_screen / 2) {
-                // If near the end, show the last screen
-                max_start
+            // Show only the selected metric for detailed view (single chart mode)
+            if let Some(selected_chart) = all_chart_data.get(safe_selected_index) {
+                let single_chart = vec![selected_chart.clone()];
+                let grid_layout = calculate_scrollable_grid_layout(1, 1); // 1x1 grid for single chart
+                Self::render_metrics_grid(f, area, &single_chart, grid_layout, app, safe_selected_index);
             } else {
-                // Center the selected item in the visible area
-                safe_selected_index.saturating_sub(metrics_per_screen / 2)
+                Self::render_no_data_chart(f, area, Color::White);
             }
-        };
-        let end_idx = (start_idx + metrics_per_screen).min(total_metrics);
-        
-        // Get the visible slice of metrics
-        let visible_chart_data: Vec<_> = all_chart_data[start_idx..end_idx].to_vec();
-
-        if visible_chart_data.is_empty() {
-            Self::render_no_data_chart(f, area, Color::White);
-            return;
         }
-
-        // Calculate grid layout based on visible metrics
-        let visible_count = visible_chart_data.len();
-        let grid_layout = calculate_scrollable_grid_layout(visible_count, metrics_per_row);
-
-        // Render the visible metrics grid
-        Self::render_metrics_grid(f, area, &visible_chart_data, grid_layout, app, start_idx);
     }
 
     /// Render individual metric chart in AWS console style
@@ -349,7 +330,7 @@ impl AwsMetricsGrid {
         chart_data: &[MetricChartData],
         grid_layout: GridLayout,
         app: &App,
-        start_idx: usize,
+        selected_metric_index: usize,
     ) {
         // Calculate the height for each row to fit within available area
         let min_row_height = 12u16;
@@ -400,16 +381,15 @@ impl AwsMetricsGrid {
                 let metric_idx = row_idx * grid_layout.cols + col_idx;
                 if let Some(chart) = chart_data.get(metric_idx) {
                     // For focused chart display, the single visible chart is always focused
-                    // For grid layout, we can compare with actual position
+                    // For grid layout, check if this metric matches the selected one
                     let is_focused = if chart_data.len() == 1 {
                         true // Single chart is always focused
                     } else {
-                        // For multiple charts, check against selected index with bounds checking
-                        let global_idx = start_idx + metric_idx;
+                        // For multiple charts, check against selected index
                         let selected_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
                         
                         // Check if this metric is the currently selected one
-                        global_idx == selected_index
+                        metric_idx == selected_index
                     };
                     Self::render_metric_chart(f, *col_area, chart, is_focused);
                 }

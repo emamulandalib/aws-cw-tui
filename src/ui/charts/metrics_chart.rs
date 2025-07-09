@@ -12,41 +12,13 @@ use ratatui::{
 };
 use std::time::SystemTime;
 
-pub fn render_metrics(
-    f: &mut Frame,
-    area: ratatui::layout::Rect,
-    metrics: &MetricData,
-    scroll_offset: usize,
-    metrics_per_screen: usize,
-) {
-    let main_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(0),    // Main metrics area
-            Constraint::Length(3), // Instructions
-        ])
-        .split(area);
-
-    let individual_metrics = collect_available_metrics(metrics);
-    let available_count = individual_metrics.len();
-
-    render_scrollable_individual_metrics(
-        f,
-        main_chunks[0],
-        &metrics.timestamps,
-        &individual_metrics,
-        scroll_offset,
-        metrics_per_screen,
-    );
-
-    render_instructions(f, main_chunks[1], available_count, scroll_offset);
-}
+// Legacy render_metrics function removed - use render_metrics_unified instead
 
 pub fn render_metrics_unified(
     f: &mut Frame,
     area: ratatui::layout::Rect,
     app: &crate::models::App,
-    scroll_offset: usize,
+    _selected_metric_index: usize, // Legacy parameter, now unused - using ListState instead
     metrics_per_screen: usize,
 ) {
     let main_chunks = Layout::default()
@@ -66,16 +38,19 @@ pub fn render_metrics_unified(
         crate::models::AwsService::Sqs => &app.sqs_metrics.timestamps,
     };
 
+    // Use ListState-based selection instead of manual scroll_offset
+    let selected_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
+    
     render_scrollable_individual_metrics(
         f,
         main_chunks[0],
         timestamps,
         &individual_metrics,
-        scroll_offset,
+        selected_index,
         metrics_per_screen,
     );
 
-    render_instructions(f, main_chunks[1], available_count, scroll_offset);
+    render_instructions(f, main_chunks[1], available_count, selected_index);
 }
 
 fn collect_available_metrics(metrics: &MetricData) -> Vec<MetricTuple<'_>> {
@@ -704,15 +679,10 @@ fn render_scrollable_individual_metrics(
     area: ratatui::layout::Rect,
     timestamps: &[SystemTime],
     individual_metrics: &[MetricTuple],
-    scroll_offset: usize,
+    selected_index: usize, // Now using ListState-based selection index
     metrics_per_screen: usize,
 ) {
-    let metrics_to_show = metrics_per_screen;
-    let start_idx = scroll_offset;
-    let end_idx = (start_idx + metrics_to_show).min(individual_metrics.len());
-    let visible_metrics: Vec<_> = individual_metrics[start_idx..end_idx].iter().collect();
-
-    if visible_metrics.is_empty() {
+    if individual_metrics.is_empty() {
         let no_data = Paragraph::new("No metrics to display")
             .style(Style::default().fg(Color::DarkGray))
             .alignment(ratatui::layout::Alignment::Center);
@@ -720,31 +690,25 @@ fn render_scrollable_individual_metrics(
         return;
     }
 
-    // Create constraints with better spacing - ensure each metric gets adequate space
-    let constraints: Vec<Constraint> = if visible_metrics.len() == 1 {
-        // Single metric gets almost all available space with some padding
-        vec![Constraint::Min(0)]
-    } else {
-        // Multiple metrics: give each an equal share with minimum height requirements
-        let min_height_per_metric = 15; // Minimum height for readability
-        (0..visible_metrics.len())
-            .map(|_| Constraint::Min(min_height_per_metric))
-            .collect()
-    };
-
-    let metric_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(constraints)
-        .split(area);
-
-    for (i, &metric) in visible_metrics.iter().enumerate() {
-        let (name, value, history, color, max_val, available) = metric;
+    // For enhanced user experience: show only the selected metric in full detail
+    // This leverages ListState's built-in scrolling without manual viewport calculations
+    let safe_selected_index = selected_index.min(individual_metrics.len().saturating_sub(1));
+    
+    if let Some(selected_metric) = individual_metrics.get(safe_selected_index) {
+        let (name, value, history, color, max_val, available) = selected_metric;
+        
+        // Render the selected metric in full detail using the entire area
         render_large_metric_chart(
             f,
-            metric_chunks[i],
+            area,
             timestamps,
             (name, value.clone(), history, *color, *max_val, *available),
         );
+    } else {
+        let no_data = Paragraph::new("No metric selected")
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(ratatui::layout::Alignment::Center);
+        f.render_widget(no_data, area);
     }
 }
 
@@ -752,12 +716,12 @@ fn render_instructions(
     f: &mut Frame,
     area: ratatui::layout::Rect,
     available_count: usize,
-    scroll_offset: usize,
+    selected_index: usize, // Now using ListState-based selection index
 ) {
     let instructions = Paragraph::new(format!(
         "↑/↓ scroll ({} metrics with data, showing {}/{}) • r refresh • b back • q quit",
         available_count,
-        scroll_offset + 1,
+        selected_index + 1,
         available_count
     ))
     .style(Style::default().fg(Color::Gray))
