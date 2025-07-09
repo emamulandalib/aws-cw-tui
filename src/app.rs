@@ -754,7 +754,7 @@ impl App {
             self.state = AppState::MetricsSummary;
             self.metrics_summary_scroll = 0;
             self.scroll_offset = 0;
-            self.focused_panel = FocusedPanel::Timezone;
+            self.focused_panel = FocusedPanel::SparklineGrid; // Focus on metrics list instead of timezone
             self.sparkline_grid_selected_index = 0;
             self.initialize_sparkline_grid();
         }
