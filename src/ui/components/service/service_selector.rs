@@ -1,13 +1,14 @@
 use crate::models::AwsService;
 use crate::ui::components::list_styling::{
-    ListItemBuilder, TypeIndicator, LayoutStyle, BadgeType,
-    themes::service_list_colors,
-    utilities::{create_border_style, create_highlight_style, create_k9s_service_item},
+    ListItemBuilder, StatusIndicator, TypeIndicator, LayoutStyle,
+    themes::service_list_colors_with_theme,
+    utilities::{create_border_style, create_highlight_style},
 };
+use crate::ui::themes::UnifiedTheme;
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    layout::{Rect},
+    style::{Style},
+    widgets::{Block, Borders, List, ListItem, ListState},
     Frame,
 };
 
@@ -18,8 +19,9 @@ pub fn render_service_selection_list(
     services: &[AwsService],
     list_state: &mut ListState,
     is_focused: bool,
+    theme: &UnifiedTheme,
 ) {
-    let colors = service_list_colors();
+    let colors = service_list_colors_with_theme(theme);
     let selected_index = list_state.selected().unwrap_or(0);
 
     let items: Vec<ListItem> = services
@@ -28,18 +30,14 @@ pub fn render_service_selection_list(
         .map(|(index, service)| {
             let is_selected = index == selected_index;
             
-            // Use k9s-style consistent formatting
-            create_k9s_service_item(
-                service.short_name(),
-                match service {
-                    crate::models::AwsService::Rds => "DATABASE",
-                    crate::models::AwsService::Sqs => "QUEUE",
-                },
-                service.display_name(),
-                is_selected,
-                is_focused,
-                &colors,
-            )
+            let text = format!("{}", service.display_name());
+            
+            ListItem::new(text)
+                .style(if is_selected {
+                    create_highlight_style(&colors)
+                } else {
+                    Style::default().fg(colors.primary)
+                })
         })
         .collect();
 
@@ -56,51 +54,30 @@ pub fn render_service_selection_list(
     f.render_stateful_widget(list, area, list_state);
 }
 
-/// Render service details
-pub fn render_service_details(f: &mut Frame, area: Rect, service: &AwsService, is_focused: bool) {
-    let colors = service_list_colors();
+pub fn render_service_details(f: &mut Frame, area: Rect, service: &AwsService, is_focused: bool, theme: &UnifiedTheme) {
+    let colors = service_list_colors_with_theme(theme);
     
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("Service Details")
-        .border_style(create_border_style(is_focused, &colors));
-
-    let inner_area = block.inner(area);
-    f.render_widget(block, area);
-
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Min(0),
-        ])
-        .split(inner_area);
-
-    // Service name
-    let name_widget = Paragraph::new(format!("Service: {}", service.short_name()))
-        .style(
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD),
-        )
-        .alignment(Alignment::Left);
-    f.render_widget(name_widget, chunks[0]);
-
-    // Full description
-    let desc_widget = Paragraph::new(service.display_name())
-        .style(Style::default().fg(Color::Blue))
-        .alignment(Alignment::Left);
-    f.render_widget(desc_widget, chunks[1]);
-
-    // Additional information based on service type
-    let info_text = match service {
-        AwsService::Rds => "Monitor database instances, connections, and performance metrics",
-        AwsService::Sqs => "Monitor queue depth, message throughput, and processing metrics",
+    let type_indicator = match service {
+        AwsService::Rds => TypeIndicator::Database,
+        AwsService::Sqs => TypeIndicator::Queue,
     };
+    
+    let items = vec![
+        ListItemBuilder::new()
+            .add_type_indicator(type_indicator)
+            .add_primary_text(service.display_name().to_string())
+            .add_secondary_text(format!(" - {}", service.short_name()))
+            .build(),
+    ];
 
-    let info_widget = Paragraph::new(info_text)
-        .style(Style::default().fg(Color::Cyan))
-        .alignment(Alignment::Left);
-    f.render_widget(info_widget, chunks[2]);
+    let list = List::new(items)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Service Details")
+                .border_style(create_border_style(is_focused, &colors)),
+        )
+        .style(Style::default().fg(colors.primary));
+
+    f.render_widget(list, area);
 }

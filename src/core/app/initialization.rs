@@ -1,5 +1,6 @@
 use crate::aws::time_range::{TimeRange, TimeUnit};
 use crate::models::{App, AppState, AwsService, FocusedPanel, TimeRangeMode, Timezone};
+use crate::ui::themes::ThemeVariant;
 
 impl Default for App {
     fn default() -> Self {
@@ -11,6 +12,9 @@ impl App {
     /// Create a new application instance with proper default initialization
     pub fn new() -> App {
         let mut app = App {
+            // Theme configuration
+            current_theme: ThemeVariant::WarmSunset,
+
             // Service selection initialization
             available_services: vec![AwsService::Rds, AwsService::Sqs],
             service_list_state: ratatui::widgets::ListState::default(),

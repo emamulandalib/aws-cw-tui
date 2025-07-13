@@ -17,7 +17,7 @@ use ratatui::{
     Frame,
 };
 
-pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
+pub fn render_metrics_summary(f: &mut Frame, app: &mut App, theme: &UnifiedTheme) {
     log_ui_render!("metrics_summary", f.area(), format!("focused_panel: {:?}", app.focused_panel));
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -32,21 +32,21 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
     if let Some(selected_instance) = app.get_selected_instance() {
         match selected_instance {
             crate::models::ServiceInstance::Rds(instance) => {
-                render_rds_instance_details(f, chunks[0], instance, true);
+                render_rds_instance_details(f, chunks[0], instance, true, theme);
             }
             crate::models::ServiceInstance::Sqs(queue) => {
-                render_sqs_queue_details(f, chunks[0], queue, true);
+                render_sqs_queue_details(f, chunks[0], queue, true, theme);
             }
         }
     } else {
-        render_default_header(f, chunks[0]);
+        render_default_header(f, chunks[0], theme);
     }
 
     // Content area - check for errors first, then loading, then normal content
     if let Some(error_msg) = &app.error_message {
-        render_error_message(f, chunks[1], error_msg);
+        render_error_message(f, chunks[1], error_msg, theme);
     } else if app.metrics_loading {
-        render_metrics_loading(f, chunks[1]);
+        render_metrics_loading(f, chunks[1], theme);
     } else {
         // Two-panel layout: Time Range Panel (left), Metrics (right) - like original
         let time_panel_width = calculate_time_panel_width(chunks[1].width);
@@ -78,19 +78,18 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
         render_timezone_selection_panel(f, app, time_panel_chunks[2]);
 
         // Metrics Panel - AWS Console Style Grid (direct rendering)
-        super::aws_chart::AwsMetricsGrid::render(f, app, content_chunks[1]);
+        super::aws_chart::AwsMetricsGrid::render(f, app, content_chunks[1], theme);
     }
 
     // Controls
-    render_controls(f, chunks[2], app);
+    render_controls(f, chunks[2], app, theme);
 }
 
 // Removed duplicate render_rds_instance_info function - now using pure service-specific component
 
 // Removed duplicate render_sqs_instance_info function - now using pure service-specific component
 
-fn render_default_header(f: &mut Frame, area: ratatui::layout::Rect) {
-    let theme = UnifiedTheme::default();
+fn render_default_header(f: &mut Frame, area: ratatui::layout::Rect, theme: &UnifiedTheme) {
     let header_block = Paragraph::new("Metrics Summary")
         .style(Style::default().fg(theme.primary))
         .block(
@@ -102,15 +101,14 @@ fn render_default_header(f: &mut Frame, area: ratatui::layout::Rect) {
     f.render_widget(header_block, area);
 }
 
-fn render_controls(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
-    let theme = UnifiedTheme::default();
+fn render_controls(f: &mut Frame, area: ratatui::layout::Rect, app: &App, theme: &UnifiedTheme) {
     let mode_text = match app.get_time_range_mode() {
         TimeRangeMode::Absolute => "Absolute",
         TimeRangeMode::Relative => "Relative",
     };
 
     let controls = Paragraph::new(format!(
-        "Up/Down: Navigate • Tab: Switch Panels • t: Toggle Mode ({}) • Enter: Select • r: Refresh • b/Esc: Back • q: Quit", 
+        "Up/Down: Navigate • Tab: Switch Panels • t: Change Theme ({}) • Enter: Select • r: Refresh • b/Esc: Back • q: Quit", 
         mode_text
     ))
         .style(Style::default().fg(theme.secondary));
@@ -118,38 +116,16 @@ fn render_controls(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
 }
 
 /// Render error message with helpful suggestions
-fn render_error_message(f: &mut Frame, area: Rect, error_msg: &str) {
-    let mut text = vec![
-        Line::from(vec![
-            Span::styled("Error: ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-            Span::raw(error_msg),
-        ])
-    ];
-    
-    // Add helpful suggestions based on the error message
-    if error_msg.contains("CloudWatch") || error_msg.contains("metrics") {
-        text.push(Line::from(""));
-        text.push(Line::from(Span::styled("Possible causes:", Style::default().fg(Color::Yellow))));
-        text.push(Line::from("• No activity in the selected time range"));
-        text.push(Line::from("• CloudWatch data not yet available"));
-        text.push(Line::from("• Time range exceeds data retention period"));
-        text.push(Line::from("• Insufficient AWS permissions"));
-        text.push(Line::from(""));
-        text.push(Line::from(Span::styled("Suggestions:", Style::default().fg(Color::Green))));
-        text.push(Line::from("• Try a shorter time range (1-24 hours)"));
-        text.push(Line::from("• Check if the resource has recent activity"));
-        text.push(Line::from("• Press 'r' to refresh metrics"));
-        text.push(Line::from("• Verify AWS credentials and permissions"));
-    }
-    
-    let paragraph = Paragraph::new(text)
+fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, error_msg: &str, theme: &UnifiedTheme) {
+    let error_widget = Paragraph::new(error_msg)
+        .style(Style::default().fg(theme.error))
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Red))
-                .title("Metrics Error")
+                .title("Error")
+                .border_style(Style::default().fg(theme.error)),
         )
-        .wrap(Wrap { trim: true });
-    
-    f.render_widget(paragraph, area);
+        .wrap(Wrap { trim: false })
+        .alignment(Alignment::Center);
+    f.render_widget(error_widget, area);
 }

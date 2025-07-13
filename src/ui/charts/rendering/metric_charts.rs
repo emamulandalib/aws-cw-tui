@@ -5,6 +5,7 @@ use crate::ui::charts::rendering::time_series::render_time_series_chart;
 use crate::utils::validation::validate_metric_data;
 use crate::ui::charts::error_display::render_error_message;
 use crate::ui::components::metric_definitions::MetricRegistry;
+use crate::ui::themes::UnifiedTheme;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::Color,
@@ -17,6 +18,7 @@ pub fn render_metric_chart(
     area: Rect,
     chart_data: &MetricChartData,
     is_focused: bool,
+    theme: &UnifiedTheme,
 ) {
     // Comprehensive validation using focused validation module
     if let Err(validation_error) = validate_metric_data(&chart_data.history, &chart_data.timestamps) {
@@ -30,9 +32,9 @@ pub fn render_metric_chart(
     // Get health color based on current value
     let health_color = definition.get_health_color(chart_data.current_value);
     let border_color = if is_focused {
-        Color::Yellow
+        theme.focused
     } else {
-        Color::White
+        theme.border
     };
 
     // Calculate layout for title and chart

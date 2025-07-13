@@ -44,7 +44,7 @@ impl ListColors {
             info: theme.info,
             muted: theme.muted,
             background: theme.background,
-            selected: theme.selected_text,     // Black text on yellow (k9s style)
+            selected: theme.selected_text,     // Black text on yellow background
             focused: theme.focused,            // Yellow for focus
             separator: theme.separator,
             progress_bg: theme.progress_bg,
@@ -65,6 +65,7 @@ pub enum StatusIndicator {
     Warning,
     Info,
     Unknown,
+    None,
 }
 
 impl StatusIndicator {
@@ -78,6 +79,7 @@ impl StatusIndicator {
             StatusIndicator::Warning => "WARNING",
             StatusIndicator::Info => "INFO",
             StatusIndicator::Unknown => "UNKNOWN",
+            StatusIndicator::None => "",
         }
     }
 
@@ -90,6 +92,7 @@ impl StatusIndicator {
             StatusIndicator::Warning => colors.warning,
             StatusIndicator::Info => colors.info,
             StatusIndicator::Unknown => colors.muted,
+            StatusIndicator::None => colors.primary,
         }
     }
 }
@@ -213,12 +216,14 @@ impl ListItemBuilder {
     }
 
     pub fn add_status_indicator(mut self, status: StatusIndicator) -> Self {
-        self.content_parts.push(ContentPart {
-            text: format!("[{}]", status.to_text()),
-            color: status.color(&self.colors),
-            modifier: Some(Modifier::BOLD),
-            alignment: Alignment::Left,
-        });
+        if !matches!(status, StatusIndicator::None) {
+            self.content_parts.push(ContentPart {
+                text: format!("[{}]", status.to_text()),
+                color: status.color(&self.colors),
+                modifier: Some(Modifier::BOLD),
+                alignment: Alignment::Left,
+            });
+        }
         self
     }
 
@@ -633,23 +638,21 @@ pub mod utilities {
             .add_modifier(Modifier::BOLD)
     }
 
-    /// Create k9s-style highlight for list selections (yellow background, black text)
+    /// Create highlight for list selections (dark text on highlight, yellow background)
     pub fn create_highlight_style(colors: &ListColors) -> Style {
         Style::default()
-            .bg(colors.highlight)           // Yellow background (k9s style)
-            .fg(colors.selected)            // Black text on yellow
+            .fg(colors.selected)     // Dark text on highlight
+            .bg(colors.highlight)         // Highlight background
             .add_modifier(Modifier::BOLD)
     }
 
-    /// Create k9s-style border (cyan default, yellow when focused)
+    /// Create border (focus color for focused panels, accent color for normal panels)
     pub fn create_border_style(is_focused: bool, colors: &ListColors) -> Style {
-        let border_color = if is_focused {
-            colors.focused      // Yellow for focused panels (k9s style)
+        Style::default().fg(if is_focused {
+            colors.focused      // Focus color for focused panels
         } else {
-            colors.accent       // Cyan for normal panels (k9s style)
-        };
-        
-        Style::default().fg(border_color)
+            colors.accent       // Accent color for normal panels
+        })
     }
 
     /// Format text with consistent padding and alignment
@@ -671,8 +674,8 @@ pub mod utilities {
         format!("[{}] {}", message_type.to_text(), message)
     }
 
-    /// Create a k9s-style list item with consistent formatting
-    pub fn create_k9s_list_item(
+    /// Create a list item with consistent formatting
+    pub fn create_list_item(
         name: &str,
         status: StatusIndicator,
         description: Option<&str>,
@@ -687,11 +690,13 @@ pub mod utilities {
             .focused(is_focused)
             .with_layout_style(LayoutStyle::Standard);
 
-        // Add status indicator (k9s style)
+        // Add status indicator and separator only if there's a meaningful status indicator
+        let has_meaningful_status = !matches!(status, StatusIndicator::None);
         builder = builder.add_status_indicator(status);
         
-        // Add separator
-        builder = builder.add_visual_separator();
+        if has_meaningful_status {
+            builder = builder.add_visual_separator();
+        }
         
         // Add main name (bold white)
         builder = builder.add_primary_text(name.to_string());
@@ -710,8 +715,33 @@ pub mod utilities {
         builder.build()
     }
 
-    /// Create a k9s-style service list item
-    pub fn create_k9s_service_item(
+    /// Create a simple list item without status indicators or separators (for time selections)
+    pub fn create_simple_list_item(
+        name: &str,
+        right_info: Option<&str>,
+        is_selected: bool,
+        is_focused: bool,
+        colors: &ListColors,
+    ) -> ratatui::widgets::ListItem<'static> {
+        let mut builder = ListItemBuilder::new()
+            .with_colors(colors.clone())
+            .selected(is_selected)
+            .focused(is_focused)
+            .with_layout_style(LayoutStyle::Standard);
+
+        // Add main name (bold white)
+        builder = builder.add_primary_text(name.to_string());
+        
+        // Add right-aligned info if provided
+        if let Some(info) = right_info {
+            builder = builder.add_right_aligned_text(info.to_string(), colors.secondary);
+        }
+        
+        builder.build()
+    }
+
+    /// Create a service list item
+    pub fn create_service_item(
         service_name: &str,
         service_type: &str,
         description: &str,
@@ -719,7 +749,7 @@ pub mod utilities {
         is_focused: bool,
         colors: &ListColors,
     ) -> ratatui::widgets::ListItem<'static> {
-        create_k9s_list_item(
+        create_list_item(
             service_name,
             StatusIndicator::Available,
             Some(description),
@@ -730,8 +760,8 @@ pub mod utilities {
         )
     }
 
-    /// Create a k9s-style instance list item
-    pub fn create_k9s_instance_item(
+    /// Create an instance list item
+    pub fn create_instance_item(
         instance_name: &str,
         status: &str,
         instance_type: Option<&str>,
@@ -757,7 +787,7 @@ pub mod utilities {
             (None, None) => "Instance".to_string(),
         };
 
-        create_k9s_list_item(
+        create_list_item(
             instance_name,
             status_indicator,
             Some(&description),
@@ -783,9 +813,27 @@ pub mod themes {
         colors
     }
 
+    pub fn service_list_colors_with_theme(theme: &UnifiedTheme) -> ListColors {
+        let component_theme = ComponentTheme::service_list(theme.clone());
+        
+        let mut colors = ListColors::from_theme(&component_theme.base);
+        colors.accent = component_theme.component_accent;
+        colors.highlight = component_theme.component_highlight;
+        colors
+    }
+
     pub fn instance_list_colors() -> ListColors {
         let base_theme = UnifiedTheme::default();
         let component_theme = ComponentTheme::instance_list(base_theme);
+        
+        let mut colors = ListColors::from_theme(&component_theme.base);
+        colors.accent = component_theme.component_accent;
+        colors.highlight = component_theme.component_highlight;
+        colors
+    }
+
+    pub fn instance_list_colors_with_theme(theme: &UnifiedTheme) -> ListColors {
+        let component_theme = ComponentTheme::instance_list(theme.clone());
         
         let mut colors = ListColors::from_theme(&component_theme.base);
         colors.accent = component_theme.component_accent;
@@ -802,10 +850,28 @@ pub mod themes {
         colors.highlight = component_theme.component_highlight;
         colors
     }
+
+    pub fn time_range_colors_with_theme(theme: &UnifiedTheme) -> ListColors {
+        let component_theme = ComponentTheme::time_range(theme.clone());
+        
+        let mut colors = ListColors::from_theme(&component_theme.base);
+        colors.accent = component_theme.component_accent;
+        colors.highlight = component_theme.component_highlight;
+        colors
+    }
     
     pub fn metrics_colors() -> ListColors {
         let base_theme = UnifiedTheme::default();
         let component_theme = ComponentTheme::metrics(base_theme);
+        
+        let mut colors = ListColors::from_theme(&component_theme.base);
+        colors.accent = component_theme.component_accent;
+        colors.highlight = component_theme.component_highlight;
+        colors
+    }
+
+    pub fn metrics_colors_with_theme(theme: &UnifiedTheme) -> ListColors {
+        let component_theme = ComponentTheme::metrics(theme.clone());
         
         let mut colors = ListColors::from_theme(&component_theme.base);
         colors.accent = component_theme.component_accent;

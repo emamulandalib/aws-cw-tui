@@ -74,6 +74,10 @@ impl Timezone {
 /// - Metrics: core::app::metrics_management
 /// - Initialization: core::app::initialization
 pub struct App {
+    // === Theme Configuration ===
+    // Managed by core::app::theme_management module
+    pub current_theme: crate::ui::themes::ThemeVariant,
+
     // === Service Selection State ===
     // Managed by core::app::service_management module
     pub available_services: Vec<AwsService>,
@@ -130,6 +134,35 @@ pub struct App {
 impl App {
     // Note: The new() method is implemented in core::app::initialization
     // This ensures all defaults are properly set up through the core modules
+
+    /// Get the current theme
+    pub fn get_current_theme(&self) -> crate::ui::themes::UnifiedTheme {
+        self.current_theme.get_theme()
+    }
+
+    /// Switch to the next theme in the cycle
+    pub fn next_theme(&mut self) {
+        self.current_theme = match self.current_theme {
+            crate::ui::themes::ThemeVariant::Default => crate::ui::themes::ThemeVariant::WarmSunset,
+            crate::ui::themes::ThemeVariant::WarmSunset => crate::ui::themes::ThemeVariant::BlueGold,
+            crate::ui::themes::ThemeVariant::BlueGold => crate::ui::themes::ThemeVariant::HighContrast,
+            crate::ui::themes::ThemeVariant::HighContrast => crate::ui::themes::ThemeVariant::Monochrome,
+            crate::ui::themes::ThemeVariant::Monochrome => crate::ui::themes::ThemeVariant::TerminalCyan,
+            crate::ui::themes::ThemeVariant::TerminalCyan => crate::ui::themes::ThemeVariant::Default,
+        };
+    }
+
+    /// Get the current theme name for display
+    pub fn get_current_theme_name(&self) -> &'static str {
+        match self.current_theme {
+            crate::ui::themes::ThemeVariant::Default => "Default",
+            crate::ui::themes::ThemeVariant::WarmSunset => "Warm Sunset",
+            crate::ui::themes::ThemeVariant::BlueGold => "Blue Gold",
+            crate::ui::themes::ThemeVariant::HighContrast => "High Contrast",
+            crate::ui::themes::ThemeVariant::Monochrome => "Monochrome",
+            crate::ui::themes::ThemeVariant::TerminalCyan => "Terminal Cyan",
+        }
+    }
 
     /// Check if the application is in a loading state
     /// 

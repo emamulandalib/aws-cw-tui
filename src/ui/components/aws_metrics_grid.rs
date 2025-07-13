@@ -6,6 +6,7 @@ use crate::ui::charts::rendering::metric_charts::render_metric_chart;
 use crate::ui::charts::rendering::dynamic_charts::render_dynamic_metric_chart;
 use crate::ui::components::metric::{MetricDefinition, MetricRegistry};
 use crate::ui::components::metric::display_format::DisplayFormat;
+use crate::ui::themes::UnifiedTheme;
 use crate::models::MetricType;
 use log::{debug, info, warn};
 use ratatui::{
@@ -98,7 +99,7 @@ pub struct AwsMetricsGrid;
 
 impl AwsMetricsGrid {
     /// Render metrics in AWS console-style grid layout with unified approach
-    pub fn render(f: &mut Frame, app: &App, area: Rect) {
+    pub fn render(f: &mut Frame, app: &App, area: Rect, theme: &UnifiedTheme) {
         debug!("METRICS_GRID: Starting unified render for area: {:?}", area);
 
         let service = match app.selected_service.as_ref() {
@@ -122,7 +123,7 @@ impl AwsMetricsGrid {
 
         if unified_metrics.is_empty() {
             info!("METRICS_GRID: No metrics available, showing no-metrics message");
-            Self::render_no_metrics(f, area, service);
+            Self::render_no_metrics(f, area, service, theme);
             return;
         }
 
@@ -206,6 +207,7 @@ impl AwsMetricsGrid {
             &visible_metrics,
             grid_layout,
             relative_selected_index,
+            theme,
         );
 
         info!("METRICS_GRID: Completed rendering unified metrics grid");
@@ -281,6 +283,7 @@ impl AwsMetricsGrid {
         metrics: &[UnifiedMetricData],
         grid_layout: crate::ui::charts::grid_layout::GridLayout,
         selected_metric_index: usize,
+        theme: &UnifiedTheme,
     ) {
         if metrics.is_empty() {
             return;
@@ -314,7 +317,7 @@ impl AwsMetricsGrid {
 
                 if metric_index < metrics.len() {
                     let is_focused = metric_index == selected_metric_index;
-                    Self::render_unified_metric(f, col_area, &metrics[metric_index], is_focused);
+                    Self::render_unified_metric(f, col_area, &metrics[metric_index], is_focused, theme);
                 }
             }
         }
@@ -326,20 +329,21 @@ impl AwsMetricsGrid {
         area: Rect,
         metric: &UnifiedMetricData,
         is_focused: bool,
+        theme: &UnifiedTheme,
     ) {
         // Use appropriate rendering based on metric type
         match metric {
             UnifiedMetricData::Legacy(chart_data) => {
-                render_metric_chart(f, area, chart_data, is_focused);
+                render_metric_chart(f, area, chart_data, is_focused, theme);
             }
             UnifiedMetricData::Dynamic(dynamic_data) => {
-                render_dynamic_metric_chart(f, area, dynamic_data, is_focused);
+                render_dynamic_metric_chart(f, area, dynamic_data, is_focused, theme);
             }
         }
     }
 
     /// Render no metrics available state
-    fn render_no_metrics(f: &mut Frame, area: Rect, service: &crate::models::AwsService) {
+    fn render_no_metrics(f: &mut Frame, area: Rect, service: &crate::models::AwsService, theme: &UnifiedTheme) {
         debug!("METRICS_GRID: Rendering no-metrics state for service: {:?}", service);
         
         let service_name = service.short_name();
@@ -351,8 +355,8 @@ impl AwsMetricsGrid {
         };
 
         let color = match service {
-            crate::models::AwsService::Sqs => Color::Yellow,
-            _ => Color::DarkGray,
+            crate::models::AwsService::Sqs => theme.accent, // Use cyan for SQS
+            _ => theme.muted,                               // Use muted for other services
         };
 
         let no_metrics_widget = Paragraph::new(message)

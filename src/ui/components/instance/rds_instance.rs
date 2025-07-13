@@ -1,8 +1,8 @@
 use crate::models::RdsInstance;
 use crate::ui::components::list_styling::{
     ListItemBuilder, StatusIndicator, TypeIndicator, LayoutStyle,
-    themes::instance_list_colors,
-    utilities::create_k9s_instance_item,
+    themes::instance_list_colors_with_theme,
+    utilities::create_instance_item,
 };
 use crate::ui::themes::UnifiedTheme;
 use ratatui::{
@@ -18,8 +18,8 @@ pub fn render_rds_instance_details(
     area: Rect,
     instance: &RdsInstance,
     is_focused: bool,
+    theme: &UnifiedTheme,
 ) {
-    let theme = UnifiedTheme::default();
     let border_color = if is_focused {
         theme.border_focused
     } else {
@@ -62,44 +62,44 @@ pub fn render_rds_instance_details(
     f.render_widget(engine_widget, chunks[1]);
 
     // Status
-    let status_color = match instance.status.as_str() {
-        "available" => theme.success,
-        "stopped" => theme.error,
-        "starting" | "stopping" => theme.warning,
-        _ => theme.muted,
-    };
     let status_widget = Paragraph::new(format!("Status: {}", instance.status))
-        .style(Style::default().fg(status_color))
+        .style(Style::default().fg(theme.secondary))
         .alignment(Alignment::Left);
     f.render_widget(status_widget, chunks[2]);
 
-    // Instance Class
-    let class_widget = Paragraph::new(format!("Class: {}", instance.instance_class))
+    // Endpoint
+    let endpoint_widget = Paragraph::new(format!("Endpoint: {}", instance.endpoint.as_ref().unwrap_or(&"N/A".to_string())))
         .style(Style::default().fg(theme.accent))
         .alignment(Alignment::Left);
-    f.render_widget(class_widget, chunks[3]);
-
-    // Endpoint (if available)
-    if let Some(endpoint) = &instance.endpoint {
-        let endpoint_widget = Paragraph::new(format!("Endpoint: {}", endpoint))
-            .style(Style::default().fg(theme.chart_accent))
-            .alignment(Alignment::Left);
-        f.render_widget(endpoint_widget, chunks[4]);
-    }
+    f.render_widget(endpoint_widget, chunks[3]);
 }
 
-/// Render RDS instance list item with k9s-style consistent formatting
-pub fn render_rds_instance_list_item(instance: &RdsInstance, is_selected: bool) -> ListItem {
-    let colors = instance_list_colors();
+/// Render RDS instance as a list item
+pub fn render_rds_instance_list_item<'a>(instance: &'a RdsInstance, is_selected: bool, theme: &'a UnifiedTheme) -> ListItem<'a> {
+    let colors = instance_list_colors_with_theme(theme);
+    
+    let status_indicator = match instance.status.as_str() {
+        "available" => StatusIndicator::Available,
+        "stopped" => StatusIndicator::Stopped,
+        "starting" => StatusIndicator::Starting,
+        "stopping" => StatusIndicator::Stopping,
+        _ => StatusIndicator::Unknown,
+    };
 
-    // Use k9s-style consistent formatting
-    create_k9s_instance_item(
-        &instance.identifier,
-        &instance.status,
-        Some(&instance.instance_class),
-        Some(&instance.engine),
-        is_selected,
-        false, // Not focused in list context
-        &colors,
-    )
+    let item = ListItemBuilder::new()
+        .with_layout_style(LayoutStyle::Enhanced)
+        .add_status_indicator(status_indicator)
+        .add_type_indicator(TypeIndicator::Database)
+        .add_primary_text(instance.identifier.clone())
+        .add_visual_separator()
+        .add_secondary_text(format!("Engine: {}", instance.engine))
+        .add_visual_separator()
+        .add_secondary_text(format!("Status: {}", instance.status))
+        .add_right_aligned_text(
+            format!("Class: {}", instance.instance_class),
+            if is_selected { colors.selected } else { colors.accent },
+        )
+        .build();
+
+    item
 }

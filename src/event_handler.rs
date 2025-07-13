@@ -18,6 +18,22 @@ pub async fn handle_event(app: &mut App, event: Event) -> Result<bool> {
             "Processing key event"
         );
 
+        // Handle global theme switching first (works in all states)
+        if key.code == KeyCode::Char('t') && key.modifiers == KeyModifiers::NONE {
+            let old_theme = app.get_current_theme_name();
+            app.next_theme();
+            let new_theme = app.get_current_theme_name();
+            log_user_interaction!(
+                format!("Theme switched from {} to {}", old_theme, new_theme),
+                format!("State: {:?}", app.state)
+            );
+            info!(
+                "THEME_SWITCH: User switched theme from {} to {}",
+                old_theme, new_theme
+            );
+            return Ok(false);
+        }
+
         match app.state {
             AppState::ServiceList => handle_service_list_event(app, key.code).await,
             AppState::InstanceList => handle_instance_list_event(app, key.code).await,

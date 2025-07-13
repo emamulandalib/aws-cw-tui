@@ -4,6 +4,7 @@ use crate::ui::charts::rendering::simple_charts::render_dynamic_simple_metric;
 use crate::ui::charts::rendering::time_series::render_dynamic_time_series_chart;
 use crate::utils::validation::validate_metric_data;
 use crate::ui::charts::error_display::render_error_message;
+use crate::ui::themes::UnifiedTheme;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::Color,
@@ -16,6 +17,7 @@ pub fn render_dynamic_metric_chart(
     area: Rect,
     metric_data: &DynamicMetricData,
     is_focused: bool,
+    theme: &UnifiedTheme,
 ) {
     // Comprehensive validation using focused validation module
     if let Err(validation_error) = validate_metric_data(&metric_data.history, &metric_data.timestamps) {
@@ -25,9 +27,9 @@ pub fn render_dynamic_metric_chart(
     }
 
     let border_color = if is_focused {
-        Color::Yellow
+        theme.focused
     } else {
-        Color::White
+        theme.border
     };
 
     // Calculate layout for title and chart
@@ -89,15 +91,16 @@ mod tests {
 
     #[test]
     fn test_border_color_logic() {
-        let focused_color = Color::Yellow;
-        let normal_color = Color::White;
+        let theme = crate::ui::themes::UnifiedTheme::default();
+        let focused_color = theme.focused;
+        let normal_color = theme.border;
 
         // Test focused state
-        let border_color = if true { Color::Yellow } else { Color::White };
+        let border_color = if true { theme.focused } else { theme.border };
         assert_eq!(border_color, focused_color);
 
         // Test normal state
-        let border_color = if false { Color::Yellow } else { Color::White };
+        let border_color = if false { theme.focused } else { theme.border };
         assert_eq!(border_color, normal_color);
     }
 }

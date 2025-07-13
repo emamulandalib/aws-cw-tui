@@ -7,7 +7,7 @@ use ratatui::{
     Frame,
 };
 
-pub fn render_service_list(f: &mut Frame, app: &mut App) {
+pub fn render_service_list(f: &mut Frame, app: &mut App, theme: &UnifiedTheme) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -17,13 +17,12 @@ pub fn render_service_list(f: &mut Frame, app: &mut App) {
         ])
         .split(f.area());
 
-    render_header(f, chunks[0]);
-    render_services(f, chunks[1], app);
-    render_controls(f, chunks[2]);
+    render_header(f, chunks[0], theme);
+    render_services(f, chunks[1], app, theme);
+    render_controls(f, chunks[2], theme);
 }
 
-fn render_header(f: &mut Frame, area: Rect) {
-    let theme = UnifiedTheme::default();
+fn render_header(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
     let header = Paragraph::new("AWS CloudWatch TUI - Service Selection")
         .style(Style::default().fg(theme.primary))
         .block(
@@ -34,7 +33,7 @@ fn render_header(f: &mut Frame, area: Rect) {
     f.render_widget(header, area);
 }
 
-fn render_services(f: &mut Frame, area: Rect, app: &mut App) {
+fn render_services(f: &mut Frame, area: Rect, app: &mut App, theme: &UnifiedTheme) {
     // Use pure service selector component for better formatting and functionality
     render_service_selection_list(
         f,
@@ -42,12 +41,12 @@ fn render_services(f: &mut Frame, area: Rect, app: &mut App) {
         &app.available_services,
         &mut app.service_list_state,
         true, // Always focused in service list view
+        theme,
     );
 }
 
-fn render_controls(f: &mut Frame, area: Rect) {
-    let theme = UnifiedTheme::default();
-    let controls = Paragraph::new("Up/Down: Navigate • Enter: Select Service • q: Quit")
+fn render_controls(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
+    let controls = Paragraph::new("Up/Down: Navigate • Enter: Select Service • t: Change Theme • q: Quit")
         .style(Style::default().fg(theme.secondary));
     f.render_widget(controls, area);
 }
