@@ -5,9 +5,11 @@ pub mod rds_list;
 pub mod aws_chart;
 pub mod aws_metrics_grid;
 pub mod display_utils;
+pub mod list_styling;
 pub mod metric_definitions;
 pub mod metric_utils;
 pub mod service_list;
+pub mod style_guide;
 pub mod time_range_utils;
 
 // New modular components

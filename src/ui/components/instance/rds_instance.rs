@@ -1,4 +1,10 @@
 use crate::models::RdsInstance;
+use crate::ui::components::list_styling::{
+    ListItemBuilder, StatusIndicator, TypeIndicator, LayoutStyle,
+    themes::instance_list_colors,
+    utilities::create_k9s_instance_item,
+};
+use crate::ui::themes::UnifiedTheme;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -13,10 +19,11 @@ pub fn render_rds_instance_details(
     instance: &RdsInstance,
     is_focused: bool,
 ) {
+    let theme = UnifiedTheme::default();
     let border_color = if is_focused {
-        Color::Yellow
+        theme.border_focused
     } else {
-        Color::White
+        theme.border
     };
 
     let block = Block::default()
@@ -42,7 +49,7 @@ pub fn render_rds_instance_details(
     let id_widget = Paragraph::new(format!("ID: {}", instance.identifier))
         .style(
             Style::default()
-                .fg(Color::Green)
+                .fg(theme.success)
                 .add_modifier(Modifier::BOLD),
         )
         .alignment(Alignment::Left);
@@ -50,16 +57,16 @@ pub fn render_rds_instance_details(
 
     // Engine
     let engine_widget = Paragraph::new(format!("Engine: {}", instance.engine))
-        .style(Style::default().fg(Color::Blue))
+        .style(Style::default().fg(theme.info))
         .alignment(Alignment::Left);
     f.render_widget(engine_widget, chunks[1]);
 
     // Status
     let status_color = match instance.status.as_str() {
-        "available" => Color::Green,
-        "stopped" => Color::Red,
-        "starting" | "stopping" => Color::Yellow,
-        _ => Color::Gray,
+        "available" => theme.success,
+        "stopped" => theme.error,
+        "starting" | "stopping" => theme.warning,
+        _ => theme.muted,
     };
     let status_widget = Paragraph::new(format!("Status: {}", instance.status))
         .style(Style::default().fg(status_color))
@@ -68,47 +75,31 @@ pub fn render_rds_instance_details(
 
     // Instance Class
     let class_widget = Paragraph::new(format!("Class: {}", instance.instance_class))
-        .style(Style::default().fg(Color::Cyan))
+        .style(Style::default().fg(theme.accent))
         .alignment(Alignment::Left);
     f.render_widget(class_widget, chunks[3]);
 
     // Endpoint (if available)
     if let Some(endpoint) = &instance.endpoint {
         let endpoint_widget = Paragraph::new(format!("Endpoint: {}", endpoint))
-            .style(Style::default().fg(Color::Magenta))
+            .style(Style::default().fg(theme.chart_accent))
             .alignment(Alignment::Left);
         f.render_widget(endpoint_widget, chunks[4]);
     }
 }
 
-/// Render RDS instance list item
+/// Render RDS instance list item with k9s-style consistent formatting
 pub fn render_rds_instance_list_item(instance: &RdsInstance, is_selected: bool) -> ListItem {
-    let status_indicator = match instance.status.as_str() {
-        "available" => "●",
-        "stopped" => "○",
-        "starting" | "stopping" => "◐",
-        _ => "?",
-    };
+    let colors = instance_list_colors();
 
-    let status_color = match instance.status.as_str() {
-        "available" => Color::Green,
-        "stopped" => Color::Red,
-        "starting" | "stopping" => Color::Yellow,
-        _ => Color::Gray,
-    };
-
-    let content = format!(
-        "{} {} [{}] {}",
-        status_indicator, instance.identifier, instance.engine, instance.instance_class
-    );
-
-    let style = if is_selected {
-        Style::default()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(status_color)
-    };
-
-    ListItem::new(content).style(style)
+    // Use k9s-style consistent formatting
+    create_k9s_instance_item(
+        &instance.identifier,
+        &instance.status,
+        Some(&instance.instance_class),
+        Some(&instance.engine),
+        is_selected,
+        false, // Not focused in list context
+        &colors,
+    )
 }

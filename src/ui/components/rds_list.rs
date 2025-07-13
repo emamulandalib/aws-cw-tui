@@ -1,11 +1,14 @@
 use crate::models::App;
 use crate::ui::components::{render_rds_instance_list_item, render_sqs_queue_list_item};
+use crate::ui::components::list_styling::{
+    themes::instance_list_colors,
+    utilities::{create_border_style, create_highlight_style},
+};
+use crate::ui::themes::UnifiedTheme;
 use ratatui::{
-    layout::{Constraint, Direction, Layout},
-    style::{Style, Stylize},
-    widgets::{
-        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
-    },
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
     Frame,
 };
 
@@ -36,6 +39,7 @@ pub fn render_rds_list(f: &mut Frame, app: &mut App) {
 }
 
 fn render_header(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
+    let theme = UnifiedTheme::default();
     let (main_title, border_title) = if let Some(service) = &app.selected_service {
         (
             format!("AWS CloudWatch TUI - {} Instances", service.short_name()),
@@ -49,46 +53,45 @@ fn render_header(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     };
 
     let header = Paragraph::new(main_title)
-        .style(Style::default().white())
+        .style(Style::default().fg(theme.primary))
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title(border_title)
-                .border_style(Style::default().cyan()),
+                .border_style(Style::default().fg(theme.accent)),
         );
     f.render_widget(header, area);
 }
 
 fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
+    let theme = UnifiedTheme::default();
     let service_name = app
         .selected_service
         .as_ref()
         .map(|s| s.short_name())
         .unwrap_or("Service");
+    let title = format!("{} Instances", service_name);
 
-    let loading_text = [
-        format!("Loading {} instances...", service_name),
-        "".to_string(),
-        "Press 'q' to quit or 'Esc' to go back".to_string(),
-        "Loading will timeout after 30 seconds".to_string(),
+    let loading_text = vec![
+        "Loading instances...",
+        "",
+        "This may take a few moments.",
     ];
 
-    let loading_msg = Paragraph::new(loading_text.join(
-        "
-",
-    ))
-    .style(Style::default().yellow())
-    .alignment(ratatui::layout::Alignment::Center)
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title("Status")
-            .border_style(Style::default().white()),
-    );
+    let loading_msg = Paragraph::new(loading_text.join("\n"))
+        .style(Style::default().fg(theme.info))
+        .alignment(ratatui::layout::Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(title)
+                .border_style(Style::default().fg(theme.border)),
+        );
     f.render_widget(loading_msg, area);
 }
 
 fn render_no_instances_message(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
+    let theme = UnifiedTheme::default();
     let service_name = app
         .selected_service
         .as_ref()
@@ -100,30 +103,34 @@ fn render_no_instances_message(f: &mut Frame, area: ratatui::layout::Rect, app: 
         "No {} instances found in this account/region",
         service_name
     ))
-    .style(Style::default().red())
+    .style(Style::default().fg(theme.muted))
     .block(
         Block::default()
             .borders(Borders::ALL)
             .title(title)
-            .border_style(Style::default().white()),
+            .border_style(Style::default().fg(theme.border)),
     );
     f.render_widget(no_instances, area);
 }
 
 fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, error_msg: &str) {
+    let theme = UnifiedTheme::default();
     let error_paragraph = Paragraph::new(error_msg)
-        .style(Style::default().red())
+        .style(Style::default().fg(theme.error))
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Error")
-                .border_style(Style::default().red()),
+                .border_style(Style::default().fg(theme.error)),
         )
         .wrap(ratatui::widgets::Wrap { trim: false })
         .alignment(ratatui::layout::Alignment::Left);
     f.render_widget(error_paragraph, area);
 }
 fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut App) {
+    let colors = instance_list_colors();
+    let is_focused = true; // Assuming focused in this context
+    
     // Get dynamic title based on selected service
     let title = if let Some(service) = &app.selected_service {
         format!("{} Instances", service.short_name())
@@ -154,9 +161,10 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .border_style(Style::default().white()),
+                .border_style(create_border_style(is_focused, &colors)),
         )
-        .highlight_style(Style::default().on_dark_gray().bold());
+        .style(Style::default().fg(colors.primary))
+        .highlight_style(create_highlight_style(&colors));
 
     f.render_stateful_widget(items_list, area, &mut app.list_state);
 
@@ -179,10 +187,11 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
 // Removed duplicate get_queue_type_style function - styling handled by pure service-specific component
 
 fn render_controls(f: &mut Frame, area: ratatui::layout::Rect) {
+    let theme = UnifiedTheme::default();
     let controls = Paragraph::new(
         "Up/Down: Navigate • Enter: View Details • Esc: Back to Services • r: Refresh • q: Quit",
     )
-    .style(Style::default().gray());
+    .style(Style::default().fg(theme.secondary));
     f.render_widget(controls, area);
 }
 

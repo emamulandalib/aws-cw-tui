@@ -1,46 +1,44 @@
 use super::display_utils::get_selected_time_range_display;
 use crate::models::{App, FocusedPanel, TimeRangeMode};
+use crate::ui::components::list_styling::{
+    ListItemBuilder, LayoutStyle, themes::time_range_colors, StatusIndicator,
+    utilities::{create_border_style, create_highlight_style, format_list_text, create_k9s_list_item},
+};
 use ratatui::{
     layout::Rect,
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
+    style::{Color, Style},
     widgets::{
-        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+        Block, Borders, List, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
     },
     Frame,
 };
 
-/// Render period selection panel (like AWS Console)
+/// Render period selection panel with enhanced styling
 pub fn render_period_selection_panel(f: &mut Frame, app: &mut App, area: Rect) {
     let period_options = app.get_period_options();
     let current_selection = app.get_current_period_index();
+    let colors = time_range_colors();
 
     let mut items = Vec::new();
 
-    // Create simple list items like time range design
+    // Create k9s-style list items with consistent formatting
     for (i, (label, _seconds)) in period_options.iter().enumerate() {
         let is_selected = i == current_selection;
-        let style = if is_selected {
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(Color::White)
-        };
 
-        // Simple text without icons - just color difference
-        let display_text = format!("  {}", label);
+        let item = create_k9s_list_item(
+            label,
+            StatusIndicator::Info,
+            None,
+            Some(&format!("{}s", _seconds)),
+            is_selected,
+            matches!(app.get_focused_panel(), FocusedPanel::Period),
+            &colors,
+        );
 
-        items.push(ListItem::new(Line::from(Span::styled(display_text, style))));
+        items.push(item);
     }
 
     let is_focused = matches!(app.get_focused_panel(), FocusedPanel::Period);
-
-    let border_color = if is_focused {
-        Color::Green
-    } else {
-        Color::White
-    };
 
     // Get current period for title
     let selected_period = period_options
@@ -55,13 +53,9 @@ pub fn render_period_selection_panel(f: &mut Frame, app: &mut App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .border_style(Style::default().fg(border_color)),
+                .border_style(create_border_style(is_focused, &colors)),
         )
-        .highlight_style(
-            Style::default()
-                .bg(Color::DarkGray)
-                .add_modifier(Modifier::BOLD),
-        );
+        .highlight_style(create_highlight_style(&colors));
 
     // Use the app's built-in ListState for proper selection display and scrolling
     f.render_stateful_widget(list, area, &mut app.period_list_state);
@@ -96,40 +90,35 @@ fn render_time_range_content(f: &mut Frame, app: &mut App, area: Rect) {
     }
 }
 
-/// Render relative time ranges in simple vertical list style (like original)
+/// Render relative time ranges with enhanced styling
 fn render_relative_time_ranges(f: &mut Frame, app: &mut App, area: Rect) {
     let time_ranges = crate::models::App::get_time_range_options();
     let current_selection = app.get_current_time_range_index();
+    let colors = time_range_colors();
 
     let mut items = Vec::new();
 
-    // Create simple list items like the original design
+    // Create k9s-style list items with consistent formatting
     for (i, (label, _value, _unit, _period)) in time_ranges.iter().enumerate() {
         let is_selected = i == current_selection;
-        let style = if is_selected {
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(Color::White)
-        };
 
-        // Simple text without icons - just color difference
-        let display_text = format!("  {}", label);
+        let item = create_k9s_list_item(
+            label,
+            StatusIndicator::Info,
+            None,
+            Some(&format!("{}{:?}", _value, _unit)),
+            is_selected,
+            matches!(app.get_focused_panel(), crate::models::FocusedPanel::TimeRanges),
+            &colors,
+        );
 
-        items.push(ListItem::new(Line::from(Span::styled(display_text, style))));
+        items.push(item);
     }
 
     let is_focused = matches!(
         app.get_focused_panel(),
         crate::models::FocusedPanel::TimeRanges
     );
-
-    let border_color = if is_focused {
-        Color::Green
-    } else {
-        Color::White
-    };
 
     // Get current time range for title
     let selected_time_period = time_ranges
@@ -147,13 +136,9 @@ fn render_relative_time_ranges(f: &mut Frame, app: &mut App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .border_style(Style::default().fg(border_color)),
+                .border_style(create_border_style(is_focused, &colors)),
         )
-        .highlight_style(
-            Style::default()
-                .bg(Color::DarkGray)
-                .add_modifier(Modifier::BOLD),
-        );
+        .highlight_style(create_highlight_style(&colors));
 
     // Use the app's built-in ListState for proper selection display and scrolling
     f.render_stateful_widget(list, area, &mut app.time_range_list_state);
@@ -204,33 +189,28 @@ fn render_absolute_time_picker(f: &mut Frame, app: &mut App, area: Rect) {
 pub fn render_timezone_selection_panel(f: &mut Frame, app: &mut App, area: Rect) {
     let timezone_options = App::get_timezone_options();
     let current_selection = app.get_current_timezone_index();
+    let colors = time_range_colors();
 
     let mut items = Vec::new();
 
-    // Create simple list items like period design
+    // Create k9s-style list items with consistent formatting
     for (i, timezone) in timezone_options.iter().enumerate() {
         let is_selected = i == current_selection;
-        let style = if is_selected {
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(Color::White)
-        };
 
-        // Simple text without icons - just color difference
-        let final_text = format!("  {}", timezone.display_name());
+        let item = create_k9s_list_item(
+            timezone.display_name(),
+            StatusIndicator::Info,
+            None,
+            Some("TZ"),
+            is_selected,
+            matches!(app.get_focused_panel(), FocusedPanel::Timezone),
+            &colors,
+        );
 
-        items.push(ListItem::new(Line::from(Span::styled(final_text, style))));
+        items.push(item);
     }
 
     let is_focused = matches!(app.get_focused_panel(), FocusedPanel::Timezone);
-
-    let border_color = if is_focused {
-        Color::Green
-    } else {
-        Color::White
-    };
 
     // Get current timezone for title
     let selected_timezone = app.get_current_timezone();
@@ -242,13 +222,9 @@ pub fn render_timezone_selection_panel(f: &mut Frame, app: &mut App, area: Rect)
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .border_style(Style::default().fg(border_color)),
+                .border_style(create_border_style(is_focused, &colors)),
         )
-        .highlight_style(
-            Style::default()
-                .bg(Color::DarkGray)
-                .add_modifier(Modifier::BOLD),
-        );
+        .highlight_style(create_highlight_style(&colors));
 
     // Use the app's built-in ListState for proper selection display and scrolling
     f.render_stateful_widget(list, area, &mut app.timezone_list_state);

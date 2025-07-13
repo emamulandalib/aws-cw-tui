@@ -1,4 +1,10 @@
 use crate::models::SqsQueue;
+use crate::ui::components::list_styling::{
+    ListItemBuilder, TypeIndicator, LayoutStyle, BadgeType,
+    themes::instance_list_colors,
+    utilities::create_k9s_instance_item,
+};
+use crate::ui::themes::UnifiedTheme;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -8,10 +14,11 @@ use ratatui::{
 
 /// Render SQS queue details
 pub fn render_sqs_queue_details(f: &mut Frame, area: Rect, queue: &SqsQueue, is_focused: bool) {
+    let theme = UnifiedTheme::default();
     let border_color = if is_focused {
-        Color::Yellow
+        theme.border_focused
     } else {
-        Color::White
+        theme.border
     };
 
     let block = Block::default()
@@ -36,7 +43,7 @@ pub fn render_sqs_queue_details(f: &mut Frame, area: Rect, queue: &SqsQueue, is_
     let name_widget = Paragraph::new(format!("Name: {}", queue.name))
         .style(
             Style::default()
-                .fg(Color::Green)
+                .fg(theme.success)
                 .add_modifier(Modifier::BOLD),
         )
         .alignment(Alignment::Left);
@@ -44,9 +51,9 @@ pub fn render_sqs_queue_details(f: &mut Frame, area: Rect, queue: &SqsQueue, is_
 
     // Queue Type
     let type_color = match queue.queue_type.as_str() {
-        "FIFO" => Color::Blue,
-        "Standard" => Color::Cyan,
-        _ => Color::Gray,
+        "FIFO" => theme.info,
+        "Standard" => theme.accent,
+        _ => theme.muted,
     };
     let type_widget = Paragraph::new(format!("Type: {}", queue.queue_type))
         .style(Style::default().fg(type_color))
@@ -55,7 +62,7 @@ pub fn render_sqs_queue_details(f: &mut Frame, area: Rect, queue: &SqsQueue, is_
 
     // URL
     let url_widget = Paragraph::new(format!("URL: {}", queue.url))
-        .style(Style::default().fg(Color::Magenta))
+        .style(Style::default().fg(theme.chart_secondary))
         .alignment(Alignment::Left);
     f.render_widget(url_widget, chunks[2]);
 
@@ -69,29 +76,19 @@ pub fn render_sqs_queue_details(f: &mut Frame, area: Rect, queue: &SqsQueue, is_
     }
 }
 
-/// Render SQS queue list item
+/// Render SQS queue list item with k9s-style consistent formatting
 pub fn render_sqs_queue_list_item(queue: &SqsQueue, is_selected: bool) -> ListItem {
-    let type_indicator = match queue.queue_type.as_str() {
-        "FIFO" => "[F]",
-        "Standard" => "[S]",
-        _ => "[?]",
-    };
+    let colors = instance_list_colors();
 
-    let type_color = match queue.queue_type.as_str() {
-        "FIFO" => Color::Blue,
-        "Standard" => Color::Cyan,
-        _ => Color::Gray,
-    };
-
-    let content = format!("{} {}", type_indicator, queue.name);
-
-    let style = if is_selected {
-        Style::default()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(type_color)
-    };
-
-    ListItem::new(content).style(style)
+    // Use k9s-style consistent formatting
+    // For SQS queues, we'll show them as "available" since they're active resources
+    create_k9s_instance_item(
+        &queue.name,
+        "available", // SQS queues are always available when listed
+        Some(&queue.queue_type),
+        Some("AWS SQS"),
+        is_selected,
+        false, // Not focused in list context
+        &colors,
+    )
 }

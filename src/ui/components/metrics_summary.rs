@@ -8,6 +8,7 @@ use super::{
 };
 use crate::models::{App, TimeRangeMode};
 use crate::ui::components::{render_rds_instance_details, render_sqs_queue_details};
+use crate::ui::themes::UnifiedTheme;
 use crate::log_ui_render;
 use ratatui::{
     prelude::*,
@@ -61,20 +62,20 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
         let time_panel_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(6),  // Timezone selection panel
+                Constraint::Min(0),     // Time range panel (moved to top)
                 Constraint::Length(10), // Period selection panel
-                Constraint::Min(0),     // Time range panel
+                Constraint::Length(6),  // Timezone selection panel (moved to bottom)
             ])
             .split(content_chunks[0]);
 
-        // Render timezone selection panel
-        render_timezone_selection_panel(f, app, time_panel_chunks[0]);
+        // Render time range panel (now at top)
+        render_aws_console_time_range_panel(f, app, time_panel_chunks[0]);
 
-        // Render period selection panel
+        // Render period selection panel (now in middle)
         render_period_selection_panel(f, app, time_panel_chunks[1]);
 
-        // Render time range panel
-        render_aws_console_time_range_panel(f, app, time_panel_chunks[2]);
+        // Render timezone selection panel (now at bottom)
+        render_timezone_selection_panel(f, app, time_panel_chunks[2]);
 
         // Metrics Panel - AWS Console Style Grid (direct rendering)
         super::aws_chart::AwsMetricsGrid::render(f, app, content_chunks[1]);
@@ -89,18 +90,20 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
 // Removed duplicate render_sqs_instance_info function - now using pure service-specific component
 
 fn render_default_header(f: &mut Frame, area: ratatui::layout::Rect) {
+    let theme = UnifiedTheme::default();
     let header_block = Paragraph::new("Metrics Summary")
-        .style(Style::default().white())
+        .style(Style::default().fg(theme.primary))
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title("AWS CloudWatch TUI")
-                .border_style(Style::default().cyan()),
+                .border_style(Style::default().fg(theme.accent)),
         );
     f.render_widget(header_block, area);
 }
 
 fn render_controls(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
+    let theme = UnifiedTheme::default();
     let mode_text = match app.get_time_range_mode() {
         TimeRangeMode::Absolute => "Absolute",
         TimeRangeMode::Relative => "Relative",
@@ -110,7 +113,7 @@ fn render_controls(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
         "Up/Down: Navigate • Tab: Switch Panels • t: Toggle Mode ({}) • Enter: Select • r: Refresh • b/Esc: Back • q: Quit", 
         mode_text
     ))
-        .style(Style::default().gray());
+        .style(Style::default().fg(theme.secondary));
     f.render_widget(controls, area);
 }
 
