@@ -72,7 +72,10 @@ impl App {
     pub fn time_range_scroll_up(&mut self) {
         let current = self.time_range_list_state.selected().unwrap_or(0);
         if current > 0 {
-            self.time_range_list_state.select(Some(current - 1));
+            let new_index = current - 1;
+            self.time_range_list_state.select(Some(new_index));
+            // Actually update the time_range field used for AWS API calls
+            let _ = self.select_time_range(new_index);
         }
     }
 
@@ -81,7 +84,10 @@ impl App {
         let options = Self::get_time_range_options();
         let current = self.time_range_list_state.selected().unwrap_or(0);
         if current < options.len() - 1 {
-            self.time_range_list_state.select(Some(current + 1));
+            let new_index = current + 1;
+            self.time_range_list_state.select(Some(new_index));
+            // Actually update the time_range field used for AWS API calls
+            let _ = self.select_time_range(new_index);
         }
     }
 
