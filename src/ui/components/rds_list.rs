@@ -1,8 +1,8 @@
-use crate::models::{App, RdsInstance, SqsQueue};
+use crate::models::App;
+use crate::ui::components::{render_rds_instance_list_item, render_sqs_queue_list_item};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Style, Stylize},
-    text::{Line, Span},
     widgets::{
         Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
     },
@@ -134,12 +134,18 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
     // Clone the instances to avoid borrowing issues
     let current_instances = app.get_current_instances().clone();
 
-    // Create items from instances
+    // Create items from instances using pure service-specific components
+    let selected_index = app.list_state.selected().unwrap_or(0);
     let items: Vec<ListItem> = current_instances
         .iter()
-        .map(|service_instance| match service_instance {
-            crate::models::ServiceInstance::Rds(instance) => create_rds_list_item(instance),
-            crate::models::ServiceInstance::Sqs(queue) => create_sqs_list_item(queue),
+        .enumerate()
+        .map(|(index, service_instance)| match service_instance {
+            crate::models::ServiceInstance::Rds(instance) => {
+                render_rds_instance_list_item(instance, index == selected_index)
+            }
+            crate::models::ServiceInstance::Sqs(queue) => {
+                render_sqs_queue_list_item(queue, index == selected_index)
+            }
         })
         .collect();
 
@@ -166,63 +172,11 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
     }
 }
 
-fn create_rds_list_item(instance: &RdsInstance) -> ListItem<'_> {
-    let lines = vec![Line::from(vec![
-        Span::styled(
-            instance.identifier.to_string(),
-            Style::default().white().bold(),
-        ),
-        Span::raw(" | "),
-        Span::styled(&instance.engine, Style::default().green()),
-        Span::raw(" | "),
-        Span::styled(&instance.status, get_status_style(&instance.status)),
-        Span::raw(" | "),
-        Span::styled(&instance.instance_class, Style::default().cyan()),
-    ])];
-    ListItem::new(lines)
-}
+// Removed duplicate create_rds_list_item function - now using pure service-specific component
 
-fn create_sqs_list_item(queue: &SqsQueue) -> ListItem<'_> {
-    // Get queue depth from attributes if available
-    let queue_depth = queue
-        .attributes
-        .get("ApproximateNumberOfMessages")
-        .unwrap_or(&"0".to_string())
-        .clone();
+// Removed duplicate create_sqs_list_item function - now using pure service-specific component
 
-    // Get message retention period for display
-    let retention_period = queue
-        .attributes
-        .get("MessageRetentionPeriod")
-        .and_then(|p| p.parse::<u64>().ok())
-        .map(|p| format!("{}d", p / 86400))
-        .unwrap_or_else(|| "Unknown".to_string());
-
-    let lines = vec![Line::from(vec![
-        Span::styled(queue.name.to_string(), Style::default().white().bold()),
-        Span::raw(" | "),
-        Span::styled(&queue.queue_type, get_queue_type_style(&queue.queue_type)),
-        Span::raw(" | "),
-        Span::styled(
-            format!("Messages: {}", queue_depth),
-            Style::default().cyan(),
-        ),
-        Span::raw(" | "),
-        Span::styled(
-            format!("Retention: {}", retention_period),
-            Style::default().yellow(),
-        ),
-    ])];
-    ListItem::new(lines)
-}
-
-fn get_queue_type_style(queue_type: &str) -> Style {
-    match queue_type {
-        "FIFO" => Style::default().magenta(),
-        "Standard" => Style::default().green(),
-        _ => Style::default().gray(),
-    }
-}
+// Removed duplicate get_queue_type_style function - styling handled by pure service-specific component
 
 fn render_controls(f: &mut Frame, area: ratatui::layout::Rect) {
     let controls = Paragraph::new(
@@ -232,11 +186,4 @@ fn render_controls(f: &mut Frame, area: ratatui::layout::Rect) {
     f.render_widget(controls, area);
 }
 
-fn get_status_style(status: &str) -> Style {
-    match status {
-        "available" => Style::default().green(),
-        "stopped" => Style::default().red(),
-        "starting" | "stopping" => Style::default().yellow(),
-        _ => Style::default().gray(),
-    }
-}
+// Removed duplicate get_status_style function - styling handled by pure service-specific component

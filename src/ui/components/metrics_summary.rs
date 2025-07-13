@@ -7,11 +7,11 @@ use super::{
     },
 };
 use crate::models::{App, TimeRangeMode};
+use crate::ui::components::{render_rds_instance_details, render_sqs_queue_details};
 use crate::log_ui_render;
 use ratatui::{
     prelude::*,
     style::Stylize,
-    text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
@@ -27,14 +27,14 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
         ])
         .split(f.area());
 
-    // Header - Instance Information (unified for both RDS and SQS)
+    // Header - Instance Information (unified for both RDS and SQS) using pure service-specific components
     if let Some(selected_instance) = app.get_selected_instance() {
         match selected_instance {
             crate::models::ServiceInstance::Rds(instance) => {
-                render_rds_instance_info(f, chunks[0], app, instance);
+                render_rds_instance_details(f, chunks[0], instance, true);
             }
             crate::models::ServiceInstance::Sqs(queue) => {
-                render_sqs_instance_info(f, chunks[0], app, queue);
+                render_sqs_queue_details(f, chunks[0], queue, true);
             }
         }
     } else {
@@ -84,74 +84,9 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
     render_controls(f, chunks[2], app);
 }
 
-fn render_rds_instance_info(
-    f: &mut Frame,
-    area: ratatui::layout::Rect,
-    _app: &crate::models::App,
-    instance: &crate::models::RdsInstance,
-) {
-    let na_string = "N/A".to_string();
-    let info_text = vec![
-        Line::from(vec![
-            Span::styled("Engine: ", Style::default().white()),
-            Span::styled(&instance.engine, Style::default().white()),
-            Span::raw("  "),
-            Span::styled("Status: ", Style::default().white()),
-            Span::styled(&instance.status, Style::default().white()),
-            Span::raw("  "),
-            Span::styled("Class: ", Style::default().white()),
-            Span::styled(&instance.instance_class, Style::default().white()),
-        ]),
-        Line::from(vec![
-            Span::styled("Endpoint: ", Style::default().white()),
-            Span::styled(
-                instance.endpoint.as_ref().unwrap_or(&na_string),
-                Style::default().cyan(),
-            ),
-        ]),
-    ];
+// Removed duplicate render_rds_instance_info function - now using pure service-specific component
 
-    let info = Paragraph::new(info_text)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Instance Information")
-                .border_style(Style::default().cyan()),
-        )
-        .wrap(ratatui::widgets::Wrap { trim: false });
-    f.render_widget(info, area);
-}
-
-fn render_sqs_instance_info(
-    f: &mut Frame,
-    area: ratatui::layout::Rect,
-    _app: &crate::models::App,
-    queue: &crate::models::SqsQueue,
-) {
-    let info_text = vec![
-        Line::from(vec![
-            Span::styled("Queue: ", Style::default().white()),
-            Span::styled(&queue.name, Style::default().green()),
-            Span::raw("  "),
-            Span::styled("Type: ", Style::default().white()),
-            Span::styled(&queue.queue_type, Style::default().yellow()),
-        ]),
-        Line::from(vec![
-            Span::styled("URL: ", Style::default().white()),
-            Span::styled(&queue.url, Style::default().cyan()),
-        ]),
-    ];
-
-    let info = Paragraph::new(info_text)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Queue Information")
-                .border_style(Style::default().cyan()),
-        )
-        .wrap(ratatui::widgets::Wrap { trim: false });
-    f.render_widget(info, area);
-}
+// Removed duplicate render_sqs_instance_info function - now using pure service-specific component
 
 fn render_default_header(f: &mut Frame, area: ratatui::layout::Rect) {
     let header_block = Paragraph::new("Metrics Summary")

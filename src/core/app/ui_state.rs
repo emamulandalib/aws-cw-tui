@@ -37,9 +37,9 @@ impl App {
                 }
             },
             AppState::InstanceDetails => {
-                debug!("UI_STATE: Scrolling up in instance details");
+                debug!("UI_STATE: Scrolling up in instance details (sequential)");
                 let old_index = self.sparkline_grid_selected_index;
-                self.sparkline_grid_scroll_up();
+                self.sequential_scroll_up();
                 let new_index = self.sparkline_grid_selected_index;
                 if old_index != new_index {
                     self.log_metric_selection_change(old_index, new_index, "detail scroll up");
@@ -86,9 +86,9 @@ impl App {
                 }
             },
             AppState::InstanceDetails => {
-                debug!("UI_STATE: Scrolling down in instance details");
+                debug!("UI_STATE: Scrolling down in instance details (sequential)");
                 let old_index = self.sparkline_grid_selected_index;
-                self.sparkline_grid_scroll_down();
+                self.sequential_scroll_down();
                 let new_index = self.sparkline_grid_selected_index;
                 if old_index != new_index {
                     self.log_metric_selection_change(old_index, new_index, "detail scroll down");
@@ -212,6 +212,65 @@ impl App {
             self.update_selected_metric();
         } else {
             debug!("UI_STATE: Grid scroll down - already at bottom");
+        }
+    }
+
+    /// Navigate up sequentially through all metrics (for instance details)
+    pub fn sequential_scroll_up(&mut self) {
+        let available_metrics = self.get_available_metrics();
+        if available_metrics.is_empty() {
+            debug!("UI_STATE: Cannot scroll up - no metrics available");
+            return;
+        }
+
+        let current_index = self.sparkline_grid_list_state.selected().unwrap_or(0);
+        debug!("UI_STATE: Sequential scroll up - Current index: {}", current_index);
+
+        if current_index > 0 {
+            let new_index = current_index - 1;
+            self.sparkline_grid_list_state.select(Some(new_index));
+            self.sparkline_grid_selected_index = new_index;
+            debug!(
+                "UI_STATE: Sequential scrolled up from {} to {}",
+                current_index, new_index
+            );
+
+            // Update selected metric name
+            self.update_selected_metric();
+        } else {
+            debug!("UI_STATE: Sequential scroll up - already at top");
+        }
+    }
+
+    /// Navigate down sequentially through all metrics (for instance details)
+    pub fn sequential_scroll_down(&mut self) {
+        let available_metrics = self.get_available_metrics();
+        if available_metrics.is_empty() {
+            debug!("UI_STATE: Cannot scroll down - no metrics available");
+            return;
+        }
+
+        let current_index = self.sparkline_grid_list_state.selected().unwrap_or(0);
+        let total_metrics = available_metrics.len();
+
+        debug!(
+            "UI_STATE: Sequential scroll down - Current index: {}, Total metrics: {}",
+            current_index, total_metrics
+        );
+
+        if current_index < total_metrics - 1 {
+            let new_index = current_index + 1;
+            self.sparkline_grid_list_state.select(Some(new_index));
+            self.sparkline_grid_selected_index = new_index;
+            debug!(
+                "UI_STATE: Sequential scrolled down from {} to {}",
+                current_index, new_index
+            );
+
+            // Update selected metric name
+            self.update_selected_metric();
+        } else {
+            debug!("UI_STATE: Sequential scroll down - already at bottom");
         }
     }
 

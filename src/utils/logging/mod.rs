@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use tracing::{debug, error, info, trace, warn};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
@@ -320,20 +321,15 @@ macro_rules! ui_span {
     }};
 }
 
-/// Global tracing logger instance
-static mut TRACING_LOGGER: Option<TracingLogger> = None;
+/// Global tracing logger instance (thread-safe)
+static TRACING_LOGGER: OnceLock<TracingLogger> = OnceLock::new();
 
 /// Initialize the global tracing logger
 pub fn init_tracing_logger() -> &'static TracingLogger {
-    unsafe {
-        if TRACING_LOGGER.is_none() {
-            TRACING_LOGGER = Some(TracingLogger::init());
-        }
-        TRACING_LOGGER.as_ref().unwrap()
-    }
+    TRACING_LOGGER.get_or_init(|| TracingLogger::init())
 }
 
 /// Get the global tracing logger
 pub fn get_tracing_logger() -> Option<&'static TracingLogger> {
-    unsafe { TRACING_LOGGER.as_ref() }
+    TRACING_LOGGER.get()
 } 

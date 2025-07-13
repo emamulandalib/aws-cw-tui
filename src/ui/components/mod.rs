@@ -20,3 +20,8 @@ pub use instance_details::render_instance_details;
 pub use metrics_summary::render_metrics_summary;
 pub use rds_list::render_rds_list;
 pub use service_list::render_service_list;
+
+// Export service-specific components for pure function usage
+pub use instance::rds_instance::{render_rds_instance_details, render_rds_instance_list_item};
+pub use instance::sqs_queue::{render_sqs_queue_details, render_sqs_queue_list_item};
+pub use service::service_selector::render_service_selection_list;

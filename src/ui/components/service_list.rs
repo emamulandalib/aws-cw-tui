@@ -1,10 +1,8 @@
 use crate::models::App;
+use crate::ui::components::render_service_selection_list;
 use ratatui::{
     prelude::*,
-    text::{Line, Span},
-    widgets::{
-        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
-    },
+    widgets::{Block, Borders, Paragraph},
     Frame,
 };
 
@@ -35,39 +33,14 @@ fn render_header(f: &mut Frame, area: Rect) {
 }
 
 fn render_services(f: &mut Frame, area: Rect, app: &mut App) {
-    let services: Vec<ListItem> = app
-        .available_services
-        .iter()
-        .map(|service| {
-            let content = vec![Line::from(vec![Span::styled(
-                service.display_name(),
-                Style::default().green(),
-            )])];
-            ListItem::new(content)
-        })
-        .collect();
-
-    let services_list = List::new(services)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Available Services")
-                .border_style(Style::default().white()),
-        )
-        .highlight_style(Style::default().on_dark_gray().bold());
-
-    f.render_stateful_widget(services_list, area, &mut app.service_list_state);
-
-    // Add scrollbar if there are more services than can fit on screen
-    if app.available_services.len() > (area.height.saturating_sub(2)) as usize {
-        let scrollbar = Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight);
-
-        let mut scrollbar_state = ScrollbarState::default()
-            .content_length(app.available_services.len())
-            .position(app.service_list_state.selected().unwrap_or(0));
-
-        f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
-    }
+    // Use pure service selector component for better formatting and functionality
+    render_service_selection_list(
+        f,
+        area,
+        &app.available_services,
+        &mut app.service_list_state,
+        true, // Always focused in service list view
+    );
 }
 
 fn render_controls(f: &mut Frame, area: Rect) {

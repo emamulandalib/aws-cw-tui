@@ -5,11 +5,11 @@ use crate::ui::charts::validation::validate_metric_data;
 use crate::ui::charts::rendering::metric_charts::render_metric_chart;
 use crate::ui::charts::rendering::dynamic_charts::render_dynamic_metric_chart;
 use crate::ui::charts::error_display::render_error_message;
+use crate::ui::components::{render_rds_instance_details, render_sqs_queue_details};
 use log::{debug, info, warn};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
-    text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
@@ -33,14 +33,14 @@ pub fn render_instance_details(f: &mut Frame, app: &mut App) {
         .unwrap_or_else(|| "unknown".to_string());
     debug!("INSTANCE_DETAILS: Selected instance ID: {}", instance_id);
 
-    // Handle both RDS and SQS instances
+    // Handle both RDS and SQS instances using pure service-specific components
     if let Some(selected_instance) = app.get_selected_instance() {
         match selected_instance {
             crate::models::ServiceInstance::Rds(instance) => {
-                render_rds_instance_info(f, chunks[0], instance);
+                render_rds_instance_details(f, chunks[0], instance, true);
             }
             crate::models::ServiceInstance::Sqs(queue) => {
-                render_sqs_instance_info(f, chunks[0], queue);
+                render_sqs_queue_details(f, chunks[0], queue, true);
             }
         }
     } else {
@@ -82,6 +82,23 @@ fn render_detailed_metric_view(f: &mut Frame, area: ratatui::layout::Rect, app: 
         info!("INSTANCE_DETAILS: Displaying detail view for metric index: {} out of {} available metrics", 
               selected_metric_index, available_metrics.len());
 
+        // Split the area to show metric position at the top
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1), // Status line showing position
+                Constraint::Min(0),    // Chart area
+            ])
+            .split(area);
+
+        // Render metric position status
+        let position_text = format!("Metric {} of {} (Use ↑/↓ or j/k to navigate)", 
+                                   selected_metric_index + 1, available_metrics.len());
+        let position_widget = Paragraph::new(position_text)
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(ratatui::layout::Alignment::Center);
+        f.render_widget(position_widget, chunks[0]);
+
         if let Some(metric_name) = available_metrics.get(selected_metric_index) {
             log_metric_operation!(
                 "Display detailed view",
@@ -109,7 +126,7 @@ fn render_detailed_metric_view(f: &mut Frame, area: ratatui::layout::Rect, app: 
                 // Validate metric data using focused validation module
                 if let Err(validation_error) = validate_metric_data(&metric_data.history, &metric_data.timestamps) {
                     warn!("INSTANCE_DETAILS: Metric data validation failed: {}", validation_error);
-                    render_error_message(f, area, &format!("Data validation failed: {}", validation_error));
+                    render_error_message(f, chunks[1], &format!("Data validation failed: {}", validation_error));
                     return;
                 }
 
@@ -133,11 +150,11 @@ fn render_detailed_metric_view(f: &mut Frame, area: ratatui::layout::Rect, app: 
                 }
 
                 // Use focused rendering module for dynamic metrics
-                render_dynamic_metric_chart(f, area, metric_data, true);
+                render_dynamic_metric_chart(f, chunks[1], metric_data, true);
                 info!("INSTANCE_DETAILS: Completed rendering detailed dynamic metric view");
             } else {
                 warn!("INSTANCE_DETAILS: Could not find metric data for selected metric: '{}'", metric_name);
-                render_error_message(f, area, &format!("Metric data not found for: {}", metric_name));
+                render_error_message(f, chunks[1], &format!("Metric data not found for: {}", metric_name));
             }
         } else {
             warn!("INSTANCE_DETAILS: Selected metric index {} is out of bounds for {} available metrics", 
@@ -200,116 +217,9 @@ fn render_legacy_rds_detailed_view(f: &mut Frame, area: ratatui::layout::Rect, a
     }
 }
 
-fn render_rds_instance_info(
-    f: &mut Frame,
-    area: ratatui::layout::Rect,
-    instance: &crate::models::RdsInstance,
-) {
-    debug!(
-        "INSTANCE_DETAILS: Rendering RDS instance info for: {}",
-        instance.identifier
-    );
+// Removed duplicate render_rds_instance_info function - now using pure service-specific component
 
-    let na_string = "N/A".to_string();
-    let info_text = vec![
-        Line::from(vec![
-            Span::styled("Engine: ", Style::default().fg(Color::White)),
-            Span::styled(&instance.engine, Style::default().fg(Color::White)),
-            Span::raw("  "),
-            Span::styled("Status: ", Style::default().fg(Color::White)),
-            Span::styled(&instance.status, Style::default().fg(Color::White)),
-            Span::raw("  "),
-            Span::styled("Class: ", Style::default().fg(Color::White)),
-            Span::styled(&instance.instance_class, Style::default().fg(Color::White)),
-        ]),
-        Line::from(vec![
-            Span::styled("Endpoint: ", Style::default().fg(Color::White)),
-            Span::styled(
-                instance.endpoint.as_ref().unwrap_or(&na_string),
-                Style::default().fg(Color::Cyan),
-            ),
-        ]),
-    ];
-
-    let info = Paragraph::new(info_text)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Instance Information")
-                .border_style(Style::default().fg(Color::Cyan)),
-        )
-        .wrap(ratatui::widgets::Wrap { trim: false });
-    f.render_widget(info, area);
-}
-
-fn render_sqs_instance_info(
-    f: &mut Frame,
-    area: ratatui::layout::Rect,
-    queue: &crate::models::SqsQueue,
-) {
-    debug!(
-        "INSTANCE_DETAILS: Rendering SQS queue info for: {}",
-        queue.name
-    );
-
-    // Get queue attributes for display
-    let retention_period = queue
-        .attributes
-        .get("MessageRetentionPeriod")
-        .and_then(|p| p.parse::<u64>().ok())
-        .map(|p| format!("{}d", p / 86400))
-        .unwrap_or_else(|| "Unknown".to_string());
-
-    let visibility_timeout = queue
-        .attributes
-        .get("VisibilityTimeout")
-        .unwrap_or(&"30".to_string())
-        .clone();
-
-    let max_receive_count = queue
-        .attributes
-        .get("ApproximateNumberOfMessages")
-        .unwrap_or(&"0".to_string())
-        .clone();
-
-    let visibility_timeout_str = format!("{}s", visibility_timeout);
-
-    debug!(
-        "INSTANCE_DETAILS: SQS attributes - Retention: {}, Timeout: {}, Messages: {}",
-        retention_period, visibility_timeout_str, max_receive_count
-    );
-
-    let info_text = vec![
-        Line::from(vec![
-            Span::styled("Type: ", Style::default().fg(Color::White)),
-            Span::styled(&queue.queue_type, Style::default().fg(Color::White)),
-            Span::raw("  "),
-            Span::styled("Messages: ", Style::default().fg(Color::White)),
-            Span::styled(&max_receive_count, Style::default().fg(Color::White)),
-            Span::raw("  "),
-            Span::styled("Retention: ", Style::default().fg(Color::White)),
-            Span::styled(&retention_period, Style::default().fg(Color::White)),
-        ]),
-        Line::from(vec![
-            Span::styled("URL: ", Style::default().fg(Color::White)),
-            Span::styled(&queue.url, Style::default().fg(Color::Cyan)),
-        ]),
-        Line::from(vec![
-            Span::styled("Visibility Timeout: ", Style::default().fg(Color::White)),
-            Span::styled(&visibility_timeout_str, Style::default().fg(Color::Yellow)),
-        ]),
-    ];
-
-    let info = Paragraph::new(info_text)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Queue Information")
-                .border_style(Style::default().fg(Color::Cyan)),
-        )
-        .wrap(ratatui::widgets::Wrap { trim: false });
-    f.render_widget(info, area);
-}
+// Removed duplicate render_sqs_instance_info function - now using pure service-specific component
 
 pub fn render_metrics_loading(f: &mut Frame, area: ratatui::layout::Rect) {
     debug!("INSTANCE_DETAILS: Rendering loading state");

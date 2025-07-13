@@ -519,7 +519,7 @@ async fn handle_instance_details_event(app: &mut App, key_code: KeyCode) -> Resu
         KeyCode::Up | KeyCode::Char('k') => {
             log_user_interaction!("Scroll up", "InstanceDetails");
             let old_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
-            app.scroll_up();
+            app.sequential_scroll_up();
             let new_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
             if old_index != new_index {
                 debug!(
@@ -541,7 +541,7 @@ async fn handle_instance_details_event(app: &mut App, key_code: KeyCode) -> Resu
         KeyCode::Down | KeyCode::Char('j') => {
             log_user_interaction!("Scroll down", "InstanceDetails");
             let old_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
-            app.scroll_down();
+            app.sequential_scroll_down();
             let new_index = app.sparkline_grid_list_state.selected().unwrap_or(0);
             if old_index != new_index {
                 debug!(
