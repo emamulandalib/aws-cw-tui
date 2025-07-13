@@ -25,36 +25,12 @@ pub fn format_dynamic_metric_value(metric_data: &DynamicMetricData) -> String {
 }
 
 /// Format bytes with appropriate units
-pub fn format_bytes_value(bytes: f64) -> String {
-    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
-    let mut value = bytes;
-    let mut unit_index = 0;
+pub use crate::utils::formatting::format_bytes as format_bytes_value;
 
-    while value >= 1024.0 && unit_index < UNITS.len() - 1 {
-        value /= 1024.0;
-        unit_index += 1;
-    }
-
-    if value >= 100.0 {
-        format!("{:.0} {}", value, UNITS[unit_index])
-    } else if value >= 10.0 {
-        format!("{:.1} {}", value, UNITS[unit_index])
-    } else {
-        format!("{:.2} {}", value, UNITS[unit_index])
-    }
-}
-
-/// Format duration values
+/// Format duration values (input in milliseconds)
 pub fn format_duration_value(duration: f64) -> String {
-    if duration >= 60000.0 {
-        format!("{:.1} min", duration / 60000.0)
-    } else if duration >= 1000.0 {
-        format!("{:.2} s", duration / 1000.0)
-    } else if duration >= 1.0 {
-        format!("{:.0} ms", duration)
-    } else {
-        format!("{:.2} ms", duration)
-    }
+    // Convert milliseconds to seconds and use centralized formatting
+    crate::utils::formatting::format_duration(duration / 1000.0)
 }
 
 /// Format generic metric values
@@ -285,7 +261,7 @@ pub fn get_sqs_metric_display_info<'a>(
 // Helper formatting functions with fallback to "N/A"
 fn format_percentage_with_fallback(history: &[f64]) -> String {
     if let Some(&last_value) = history.last() {
-        format!("{:.2}%", last_value)
+        crate::utils::formatting::format_percentage(last_value)
     } else {
         "N/A".to_string()
     }

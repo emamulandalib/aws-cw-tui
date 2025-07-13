@@ -4,7 +4,6 @@ pub mod error_display;
 pub mod formatter;
 pub mod metrics_chart;
 pub mod types;
-pub mod validation;
 
 // New modular chart components
 pub mod chart_data;

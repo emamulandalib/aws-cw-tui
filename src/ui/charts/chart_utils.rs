@@ -108,35 +108,14 @@ pub fn format_y_axis_value(value: f64, metric_name: &str) -> String {
     }
 }
 
-/// Format byte values with appropriate units
-pub fn format_bytes(bytes: f64) -> String {
-    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
-    let mut value = bytes;
-    let mut unit_index = 0;
-
-    while value >= 1024.0 && unit_index < UNITS.len() - 1 {
-        value /= 1024.0;
-        unit_index += 1;
-    }
-
-    if value >= 100.0 {
-        format!("{:.0}{}", value, UNITS[unit_index])
-    } else if value >= 10.0 {
-        format!("{:.1}{}", value, UNITS[unit_index])
-    } else {
-        format!("{:.2}{}", value, UNITS[unit_index])
-    }
-}
+// format_bytes now imported from utils::formatting
+pub use crate::utils::formatting::format_bytes;
 
 /// Format duration in milliseconds
+/// Format duration in milliseconds using centralized utils
 pub fn format_duration_ms(ms: f64) -> String {
-    if ms >= 1000.0 {
-        format!("{:.1}s", ms / 1000.0)
-    } else if ms >= 1.0 {
-        format!("{:.0}ms", ms)
-    } else {
-        format!("{:.2}ms", ms)
-    }
+    // Convert milliseconds to seconds and use centralized formatting
+    crate::utils::formatting::format_duration(ms / 1000.0)
 }
 
 /// Get color for dynamic metrics based on metric name

@@ -1,7 +1,7 @@
 // Updated imports for focused rendering modules
 use crate::models::App;
 use crate::ui::charts::chart_data::MetricChartData;
-use crate::ui::charts::validation::validate_metric_data;
+use crate::utils::validation::validate_metric_data;
 use crate::ui::charts::rendering::metric_charts::render_metric_chart;
 use crate::ui::charts::rendering::dynamic_charts::render_dynamic_metric_chart;
 use crate::ui::charts::error_display::render_error_message;

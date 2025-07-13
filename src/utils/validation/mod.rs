@@ -101,6 +101,28 @@ pub fn validate_timestamps(timestamps: &[SystemTime]) -> Result<(), String> {
     Ok(())
 }
 
+/// Validates that timestamps are available for the current app state
+pub fn validate_timestamps_available(app: &crate::models::App) -> bool {
+    if let Some(ref dynamic_metrics) = app.dynamic_metrics {
+        // Dynamic metrics system: check if any dynamic metric has timestamps
+        !dynamic_metrics.is_empty()
+            && dynamic_metrics
+                .metrics
+                .iter()
+                .any(|m| !m.timestamps.is_empty())
+    } else {
+        // Legacy system: check service-specific timestamps
+        match app
+            .selected_service
+            .as_ref()
+            .unwrap_or(&crate::models::AwsService::Rds)
+        {
+            crate::models::AwsService::Rds => !app.metrics.timestamps.is_empty(),
+            crate::models::AwsService::Sqs => !app.sqs_metrics.timestamps.is_empty(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

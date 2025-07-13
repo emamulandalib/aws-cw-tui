@@ -2,7 +2,7 @@ use crate::ui::charts::chart_data::MetricChartData;
 use crate::ui::charts::rendering::chart_titles::render_metric_title;
 use crate::ui::charts::rendering::simple_charts::render_simple_metric;
 use crate::ui::charts::rendering::time_series::render_time_series_chart;
-use crate::ui::charts::validation::validate_metric_data;
+use crate::utils::validation::validate_metric_data;
 use crate::ui::charts::error_display::render_error_message;
 use crate::ui::components::metric_definitions::MetricRegistry;
 use ratatui::{

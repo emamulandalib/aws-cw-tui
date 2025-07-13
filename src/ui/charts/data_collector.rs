@@ -4,7 +4,7 @@ use crate::ui::charts::formatter::{
     format_dynamic_metric_value, get_rds_metric_display_info, get_sqs_metric_display_info,
 };
 use crate::ui::charts::types::MetricTuple;
-use crate::ui::charts::validation::validate_metric_data;
+use crate::utils::validation::validate_metric_data;
 use std::time::SystemTime;
 
 /// Collect all available metrics from the app state

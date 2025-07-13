@@ -2,7 +2,7 @@ use crate::aws::dynamic_metric_discovery::DynamicMetricData;
 use crate::ui::charts::rendering::chart_titles::render_dynamic_metric_title;
 use crate::ui::charts::rendering::simple_charts::render_dynamic_simple_metric;
 use crate::ui::charts::rendering::time_series::render_dynamic_time_series_chart;
-use crate::ui::charts::validation::validate_metric_data;
+use crate::utils::validation::validate_metric_data;
 use crate::ui::charts::error_display::render_error_message;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
