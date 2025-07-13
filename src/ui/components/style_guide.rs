@@ -27,13 +27,13 @@ pub fn render_style_guide(f: &mut Frame, area: Rect, theme_variant: &ThemeVarian
 }
 
 fn render_style_guide_header(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
-    let header = Paragraph::new("AWS CloudWatch TUI - K9s-Inspired Theme")
+    let header = Paragraph::new("AWS CloudWatch TUI - Warm Sunset Theme")
         .style(Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("K9s-Style Interface")
+                .title("Warm Sunset Vibrant Interface")
                 .border_style(Style::default().fg(theme.accent)),
         );
     f.render_widget(header, area);
@@ -57,53 +57,58 @@ fn render_style_guide_content(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
 fn render_color_palette(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
     let color_items = vec![
         ListItemBuilder::new()
-            .add_colored_text("Pure White".to_string(), theme.primary)
-            .add_colored_text(" - K9s main text (bold and clean)".to_string(), theme.secondary)
+            .add_colored_text("Warm White".to_string(), theme.primary)
+            .add_colored_text(" - Main text (warm and readable)".to_string(), theme.secondary)
             .build(),
         
         ListItemBuilder::new()
-            .add_colored_text("Light Gray".to_string(), theme.secondary)
-            .add_colored_text(" - K9s secondary information".to_string(), theme.tertiary)
+            .add_colored_text("Warm Cream".to_string(), theme.secondary)
+            .add_colored_text(" - Secondary information".to_string(), theme.tertiary)
             .build(),
             
         ListItemBuilder::new()
-            .add_colored_text("Bright Cyan".to_string(), theme.accent)
-            .add_colored_text(" - K9s headers and borders".to_string(), theme.secondary)
+            .add_colored_text("Golden Yellow".to_string(), theme.accent)
+            .add_colored_text(" - Headers and accents".to_string(), theme.secondary)
             .build(),
             
         ListItemBuilder::new()
-            .add_colored_text("Bright Green".to_string(), theme.success)
-            .add_colored_text(" - K9s running/healthy status".to_string(), theme.secondary)
+            .add_colored_text("Vibrant Orange".to_string(), theme.focused)
+            .add_colored_text(" - Focus and highlights".to_string(), theme.secondary)
             .build(),
             
         ListItemBuilder::new()
-            .add_colored_text("Bright Yellow".to_string(), theme.warning)
-            .add_colored_text(" - K9s selection and warnings".to_string(), theme.secondary)
+            .add_colored_text("Success Green".to_string(), theme.success)
+            .add_colored_text(" - Running/healthy status".to_string(), theme.secondary)
             .build(),
             
         ListItemBuilder::new()
-            .add_colored_text("Bright Red".to_string(), theme.error)
-            .add_colored_text(" - K9s error states".to_string(), theme.secondary)
+            .add_colored_text("Vibrant Orange".to_string(), theme.warning)
+            .add_colored_text(" - Warnings and caution".to_string(), theme.secondary)
             .build(),
             
         ListItemBuilder::new()
-            .add_colored_text("Info State".to_string(), theme.info)
+            .add_colored_text("Coral Red".to_string(), theme.error)
+            .add_colored_text(" - Error states".to_string(), theme.secondary)
+            .build(),
+            
+        ListItemBuilder::new()
+            .add_colored_text("Info Blue".to_string(), theme.info)
             .add_colored_text(" - Information and neutral status".to_string(), theme.secondary)
             .build(),
             
         ListItemBuilder::new()
             .add_colored_text("Chart Primary".to_string(), theme.chart_primary)
-            .add_colored_text(" - Main data visualization".to_string(), theme.secondary)
+            .add_colored_text(" - Primary data visualization (golden)".to_string(), theme.secondary)
             .build(),
             
         ListItemBuilder::new()
             .add_colored_text("Chart Secondary".to_string(), theme.chart_secondary)
-            .add_colored_text(" - Secondary data lines".to_string(), theme.secondary)
+            .add_colored_text(" - Secondary data lines (orange)".to_string(), theme.secondary)
             .build(),
             
         ListItemBuilder::new()
             .add_colored_text("Chart Accent".to_string(), theme.chart_accent)
-            .add_colored_text(" - Accent data points".to_string(), theme.secondary)
+            .add_colored_text(" - Accent data points (coral)".to_string(), theme.secondary)
             .build(),
     ];
 
@@ -111,7 +116,7 @@ fn render_color_palette(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Color Palette")
+                .title("Warm Sunset Color Palette")
                 .border_style(Style::default().fg(theme.border)),
         );
 
@@ -268,13 +273,15 @@ pub fn render_theme_comparison(f: &mut Frame, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(33),
-            Constraint::Percentage(33), 
-            Constraint::Percentage(34),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25), 
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
         ])
         .split(area);
 
     render_style_guide(f, chunks[0], &ThemeVariant::Default);
     render_style_guide(f, chunks[1], &ThemeVariant::HighContrast);
     render_style_guide(f, chunks[2], &ThemeVariant::Monochrome);
+    render_style_guide(f, chunks[3], &ThemeVariant::TerminalCyan);
 } 

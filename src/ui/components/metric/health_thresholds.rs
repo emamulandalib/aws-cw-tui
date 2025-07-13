@@ -19,23 +19,24 @@ impl HealthThresholds {
 
     /// Get health color based on current value and thresholds
     pub fn get_health_color(&self, value: f64) -> Color {
+        let theme = crate::ui::themes::UnifiedTheme::default();
         if self.reverse_logic {
             // For metrics like free memory where lower is worse
             if value < self.critical {
-                Color::Red
+                theme.error
             } else if value < self.warning {
-                Color::Yellow
+                theme.warning
             } else {
-                Color::Green
+                theme.success
             }
         } else {
             // For metrics like CPU where higher is worse
             if value > self.critical {
-                Color::Red
+                theme.error
             } else if value > self.warning {
-                Color::Yellow
+                theme.warning
             } else {
-                Color::Green
+                theme.success
             }
         }
     }

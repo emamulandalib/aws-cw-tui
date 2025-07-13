@@ -1,8 +1,8 @@
 use super::display_utils::get_selected_time_range_display;
 use crate::models::{App, FocusedPanel, TimeRangeMode};
 use crate::ui::components::list_styling::{
-    ListItemBuilder, LayoutStyle, themes::time_range_colors, StatusIndicator,
-    utilities::{create_border_style, create_highlight_style, format_list_text, create_k9s_list_item},
+    themes::time_range_colors,
+    utilities::{create_border_style, create_highlight_style, create_simple_list_item},
 };
 use ratatui::{
     layout::Rect,
@@ -21,14 +21,12 @@ pub fn render_period_selection_panel(f: &mut Frame, app: &mut App, area: Rect) {
 
     let mut items = Vec::new();
 
-    // Create k9s-style list items with consistent formatting
+    // Create list items with consistent formatting
     for (i, (label, _seconds)) in period_options.iter().enumerate() {
         let is_selected = i == current_selection;
 
-        let item = create_k9s_list_item(
+        let item = create_simple_list_item(
             label,
-            StatusIndicator::Info,
-            None,
             Some(&format!("{}s", _seconds)),
             is_selected,
             matches!(app.get_focused_panel(), FocusedPanel::Period),
@@ -98,15 +96,13 @@ fn render_relative_time_ranges(f: &mut Frame, app: &mut App, area: Rect) {
 
     let mut items = Vec::new();
 
-    // Create k9s-style list items with consistent formatting
-    for (i, (label, _value, _unit, _period)) in time_ranges.iter().enumerate() {
+    // Create list items with consistent formatting
+    for (i, (label, value, unit, _period)) in time_ranges.iter().enumerate() {
         let is_selected = i == current_selection;
 
-        let item = create_k9s_list_item(
-            label,
-            StatusIndicator::Info,
+        let item = create_simple_list_item(
+            &format!("{} {:?}", value, unit),
             None,
-            Some(&format!("{}{:?}", _value, _unit)),
             is_selected,
             matches!(app.get_focused_panel(), crate::models::FocusedPanel::TimeRanges),
             &colors,
@@ -179,7 +175,7 @@ fn render_absolute_time_picker(f: &mut Frame, app: &mut App, area: Rect) {
                 .title(title)
                 .border_style(Style::default().fg(border_color)),
         )
-        .style(Style::default().fg(Color::Yellow))
+        .style(Style::default().fg(crate::ui::themes::terminal_colors::TEXT_SECONDARY))
         .alignment(ratatui::layout::Alignment::Center);
 
     f.render_widget(placeholder, area);
@@ -193,15 +189,13 @@ pub fn render_timezone_selection_panel(f: &mut Frame, app: &mut App, area: Rect)
 
     let mut items = Vec::new();
 
-    // Create k9s-style list items with consistent formatting
-    for (i, timezone) in timezone_options.iter().enumerate() {
+    // Create list items with consistent formatting
+    for (i, tz) in timezone_options.iter().enumerate() {
         let is_selected = i == current_selection;
 
-        let item = create_k9s_list_item(
-            timezone.display_name(),
-            StatusIndicator::Info,
+        let item = create_simple_list_item(
+            &tz.display_name(),
             None,
-            Some("TZ"),
             is_selected,
             matches!(app.get_focused_panel(), FocusedPanel::Timezone),
             &colors,

@@ -7,15 +7,16 @@ use ratatui::{
 
 /// Render a general error message in the chart area
 pub fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, message: &str) {
+    let theme = crate::ui::themes::UnifiedTheme::default();
     let error_paragraph = Paragraph::new(message)
-        .style(Style::default().fg(Color::Red))
+        .style(Style::default().fg(theme.error))
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true })
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Error")
-                .border_style(Style::default().fg(Color::Red)),
+                .border_style(Style::default().fg(theme.error)),
         );
 
     f.render_widget(error_paragraph, area);
@@ -23,13 +24,14 @@ pub fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, message:
 
 /// Render an error chart with specific error message
 pub fn render_error_chart(f: &mut Frame, area: ratatui::layout::Rect, error_msg: &str) {
+    let theme = crate::ui::themes::UnifiedTheme::default();
     let error_block = Block::default()
         .borders(Borders::ALL)
         .title("Chart Error")
-        .border_style(Style::default().fg(Color::Red));
+        .border_style(Style::default().fg(theme.error));
 
     let error_paragraph = Paragraph::new(error_msg)
-        .style(Style::default().fg(Color::Red))
+        .style(Style::default().fg(theme.error))
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true })
         .block(error_block);
@@ -68,13 +70,14 @@ pub fn render_data_validation_error(
 pub fn render_no_data_message(f: &mut Frame, area: ratatui::layout::Rect, metric_name: &str) {
     let message = format!("No data available for: {}", metric_name);
 
+    let theme = crate::ui::themes::UnifiedTheme::default();
     let no_data_block = Block::default()
         .borders(Borders::ALL)
         .title("No Data")
-        .border_style(Style::default().fg(Color::Yellow));
+        .border_style(Style::default().fg(theme.warning));
 
     let no_data_paragraph = Paragraph::new(message)
-        .style(Style::default().fg(Color::Yellow))
+        .style(Style::default().fg(theme.warning))
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true })
         .block(no_data_block);

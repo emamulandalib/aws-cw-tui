@@ -120,38 +120,35 @@ pub fn format_duration_ms(ms: f64) -> String {
 
 /// Get color for dynamic metrics based on metric name
 pub fn get_dynamic_metric_color(metric_name: &str) -> Color {
+    let theme = crate::ui::themes::UnifiedTheme::default();
     let name_lower = metric_name.to_lowercase();
 
     if name_lower.contains("cpu") {
-        Color::Red
+        theme.accent  // Cyan for CPU
     } else if name_lower.contains("memory") || name_lower.contains("ram") {
-        Color::Blue
+        theme.chart_secondary  // Light blue for memory
     } else if name_lower.contains("disk") || name_lower.contains("storage") {
-        Color::Green
+        theme.chart_secondary  // Light blue for storage
     } else if name_lower.contains("network") || name_lower.contains("bytes") {
-        Color::Cyan
+        theme.chart_primary  // Cyan for network
     } else if name_lower.contains("connection") || name_lower.contains("count") {
-        Color::Yellow
+        theme.info  // Blue for connections
     } else if name_lower.contains("latency") || name_lower.contains("duration") {
-        Color::Magenta
+        theme.chart_accent  // Steel blue for latency
     } else if name_lower.contains("error") || name_lower.contains("fault") {
-        Color::LightRed
+        theme.error  // Red for errors
     } else if name_lower.contains("throughput") || name_lower.contains("rate") {
-        Color::LightBlue
+        theme.chart_secondary  // Light blue for throughput
     } else {
         // Use a consistent hash-based color for unknown metrics
         let hash = metric_name
             .chars()
             .fold(0u32, |acc, c| acc.wrapping_mul(31).wrapping_add(c as u32));
-        match hash % 8 {
-            0 => Color::Blue,
-            1 => Color::Green,
-            2 => Color::Cyan,
-            3 => Color::Yellow,
-            4 => Color::Magenta,
-            5 => Color::LightBlue,
-            6 => Color::LightGreen,
-            _ => Color::LightCyan,
+        match hash % 4 {
+            0 => theme.chart_primary,
+            1 => theme.chart_secondary,
+            2 => theme.chart_accent,
+            _ => theme.accent,
         }
     }
 }

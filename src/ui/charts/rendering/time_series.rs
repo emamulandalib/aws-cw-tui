@@ -92,13 +92,13 @@ pub fn render_time_series_chart(
         )
         .x_axis(
             Axis::default()
-                .style(Style::default().fg(Color::Gray))
+                .style(Style::default().fg(crate::ui::themes::UnifiedTheme::default().muted))
                 .bounds(x_bounds)
                 .labels(x_labels),
         )
         .y_axis(
             Axis::default()
-                .style(Style::default().fg(Color::Gray))
+                .style(Style::default().fg(crate::ui::themes::UnifiedTheme::default().muted))
                 .bounds(y_bounds)
                 .labels(y_labels),
         );
@@ -169,11 +169,12 @@ pub fn render_dynamic_time_series_chart(
     let y_labels = create_dynamic_value_labels(y_bounds, metric_data);
 
     // Create dataset
+    let theme = crate::ui::themes::UnifiedTheme::default();
     let dataset = Dataset::default()
         .name("")
         .marker(symbols::Marker::Braille)
         .graph_type(GraphType::Line)
-        .style(Style::default().fg(Color::Green))
+        .style(Style::default().fg(crate::ui::charts::chart_utils::get_dynamic_metric_color(&metric_data.metric_name)))
         .data(&data_points);
 
     let chart = Chart::new(vec![dataset])
@@ -184,13 +185,13 @@ pub fn render_dynamic_time_series_chart(
         )
         .x_axis(
             Axis::default()
-                .style(Style::default().fg(Color::Gray))
+                .style(Style::default().fg(theme.muted))
                 .bounds(x_bounds)
                 .labels(x_labels),
         )
         .y_axis(
             Axis::default()
-                .style(Style::default().fg(Color::Gray))
+                .style(Style::default().fg(theme.muted))
                 .bounds(y_bounds)
                 .labels(y_labels),
         );

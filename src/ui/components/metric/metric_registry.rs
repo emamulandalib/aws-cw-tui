@@ -3,6 +3,7 @@ use super::health_thresholds::HealthThresholds;
 use super::metric_definition::MetricDefinition;
 use crate::models::MetricType;
 use ratatui::style::Color;
+use crate::ui::themes::UnifiedTheme;
 
 /// AWS console-style metric definitions registry
 pub struct MetricRegistry;
@@ -13,6 +14,38 @@ impl MetricRegistry {
         Self::get_definition_simplified(metric_type)
     }
 
+    /// Get theme-based color for a metric type
+    fn get_metric_color(metric_type: &MetricType) -> Color {
+        let theme = UnifiedTheme::default();
+        match metric_type {
+            // CPU and performance metrics - use accent (cyan)
+            MetricType::CpuUtilization | MetricType::CpuCreditBalance | MetricType::CpuCreditUsage => theme.accent,
+            
+            // Database connections and network - use info (blue)
+            MetricType::DatabaseConnections | MetricType::ReadLatency | MetricType::WriteLatency => theme.info,
+            
+            // Storage and memory - use chart_secondary (light blue)
+            MetricType::FreeStorageSpace | MetricType::FreeableMemory => theme.chart_secondary,
+            
+            // IOPS and throughput - use chart_accent (steel blue)
+            MetricType::ReadIops | MetricType::WriteIops | MetricType::ReadThroughput | MetricType::WriteThroughput => theme.chart_accent,
+            
+            // Queue metrics - use accent (cyan)
+            MetricType::ApproximateNumberOfMessages | MetricType::ApproximateNumberOfMessagesVisible | 
+            MetricType::ApproximateNumberOfMessagesNotVisible | MetricType::ApproximateAgeOfOldestMessage => theme.accent,
+            
+            // Message operations - use info (blue)
+            MetricType::NumberOfMessagesSent | MetricType::NumberOfMessagesReceived | 
+            MetricType::NumberOfMessagesDeleted | MetricType::NumberOfEmptyReceives => theme.info,
+            
+            // Size metrics - use chart_secondary (light blue)
+            MetricType::SentMessageSize | MetricType::ApproximateNumberOfMessagesNotVisible => theme.chart_secondary,
+            
+            // Default fallback
+            _ => theme.chart_primary,
+        }
+    }
+
     /// Get metric definition (simplified without dynamic info)
     pub fn get_definition_simplified(metric_type: &MetricType) -> MetricDefinition {
         match metric_type {
@@ -21,7 +54,7 @@ impl MetricRegistry {
                 "CPU Utilization",
                 DisplayFormat::Percentage,
                 Some(HealthThresholds::new(80.0, 60.0, false)),
-                Color::Blue,
+                Self::get_metric_color(metric_type),
                 "Percentage of CPU utilization",
             ),
 
@@ -29,7 +62,7 @@ impl MetricRegistry {
                 "Database Connections",
                 DisplayFormat::Integer,
                 Some(HealthThresholds::new(1000.0, 500.0, false)),
-                Color::Green,
+                Self::get_metric_color(metric_type),
                 "Number of client network connections to the database",
             ),
 
@@ -41,7 +74,7 @@ impl MetricRegistry {
                     5_368_709_120.0,
                     true,
                 )),
-                Color::Cyan,
+                Self::get_metric_color(metric_type),
                 "Amount of available storage space",
             ),
 
@@ -49,7 +82,7 @@ impl MetricRegistry {
                 "Read Latency",
                 DisplayFormat::Duration,
                 Some(HealthThresholds::new(0.1, 0.05, false)),
-                Color::Red,
+                Self::get_metric_color(metric_type),
                 "Average time taken for read operations",
             ),
 
@@ -57,7 +90,7 @@ impl MetricRegistry {
                 "Write Latency",
                 DisplayFormat::Duration,
                 Some(HealthThresholds::new(0.1, 0.05, false)),
-                Color::Magenta,
+                Self::get_metric_color(metric_type),
                 "Average time taken for write operations",
             ),
 
@@ -73,7 +106,7 @@ impl MetricRegistry {
                 "Write IOPS",
                 DisplayFormat::Integer,
                 None,
-                Color::Yellow,
+                Self::get_metric_color(metric_type),
                 "Write input/output operations per second",
             ),
 
@@ -81,7 +114,7 @@ impl MetricRegistry {
                 "Read Throughput",
                 DisplayFormat::Bytes,
                 None,
-                Color::Cyan,
+                Self::get_metric_color(metric_type),
                 "Read throughput in bytes per second",
             ),
 
@@ -89,7 +122,7 @@ impl MetricRegistry {
                 "Write Throughput",
                 DisplayFormat::Bytes,
                 None,
-                Color::Magenta,
+                Self::get_metric_color(metric_type),
                 "Write throughput in bytes per second",
             ),
 

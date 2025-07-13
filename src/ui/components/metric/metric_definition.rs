@@ -74,11 +74,12 @@ pub enum MetricStatus {
 
 impl MetricStatus {
     pub fn color(&self) -> Color {
+        let theme = crate::ui::themes::UnifiedTheme::default();
         match self {
-            MetricStatus::Healthy => Color::Green,
-            MetricStatus::Warning => Color::Yellow,
-            MetricStatus::Critical => Color::Red,
-            MetricStatus::Unknown => Color::Gray,
+            MetricStatus::Healthy => theme.success,
+            MetricStatus::Warning => theme.warning,
+            MetricStatus::Critical => theme.error,
+            MetricStatus::Unknown => theme.muted,
         }
     }
 }

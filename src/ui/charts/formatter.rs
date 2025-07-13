@@ -1,6 +1,7 @@
 use crate::aws::dynamic_metric_discovery::DynamicMetricData;
 use crate::models::{MetricData, MetricType, SqsMetricData};
 use ratatui::style::Color;
+use crate::ui::components::metric::MetricRegistry;
 
 /// Format dynamic metric values for display
 pub fn format_dynamic_metric_value(metric_data: &DynamicMetricData) -> String {
@@ -58,14 +59,14 @@ pub fn get_rds_metric_display_info<'a>(
             "CPU Utilization (%)",
             format_percentage_with_fallback(&metrics.cpu_history),
             &metrics.cpu_history,
-            Color::Red,
+            MetricRegistry::get_definition(metric_type).color,
             100.0,
         ),
         MetricType::DatabaseConnections => (
             "Database Connections",
             format_count_with_fallback(&metrics.connections_history),
             &metrics.connections_history,
-            Color::Blue,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .connections_history
                 .iter()
@@ -76,7 +77,7 @@ pub fn get_rds_metric_display_info<'a>(
             "Freeable Memory (MB)",
             format_bytes_mb_with_fallback(&metrics.freeable_memory_history),
             &metrics.freeable_memory_history,
-            Color::Green,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .freeable_memory_history
                 .iter()
@@ -87,7 +88,7 @@ pub fn get_rds_metric_display_info<'a>(
             "Free Storage Space (GB)",
             format_bytes_gb_with_fallback(&metrics.free_storage_space_history),
             &metrics.free_storage_space_history,
-            Color::Yellow,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .free_storage_space_history
                 .iter()
@@ -98,7 +99,7 @@ pub fn get_rds_metric_display_info<'a>(
             "Read IOPS",
             format_count_with_fallback(&metrics.read_iops_history),
             &metrics.read_iops_history,
-            Color::Cyan,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .read_iops_history
                 .iter()
@@ -109,7 +110,7 @@ pub fn get_rds_metric_display_info<'a>(
             "Write IOPS",
             format_count_with_fallback(&metrics.write_iops_history),
             &metrics.write_iops_history,
-            Color::Magenta,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .write_iops_history
                 .iter()
@@ -120,7 +121,7 @@ pub fn get_rds_metric_display_info<'a>(
             "Read Latency (ms)",
             format_latency_with_fallback(&metrics.read_latency_history),
             &metrics.read_latency_history,
-            Color::LightRed,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .read_latency_history
                 .iter()
@@ -131,7 +132,7 @@ pub fn get_rds_metric_display_info<'a>(
             "Write Latency (ms)",
             format_latency_with_fallback(&metrics.write_latency_history),
             &metrics.write_latency_history,
-            Color::LightGreen,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .write_latency_history
                 .iter()
@@ -142,7 +143,7 @@ pub fn get_rds_metric_display_info<'a>(
             "Network Receive Throughput (MB/s)",
             format_throughput_with_fallback(&metrics.network_receive_history),
             &metrics.network_receive_history,
-            Color::LightBlue,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .network_receive_history
                 .iter()
@@ -153,7 +154,7 @@ pub fn get_rds_metric_display_info<'a>(
             "Network Transmit Throughput (MB/s)",
             format_throughput_with_fallback(&metrics.network_transmit_history),
             &metrics.network_transmit_history,
-            Color::LightYellow,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .network_transmit_history
                 .iter()
@@ -162,11 +163,12 @@ pub fn get_rds_metric_display_info<'a>(
         ),
         _ => {
             static EMPTY_VEC: Vec<f64> = Vec::new();
+            let theme = crate::ui::themes::UnifiedTheme::default();
             (
                 "Unknown Metric",
                 "N/A".to_string(),
                 &EMPTY_VEC,
-                Color::White,
+                theme.muted,
                 1.0,
             )
         }
@@ -183,7 +185,7 @@ pub fn get_sqs_metric_display_info<'a>(
             "Approx Number of Messages",
             format_count_with_fallback(&metrics.queue_depth_history),
             &metrics.queue_depth_history,
-            Color::Blue,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .queue_depth_history
                 .iter()
@@ -194,7 +196,7 @@ pub fn get_sqs_metric_display_info<'a>(
             "Approx Number of Messages Delayed",
             format_count_with_fallback(&metrics.messages_delayed_history),
             &metrics.messages_delayed_history,
-            Color::Yellow,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .messages_delayed_history
                 .iter()
@@ -205,7 +207,7 @@ pub fn get_sqs_metric_display_info<'a>(
             "Approx Number of Messages Not Visible",
             format_count_with_fallback(&metrics.messages_not_visible_history),
             &metrics.messages_not_visible_history,
-            Color::Red,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .messages_not_visible_history
                 .iter()
@@ -216,7 +218,7 @@ pub fn get_sqs_metric_display_info<'a>(
             "Number of Messages Sent",
             format_count_with_fallback(&metrics.messages_sent_history),
             &metrics.messages_sent_history,
-            Color::Green,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .messages_sent_history
                 .iter()
@@ -227,7 +229,7 @@ pub fn get_sqs_metric_display_info<'a>(
             "Number of Messages Received",
             format_count_with_fallback(&metrics.messages_received_history),
             &metrics.messages_received_history,
-            Color::Cyan,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .messages_received_history
                 .iter()
@@ -238,7 +240,7 @@ pub fn get_sqs_metric_display_info<'a>(
             "Number of Messages Deleted",
             format_count_with_fallback(&metrics.messages_deleted_history),
             &metrics.messages_deleted_history,
-            Color::Magenta,
+            MetricRegistry::get_definition(metric_type).color,
             metrics
                 .messages_deleted_history
                 .iter()
@@ -247,11 +249,12 @@ pub fn get_sqs_metric_display_info<'a>(
         ),
         _ => {
             static EMPTY_VEC_SQS: Vec<f64> = Vec::new();
+            let theme = crate::ui::themes::UnifiedTheme::default();
             (
                 "Unknown Metric",
                 "N/A".to_string(),
                 &EMPTY_VEC_SQS,
-                Color::White,
+                theme.muted,
                 1.0,
             )
         }
