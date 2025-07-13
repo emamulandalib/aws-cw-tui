@@ -93,31 +93,47 @@ pub async fn fetch_discovered_metrics(
 
                     (history, timestamps, current_value)
                 } else {
-                    log::debug!("No datapoints for metric {}, generating synthetic zeros", metric_def.metric_name);
-                    let num_points = 36;
-                    let step = period_seconds as u64;
-                    let history = vec![0.0; num_points];
-                    let timestamps: Vec<SystemTime> = (0..num_points).map(|i| {
-                        start_time + Duration::from_secs(i as u64 * step)
-                    }).collect();
-                    let current_value = 0.0;
-                    (history, timestamps, current_value)
+                    // Log specific information about the time range for debugging
+                    let time_range_hours = (end_time.duration_since(start_time).unwrap_or_default().as_secs() / 3600);
+                    let period_hours = period_seconds / 3600;
+                    
+                    if time_range_hours >= 24 * 7 { // 1 week or more
+                        log::info!(
+                            "No CloudWatch data returned for metric {} over {} hours with {}-hour periods. This may be normal for longer time ranges with no activity, or the data may not be retained.",
+                            metric_def.metric_name,
+                            time_range_hours,
+                            period_hours
+                        );
+                    } else {
+                        log::debug!("No datapoints for metric {}, generating synthetic zeros", metric_def.metric_name);
+                    }
+                    
+                    // For longer time ranges, don't generate synthetic data as it's misleading
+                    if time_range_hours >= 24 * 7 && period_seconds >= 3600 {
+                        // Return empty data for display rather than synthetic zeros
+                        (vec![], vec![], 0.0)
+                    } else {
+                        // Generate synthetic data for shorter time ranges
+                        let num_points = 36;
+                        let step = period_seconds as u64;
+                        let history = vec![0.0; num_points];
+                        let timestamps: Vec<SystemTime> = (0..num_points).map(|i| {
+                            start_time + Duration::from_secs(i as u64 * step)
+                        }).collect();
+                        let current_value = 0.0;
+                        (history, timestamps, current_value)
+                    }
                 }
             }
             Err(e) => {
-                log::warn!("Failed to fetch metric {}: {}, generating synthetic zeros", metric_def.metric_name, e);
-                let num_points = 36;
-                let step = period_seconds as u64;
-                let history = vec![0.0; num_points];
-                let timestamps: Vec<SystemTime> = (0..num_points).map(|i| {
-                    start_time + Duration::from_secs(i as u64 * step)
-                }).collect();
-                let current_value = 0.0;
-                (history, timestamps, current_value)
+                log::warn!("CloudWatch API error for metric {}: {}", metric_def.metric_name, e);
+                
+                // Don't generate synthetic data for API errors - return empty data
+                (vec![], vec![], 0.0)
             }
         };
 
-        // Only include metrics that have data and valid values
+        // Only include metrics that have actual data
         if !history.is_empty() && !timestamps.is_empty() {
             // Validate data consistency
             if history.len() != timestamps.len() {
@@ -128,10 +144,7 @@ pub async fn fetch_discovered_metrics(
 
             // Skip metrics with invalid values (NaN/Infinite only)
             if history.iter().any(|&v| v.is_nan() || v.is_infinite()) {
-                log::warn!(
-                    "Skipping metric {} due to invalid values",
-                    metric_def.metric_name
-                );
+                log::warn!("Skipping metric {} due to invalid values (NaN/Infinite)", metric_def.metric_name);
                 continue;
             }
 

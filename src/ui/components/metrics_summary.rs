@@ -12,7 +12,7 @@ use crate::log_ui_render;
 use ratatui::{
     prelude::*,
     style::Stylize,
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
 };
 
@@ -114,16 +114,39 @@ fn render_controls(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     f.render_widget(controls, area);
 }
 
-fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, error_msg: &str) {
-    let error_paragraph = Paragraph::new(error_msg)
-        .style(Style::default().red())
+/// Render error message with helpful suggestions
+fn render_error_message(f: &mut Frame, area: Rect, error_msg: &str) {
+    let mut text = vec![
+        Line::from(vec![
+            Span::styled("Error: ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::raw(error_msg),
+        ])
+    ];
+    
+    // Add helpful suggestions based on the error message
+    if error_msg.contains("CloudWatch") || error_msg.contains("metrics") {
+        text.push(Line::from(""));
+        text.push(Line::from(Span::styled("Possible causes:", Style::default().fg(Color::Yellow))));
+        text.push(Line::from("• No activity in the selected time range"));
+        text.push(Line::from("• CloudWatch data not yet available"));
+        text.push(Line::from("• Time range exceeds data retention period"));
+        text.push(Line::from("• Insufficient AWS permissions"));
+        text.push(Line::from(""));
+        text.push(Line::from(Span::styled("Suggestions:", Style::default().fg(Color::Green))));
+        text.push(Line::from("• Try a shorter time range (1-24 hours)"));
+        text.push(Line::from("• Check if the resource has recent activity"));
+        text.push(Line::from("• Press 'r' to refresh metrics"));
+        text.push(Line::from("• Verify AWS credentials and permissions"));
+    }
+    
+    let paragraph = Paragraph::new(text)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Error")
-                .border_style(Style::default().red()),
+                .border_style(Style::default().fg(Color::Red))
+                .title("Metrics Error")
         )
-        .wrap(ratatui::widgets::Wrap { trim: false })
-        .alignment(ratatui::layout::Alignment::Left);
-    f.render_widget(error_paragraph, area);
+        .wrap(Wrap { trim: true });
+    
+    f.render_widget(paragraph, area);
 }

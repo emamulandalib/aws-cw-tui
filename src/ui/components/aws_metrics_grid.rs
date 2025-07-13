@@ -260,6 +260,13 @@ impl AwsMetricsGrid {
                     debug!("METRICS_GRID: SQS service with no dynamic metrics - showing error");
                     // For SQS, we expect dynamic metrics to be available
                     // Return empty vec to show error message
+                    if let Some(ref dynamic_metrics) = app.dynamic_metrics {
+                        if dynamic_metrics.is_empty() {
+                            debug!("METRICS_GRID: SQS dynamic metrics container is empty");
+                        }
+                    } else {
+                        debug!("METRICS_GRID: No SQS dynamic metrics container");
+                    }
                 }
             }
         }
