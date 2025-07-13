@@ -5,6 +5,9 @@ use ratatui::widgets::ListState;
 use std::time::Instant;
 
 /// Application state enumeration
+/// 
+/// Represents the different screens/views in the application.
+/// State transitions are managed by the core::app::screen_navigation module.
 #[derive(Debug, PartialEq)]
 pub enum AppState {
     ServiceList,     // Show list of available AWS services
@@ -14,6 +17,9 @@ pub enum AppState {
 }
 
 /// Panel focus state for navigation
+/// 
+/// Represents which panel is currently focused in the MetricsSummary view.
+/// Focus management is handled by the core::app::ui_state module.
 #[derive(Debug, PartialEq, Clone)]
 pub enum FocusedPanel {
     Timezone,
@@ -23,6 +29,8 @@ pub enum FocusedPanel {
 }
 
 /// Time range display mode
+/// 
+/// Time range management is handled by the core::app::time_range_management module.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TimeRangeMode {
     Absolute,
@@ -30,6 +38,8 @@ pub enum TimeRangeMode {
 }
 
 /// Timezone selection
+/// 
+/// Timezone management is handled by the core::app::time_range_management module.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Timezone {
     Utc,
@@ -49,57 +59,128 @@ impl Timezone {
     }
 }
 
-/// Main application state container
+/// Main application state structure
+/// 
+/// This struct contains all the state needed for the AWS CloudWatch TUI application.
+/// Different aspects of the state are managed by different core modules:
+/// 
+/// - Service management: core::app::service_management
+/// - Instance access: core::app::instance_access  
+/// - Navigation: core::app::navigation
+/// - Screen transitions: core::app::screen_navigation
+/// - UI state: core::app::ui_state
+/// - State management: core::app::state_management
+/// - Time range: core::app::time_range_management
+/// - Metrics: core::app::metrics_management
+/// - Initialization: core::app::initialization
 pub struct App {
-    // Service selection state
+    // === Service Selection State ===
+    // Managed by core::app::service_management module
     pub available_services: Vec<AwsService>,
     pub service_list_state: ListState,
     pub selected_service: Option<AwsService>,
 
-    // Instance list state (generic for all services)
+    // === Instance Management State ===
+    // Managed by core::app::instance_access and core::app::service_management modules
     pub instances: Vec<ServiceInstance>,
     pub rds_instances: Vec<RdsInstance>, // Keep for backward compatibility during transition
     pub sqs_queues: Vec<SqsQueue>,       // SQS queues for the selected service
     pub list_state: ListState,
-    pub loading: bool,
-    pub state: AppState,
     pub selected_instance: Option<usize>,
 
-    // Dynamic metrics that work for any service
-    pub dynamic_metrics: Option<DynamicMetrics>,
-
-    // Legacy hardcoded metrics for backward compatibility during UI transition
-    pub metrics: MetricData,
-    pub sqs_metrics: SqsMetricData,
-
-    // Metrics and refresh state
-    pub metrics_loading: bool,
-    pub last_refresh: Option<Instant>,
-    pub auto_refresh_enabled: bool,
+    // === Application State and Navigation ===
+    // Managed by core::app::screen_navigation and core::app::ui_state modules
+    pub state: AppState,
     pub focused_panel: FocusedPanel,
     pub saved_focused_panel: FocusedPanel,
-    pub time_range: TimeRange,
 
-    // Sparkline grid state
+    // === Metrics Data ===
+    // Managed by core::app::metrics_management module
+    pub dynamic_metrics: Option<DynamicMetrics>,
+    pub metrics: MetricData,           // Legacy hardcoded metrics for backward compatibility
+    pub sqs_metrics: SqsMetricData,    // SQS-specific metrics
     pub selected_metric_name: Option<String>,
     pub sparkline_grid_selected_index: usize,
     pub saved_sparkline_grid_selected_index: usize,
     pub sparkline_grid_list_state: ListState,
 
-    // UI state for different components
+    // === Time Range Configuration ===
+    // Managed by core::app::time_range_management module
+    pub time_range: TimeRange,
+    pub time_range_mode: TimeRangeMode,
+    pub timezone: Timezone,
+    pub selected_period: Option<i32>, // Manual period override in seconds (None = auto-calculate)
     pub time_range_list_state: ListState,
     pub period_list_state: ListState,
     pub timezone_list_state: ListState,
 
-    // Error handling
+    // === Loading and Error State ===
+    // Managed by core::app::state_management module
+    pub loading: bool,
+    pub metrics_loading: bool,
     pub error_message: Option<String>,
-
-    // Loading timeout management
     pub loading_start_time: Option<Instant>,
 
-    // Time range display mode
-    pub time_range_mode: TimeRangeMode,
+    // === Auto-refresh State ===
+    // Managed by core::app::state_management module
+    pub last_refresh: Option<Instant>,
+    pub auto_refresh_enabled: bool,
+}
 
-    // Timezone selection
-    pub timezone: Timezone,
+impl App {
+    // Note: The new() method is implemented in core::app::initialization
+    // This ensures all defaults are properly set up through the core modules
+
+    /// Check if the application is in a loading state
+    /// 
+    /// Uses core::app::state_management for consistent state checking.
+    pub fn is_loading(&self) -> bool {
+        self.loading || self.metrics_loading
+    }
+
+    /// Check if the application has any errors
+    /// 
+    /// Uses core::app::state_management for consistent error checking.
+    pub fn has_error(&self) -> bool {
+        self.error_message.is_some()
+    }
+
+    /// Get the current error message if any
+    /// 
+    /// Uses core::app::state_management for consistent error handling.
+    pub fn get_error(&self) -> Option<&String> {
+        self.error_message.as_ref()
+    }
+
+    /// Check if the application can navigate back from the current state
+    /// 
+    /// Uses core::app::screen_navigation for consistent navigation logic.
+    pub fn can_navigate_back(&self) -> bool {
+        !matches!(self.state, AppState::ServiceList)
+    }
+
+    /// Check if the application has instances available
+    /// 
+    /// Uses core::app::instance_access for consistent instance checking.
+    pub fn has_available_instances(&self) -> bool {
+        !self.instances.is_empty()
+    }
+
+    /// Check if the application has metrics available
+    /// 
+    /// Uses core::app::metrics_management for consistent metrics checking.
+    pub fn has_available_metrics(&self) -> bool {
+        self.dynamic_metrics.is_some() && 
+        self.dynamic_metrics.as_ref().unwrap().len() > 0
+    }
+
+    // Note: The get_current_state() method is implemented in core::app::screen_navigation
+    // This provides consistent state access through the core modules
+
+    /// Check if a specific panel is currently focused
+    /// 
+    /// Uses core::app::ui_state for consistent focus management.
+    pub fn is_focused_on(&self, panel: &FocusedPanel) -> bool {
+        &self.focused_panel == panel
+    }
 }

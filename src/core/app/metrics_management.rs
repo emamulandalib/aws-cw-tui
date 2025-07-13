@@ -15,7 +15,7 @@ impl App {
             service, instance_id
         );
 
-        match load_dynamic_metrics(service, instance_id, self.time_range).await {
+        match load_dynamic_metrics(service, instance_id, self.time_range, self.selected_period).await {
             Ok(dynamic_metrics) => {
                 info!(
                     "Successfully loaded {} dynamic metrics",
@@ -51,7 +51,7 @@ impl App {
             service, instance_id
         );
 
-        match load_dynamic_metrics(service, instance_id, self.time_range).await {
+        match load_dynamic_metrics(service, instance_id, self.time_range, self.selected_period).await {
             Ok(dynamic_metrics) => {
                 info!(
                     "Successfully loaded {} dynamic metrics for instance: {}",

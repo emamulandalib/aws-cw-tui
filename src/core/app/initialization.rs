@@ -37,6 +37,7 @@ impl App {
             focused_panel: FocusedPanel::Timezone,
             saved_focused_panel: FocusedPanel::Timezone,
             time_range: TimeRange::new(3, TimeUnit::Hours, 1).unwrap(),
+            selected_period: None, // Start with auto-calculated period
 
             // Sparkline grid state
             selected_metric_name: None,

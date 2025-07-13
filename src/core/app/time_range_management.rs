@@ -1,4 +1,4 @@
-use crate::aws::time_range::{TimeRange, TimeUnit};
+use crate::aws::time_range::{calculate_period_seconds, TimeRange, TimeUnit};
 use crate::models::{App, TimeRangeMode, Timezone};
 use anyhow::Result;
 
@@ -137,11 +137,36 @@ impl App {
         self.period_list_state.selected().unwrap_or(0)
     }
 
+    /// Select a specific period by index
+    pub fn select_period(&mut self, index: usize) {
+        let options = Self::get_period_options();
+        if let Some(&(_, period_seconds)) = options.get(index) {
+            self.period_list_state.select(Some(index));
+            self.selected_period = Some(period_seconds);
+        }
+    }
+
+    /// Clear manual period selection (revert to auto-calculation)
+    pub fn clear_period_selection(&mut self) {
+        self.selected_period = None;
+    }
+
+    /// Get the effective period in seconds (manual override or auto-calculated)
+    pub fn get_effective_period(&self) -> i32 {
+        self.selected_period.unwrap_or_else(|| {
+            // Fall back to auto-calculation
+            calculate_period_seconds(&self.time_range)
+        })
+    }
+
     /// Navigate up in period selection
     pub fn period_scroll_up(&mut self) {
         let current = self.period_list_state.selected().unwrap_or(0);
         if current > 0 {
-            self.period_list_state.select(Some(current - 1));
+            let new_index = current - 1;
+            self.period_list_state.select(Some(new_index));
+            // Actually update the selected period value
+            self.select_period(new_index);
         }
     }
 
@@ -150,7 +175,10 @@ impl App {
         let options = Self::get_period_options();
         let current = self.period_list_state.selected().unwrap_or(0);
         if current < options.len() - 1 {
-            self.period_list_state.select(Some(current + 1));
+            let new_index = current + 1;
+            self.period_list_state.select(Some(new_index));
+            // Actually update the selected period value
+            self.select_period(new_index);
         }
     }
 

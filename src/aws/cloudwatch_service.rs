@@ -22,11 +22,12 @@ pub async fn load_dynamic_metrics(
     service: &AwsService,
     instance_id: &str,
     time_range: TimeRange,
+    period_seconds: Option<i32>, // Optional manual period override
 ) -> Result<DynamicMetrics> {
     let start_time = SystemTime::now();
     let end_time = SystemTime::now();
     let query_start_time = end_time - time_range.duration();
-    let period_seconds = calculate_period_seconds(&time_range);
+    let period_seconds = period_seconds.unwrap_or_else(|| calculate_period_seconds(&time_range));
 
     info!(
         service = ?service,
