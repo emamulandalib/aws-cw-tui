@@ -26,17 +26,13 @@ pub use crate::aws::metrics::{
 mod tests {
     use super::*;
     // Import functions directly for testing
-    use crate::aws::metrics::{
-        determine_best_statistic, determine_sqs_statistic, format_metric_display_name,
+    use crate::aws::metrics::statistics::{
+        determine_best_statistic, determine_sqs_statistic,
     };
 
     #[test]
     fn test_backward_compatibility() {
         // Test that functions still work in the new modules
-        assert_eq!(
-            format_metric_display_name("CPUUtilization"),
-            "CPU Utilization"
-        );
         assert_eq!(determine_best_statistic("CPUUtilization"), "Average");
         assert_eq!(determine_sqs_statistic("NumberOfMessagesSent"), "Sum");
     }

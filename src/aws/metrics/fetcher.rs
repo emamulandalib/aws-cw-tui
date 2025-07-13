@@ -1,5 +1,4 @@
 use crate::aws::metrics::discovery::MetricDefinition;
-use crate::aws::metrics::formatter::format_metric_display_name;
 use crate::aws::metrics::statistics::get_statistic_value;
 use crate::aws::metrics::units::parse_cloudwatch_unit;
 use crate::aws::session::AwsSessionManager;
@@ -138,7 +137,7 @@ pub async fn fetch_discovered_metrics(
 
             metric_data.push(DynamicMetricData {
                 metric_name: metric_def.metric_name.clone(),
-                display_name: format_metric_display_name(&metric_def.metric_name),
+                display_name: metric_def.metric_name.clone(), // Use raw SDK metric name
                 current_value,
                 history,
                 timestamps,
