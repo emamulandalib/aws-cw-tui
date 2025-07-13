@@ -17,6 +17,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [Screenshots](#screenshots)
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [Installation](#installation)
@@ -30,6 +31,32 @@
 ## Overview
 
 AWS CloudWatch TUI is a comprehensive terminal-based monitoring solution that provides real-time visualization of AWS CloudWatch metrics. Built with modern Rust technologies, it offers an intuitive service selection interface for monitoring AWS services, starting with comprehensive RDS monitoring featuring professional-grade charts and extensive metric coverage.
+
+## Screenshots
+
+**Experience the power of terminal-based AWS monitoring with our sleek, professional interface:**
+
+### Intuitive Service Selection
+![Service List](assets/service-list.png)
+*Lightning-fast service navigation with clean, modern design - select from RDS, SQS, and more AWS services*
+
+### Comprehensive Instance Overview
+![Instance List](assets/instance-list.png)
+*Complete RDS instances dashboard with real-time status, connection details, and instant access to metrics*
+
+### Real-Time Metrics Dashboard
+![Metrics List](assets/metrics-list.png)
+*Professional CloudWatch integration showing all 27 RDS metrics with historical data and trend analysis*
+
+### Detailed Performance Analytics
+![Metrics Detail](assets/metrics-detail.png)
+*High-resolution time-series charts with 3 hours of historical data for deep performance insights*
+
+**Why choose AWS CloudWatch TUI?**
+- **Instant Access**: No browser needed - monitor directly from your terminal
+- **Complete Coverage**: All 27 AWS RDS metrics in one place
+- **Beautiful Interface**: Clean, terminal-optimized design with professional aesthetics
+- **Lightning Fast**: Real-time data with efficient CloudWatch API integration
 
 ## Features
 
