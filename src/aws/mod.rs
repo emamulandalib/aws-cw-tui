@@ -14,10 +14,14 @@ pub mod session;
 // New refactored modules
 pub mod time_range;
 
-// New modular metrics system - removed (unused)
+// Refactored services with clean architecture
+pub mod services;
 
 // RDS-focused service organization
 pub mod rds;
+
+// New modular metrics system
+pub mod metrics;
 
 // Keep existing exports for backward compatibility
 pub use rds_service::load_rds_instances;

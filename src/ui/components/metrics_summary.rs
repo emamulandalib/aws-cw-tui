@@ -7,15 +7,17 @@ use super::{
     },
 };
 use crate::models::{App, TimeRangeMode};
-
+use crate::log_ui_render;
 use ratatui::{
     prelude::*,
+    style::Stylize,
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
 
 pub fn render_metrics_summary(f: &mut Frame, app: &mut App) {
+    log_ui_render!("metrics_summary", f.area(), format!("focused_panel: {:?}", app.focused_panel));
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([

@@ -1,38 +1,54 @@
 mod app;
 mod aws;
+mod config;
+mod core;
 mod event_handler;
 mod models;
 mod terminal;
 mod ui;
+mod utils;
 
 use anyhow::Result;
 use clap::Command;
 use crossterm::event;
-use log::{debug, error, info, warn};
-// Removed unused import
+use tracing::{debug, error, info, warn};
+use std::io::Write;
+
+// Import enhanced logging
+use utils::logging::init_tracing_logger;
+
+// Import app to make App extension methods available
+use config::DebugConfig;
 
 use aws::session::AwsSessionManager;
 use event_handler::handle_event;
 use models::{App, AppState};
 use terminal::TerminalManager;
 use ui::render_app;
+
 async fn validate_aws_credentials() -> Result<()> {
+    info!("AWS_CREDENTIALS: Starting credential validation");
+
     // Use the new centralized session manager for credential validation
     let validation_result = AwsSessionManager::validate_credentials().await?;
 
     // Display status messages
     for message in &validation_result.status_messages {
         println!("{message}");
+        debug!("AWS_CREDENTIALS: Status message: {}", message);
     }
 
     if validation_result.success {
+        info!("AWS_CREDENTIALS: Validation successful");
         // Success case - credential info is already included in status messages
         println!();
         Ok(())
     } else {
+        error!("AWS_CREDENTIALS: Validation failed");
         // Error case - display error guidance
         for guidance in &validation_result.error_guidance {
             println!("{guidance}");
+            error!("AWS_CREDENTIALS: Error guidance: {}", guidance);
         }
         println!();
 
@@ -47,10 +63,16 @@ async fn validate_aws_credentials() -> Result<()> {
 }
 
 async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
+    info!("Starting main application loop");
+    log_state_transition!("Initialization", "ServiceList", "App started successfully");
+
     // App starts with ServiceList state; instance loading happens via event handler
 
     loop {
-        terminal.draw(|f| render_app(f, &mut app))?;
+        // Use timed_operation to measure render performance
+        crate::timed_operation!("render_frame", {
+            terminal.draw(|f| render_app(f, &mut app))?;
+        });
 
         // Check for loading timeout
         if app.loading {
@@ -58,79 +80,101 @@ async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
         }
 
         if let Ok(event) = event::read() {
+            debug!(
+                event = ?event,
+                state = ?app.state,
+                "Received event"
+            );
             let should_quit = handle_event(&mut app, event).await?;
             if should_quit {
+                info!("User requested quit");
+                log_state_transition!("Current", "Shutdown", "User quit request");
                 break;
             }
         }
 
-        // Auto-refresh logic - only refresh if we're in a state that needs data
-        if app.needs_refresh()
-            && matches!(
-                app.state,
-                AppState::InstanceList | AppState::MetricsSummary | AppState::InstanceDetails
-            )
-        {
-            if let Some(service) = app.selected_service.clone() {
-                debug!(
-                    "Auto-refresh triggered for service: {:?}, state: {:?}",
-                    service, app.state
-                );
-                if let Err(e) = app.load_service_instances(&service).await {
-                    error!(
-                        "Failed to load service instances during auto-refresh: {}",
-                        e
-                    );
-                } else {
-                    debug!(
-                        "Auto-refresh completed successfully for service: {:?}",
-                        service
-                    );
+        // Auto-refresh logic - refresh appropriate data based on current state
+        if app.needs_refresh() {
+            match app.state {
+                AppState::InstanceList => {
+                    // Refresh instance list
+                    if let Some(service) = app.selected_service.clone() {
+                        debug!(
+                            "AUTO_REFRESH: Refreshing instance list for service: {:?}",
+                            service
+                        );
+                        if let Err(e) = app.load_service_instances(&service).await {
+                            error!("AUTO_REFRESH: Failed to load service instances: {}", e);
+                        } else {
+                            debug!("AUTO_REFRESH: Instance list refreshed successfully");
+                        }
+                    } else {
+                        warn!("AUTO_REFRESH: Cannot refresh instances - no service selected");
+                    }
                 }
-            } else {
-                warn!("Auto-refresh triggered but no service selected");
+                AppState::MetricsSummary | AppState::InstanceDetails => {
+                    // Refresh metrics data
+                    if let Some(instance_id) = app.get_selected_instance_id() {
+                        debug!(
+                            "AUTO_REFRESH: Refreshing metrics for instance: {} in state: {:?}",
+                            instance_id, app.state
+                        );
+                        if let Err(e) = app.load_metrics(&instance_id).await {
+                            error!("AUTO_REFRESH: Failed to refresh metrics: {}", e);
+                        } else {
+                            debug!("AUTO_REFRESH: Metrics refreshed successfully");
+                        }
+                    } else {
+                        warn!("AUTO_REFRESH: Cannot refresh metrics - no instance selected");
+                    }
+                }
+                AppState::ServiceList => {
+                    // Service list doesn't need auto-refresh
+                    debug!("AUTO_REFRESH: ServiceList state - no auto-refresh needed");
+                }
             }
         }
     }
 
+    info!("APP_LIFECYCLE: Application loop ended cleanly");
     Ok(())
 }
 
-fn init_logging() {
-    use std::fs::OpenOptions;
-    use std::io::Write;
+fn init_logging() -> DebugConfig {
+    // Initialize tracing logger
+    let tracing_logger = init_tracing_logger();
 
-    // Ensure /tmp directory exists and create log file
-    let log_file = "/tmp/aws-cw-tui.log";
+    // Create debug configuration from environment for backward compatibility
+    let debug_config = DebugConfig::from_env();
 
-    env_logger::Builder::from_default_env()
-        .target(env_logger::Target::Pipe(Box::new(
-            OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(log_file)
-                .expect("Failed to create log file"),
-        )))
-        .filter_level(log::LevelFilter::Debug)
-        .format(|buf, record| {
-            writeln!(
-                buf,
-                "{} [{}] {} - {}",
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-                record.level(),
-                record.target(),
-                record.args()
-            )
-        })
-        .init();
+    // Print debug info if enabled
+    debug_config.print_debug_info();
+
+    info!("Enhanced logging initialized with tracing ecosystem");
+    info!("Debug mode: {}", tracing_logger.enabled);
+    info!("Log file: {}", tracing_logger.log_file_path.display());
+
+    debug_config
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging to file
-    init_logging();
+    // Initialize enhanced logging system
+    let debug_config = init_logging();
 
-    info!("AWS CloudWatch TUI starting up");
+    // Log startup information with tracing
+    let args: Vec<String> = std::env::args().collect();
+    info!(
+        args = ?args,
+        pid = std::process::id(),
+        "AWS CloudWatch TUI starting up"
+    );
+    info!("DEBUG_CONFIG: Debug mode enabled: {}", debug_config.enabled);
+    info!("DEBUG_CONFIG: Log level: {:?}", debug_config.log_level);
+    info!(
+        "DEBUG_CONFIG: Log file: {}",
+        debug_config.log_file_path.display()
+    );
 
     Command::new("awscw")
         .version("0.1.0")
@@ -138,27 +182,39 @@ async fn main() -> Result<()> {
         .get_matches();
 
     // Validate AWS credentials before starting the terminal UI
-    info!("Validating AWS credentials...");
+    info!("STARTUP: Validating AWS credentials...");
     if let Err(e) = validate_aws_credentials().await {
-        error!("AWS credential validation failed: {}", e);
+        error!("STARTUP: AWS credential validation failed: {}", e);
         println!("Cannot start AWS CloudWatch TUI: {e}");
         std::process::exit(1);
     }
-    info!("AWS credentials validated successfully");
+    info!("STARTUP: AWS credentials validated successfully");
 
     println!("Starting AWS CloudWatch TUI...");
     println!("Press 'q' to quit, 'r' to refresh data");
+
+    if debug_config.enabled {
+        println!(
+            "Debug mode enabled - check {} for detailed logs",
+            debug_config.log_file_path.display()
+        );
+    }
     println!();
 
     // Create terminal manager
+    info!("STARTUP: Initializing terminal manager");
     let terminal = TerminalManager::new()?;
 
     // Create app and run - starts with service selection
+    info!("STARTUP: Creating application instance");
     let app = App::new();
     let res = run_app(terminal, app).await;
 
     if let Err(err) = res {
+        error!("APP_LIFECYCLE: Application ended with error: {:?}", err);
         println!("{err:?}");
+    } else {
+        info!("APP_LIFECYCLE: Application ended successfully");
     }
 
     Ok(())

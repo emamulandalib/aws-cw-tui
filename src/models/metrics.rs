@@ -1,35 +1,99 @@
-use crate::aws::cloudwatch_service::TimeRange;
 use crate::aws::dynamic_metric_discovery::DynamicMetricData;
-use ratatui::widgets::ListState;
-use std::time::{Instant, SystemTime};
+use crate::models::aws_services::AwsService;
+use std::time::SystemTime;
 
-#[derive(Debug, Clone)]
-pub struct RdsInstance {
-    pub identifier: String,
-    pub engine: String,
-    pub status: String,
-    pub instance_class: String,
-    pub endpoint: Option<String>,
+/// Metric type enumeration for different AWS services
+#[derive(Debug, Clone, PartialEq)]
+pub enum MetricType {
+    // RDS Metrics
+    CpuUtilization,
+    DatabaseConnections,
+    FreeStorageSpace,
+    ReadIops,
+    WriteIops,
+    ReadLatency,
+    WriteLatency,
+    ReadThroughput,
+    WriteThroughput,
+    NetworkReceiveThroughput,
+    NetworkTransmitThroughput,
+    SwapUsage,
+    FreeableMemory,
+    QueueDepth,
+    BurstBalance,
+    CpuCreditUsage,
+    CpuCreditBalance,
+    CpuSurplusCreditBalance,
+    CpuSurplusCreditsCharged,
+    EbsByteBalance,
+    EbsIoBalance,
+    BinLogDiskUsage,
+    ReplicaLag,
+    MaximumUsedTransactionIds,
+    OldestReplicationSlotLag,
+    OldestLogicalReplicationSlotLag,
+    ReplicationSlotDiskUsage,
+    TransactionLogsDiskUsage,
+    TransactionLogsGeneration,
+    FailedSqlServerAgentJobsCount,
+    CheckpointLag,
+    ConnectionAttempts,
+
+    // SQS Metrics
+    NumberOfMessagesSent,
+    NumberOfMessagesReceived,
+    NumberOfMessagesDeleted,
+    ApproximateNumberOfMessages,
+    ApproximateNumberOfMessagesVisible,
+    ApproximateNumberOfMessagesNotVisible,
+    ApproximateAgeOfOldestMessage,
+    NumberOfEmptyReceives,
+    ApproximateNumberOfMessagesDelayed,
+    SentMessageSize,
+    NumberOfMessagesInDlq,
+    ApproximateNumberOfGroupsWithInflightMessages,
+    NumberOfDeduplicatedSentMessages,
 }
 
+/// Dynamic metric collection for any AWS service
+/// This replaces the hardcoded MetricData and SqsMetricData structs
 #[derive(Debug, Clone)]
-pub struct SqsQueue {
-    pub url: String,
-    pub name: String,
-    pub queue_type: String, // "Standard" or "FIFO"
-    pub attributes: std::collections::HashMap<String, String>,
+pub struct DynamicMetrics {
+    pub metrics: Vec<DynamicMetricData>,
+    pub last_updated: SystemTime,
 }
-impl AwsInstance for RdsInstance {
-    fn id(&self) -> &str {
-        &self.identifier
+
+impl DynamicMetrics {
+    pub fn new(_service_type: AwsService, _instance_id: String) -> Self {
+        Self {
+            metrics: Vec::new(),
+            last_updated: SystemTime::now(),
+        }
+    }
+
+    pub fn update_metrics(&mut self, metrics: Vec<DynamicMetricData>) {
+        self.metrics = metrics;
+        self.last_updated = SystemTime::now();
+    }
+
+    pub fn get_available_metric_names(&self) -> Vec<String> {
+        // Sort by display name to match the UI display order
+        let mut sorted_metrics = self.metrics.clone();
+        sorted_metrics.sort_by(|a, b| a.display_name.cmp(&b.display_name));
+        sorted_metrics.iter().map(|m| m.display_name.clone()).collect()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.metrics.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.metrics.len()
     }
 }
-impl AwsInstance for SqsQueue {
-    fn id(&self) -> &str {
-        &self.name
-    }
-}
-// TEMPORARY: Basic MetricData struct for backward compatibility during UI transition
+
+/// Legacy RDS metric data structure
+/// TEMPORARY: For backward compatibility during UI transition
 #[derive(Debug)]
 pub struct MetricData {
     pub timestamps: Vec<SystemTime>,
@@ -66,7 +130,7 @@ pub struct MetricData {
     pub failed_sql_server_agent_jobs_count: f64,
     pub checkpoint_lag: f64,
     pub connection_attempts: f64,
-    
+
     // History vectors
     pub cpu_history: Vec<f64>,
     pub connections_history: Vec<f64>,
@@ -181,7 +245,8 @@ impl MetricData {
     }
 }
 
-// TEMPORARY: Basic SqsMetricData struct for backward compatibility during UI transition
+/// Legacy SQS metric data structure
+/// TEMPORARY: For backward compatibility during UI transition
 #[derive(Debug)]
 pub struct SqsMetricData {
     pub number_of_messages_sent: f64,
@@ -249,246 +314,40 @@ impl Default for SqsMetricData {
 
 impl SqsMetricData {
     pub fn get_available_metrics(&self) -> Vec<MetricType> {
-        // Return empty for now - UI will use dynamic metrics
-        Vec::new()
-    }
-}
+        // If we have timestamps (meaning we successfully loaded data), return available metrics
+        if !self.timestamps.is_empty() {
+            let mut available = Vec::new();
 
+            // Check which metrics have actual data
+            if !self.messages_sent_history.is_empty() {
+                available.push(MetricType::NumberOfMessagesSent);
+            }
+            if !self.messages_received_history.is_empty() {
+                available.push(MetricType::NumberOfMessagesReceived);
+            }
+            if !self.messages_deleted_history.is_empty() {
+                available.push(MetricType::NumberOfMessagesDeleted);
+            }
+            if !self.queue_depth_history.is_empty() {
+                available.push(MetricType::ApproximateNumberOfMessages);
+            }
+            if !self.messages_visible_history.is_empty() {
+                available.push(MetricType::ApproximateNumberOfMessagesVisible);
+            }
+            if !self.messages_not_visible_history.is_empty() {
+                available.push(MetricType::ApproximateNumberOfMessagesNotVisible);
+            }
+            if !self.oldest_message_age_history.is_empty() {
+                available.push(MetricType::ApproximateAgeOfOldestMessage);
+            }
+            if !self.empty_receives_history.is_empty() {
+                available.push(MetricType::NumberOfEmptyReceives);
+            }
 
-// REMOVED: SqsMetricData Default implementation - using DynamicMetrics instead
-
-// REMOVED: SqsMetricData implementation - using DynamicMetrics instead
-
-/// Dynamic metric collection for any AWS service
-/// This replaces the hardcoded MetricData and SqsMetricData structs
-#[derive(Debug, Clone)]
-pub struct DynamicMetrics {
-    pub metrics: Vec<DynamicMetricData>,
-    pub last_updated: SystemTime,
-}
-
-impl DynamicMetrics {
-    pub fn new(_service_type: AwsService, _instance_id: String) -> Self {
-        Self {
-            metrics: Vec::new(),
-            last_updated: SystemTime::now(),
+            available
+        } else {
+            // Return empty for now - UI will use dynamic metrics
+            Vec::new()
         }
-    }
-
-    pub fn update_metrics(&mut self, metrics: Vec<DynamicMetricData>) {
-        self.metrics = metrics;
-        self.last_updated = SystemTime::now();
-    }
-
-
-
-    pub fn get_available_metric_names(&self) -> Vec<String> {
-        self.metrics.iter().map(|m| m.metric_name.clone()).collect()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.metrics.is_empty()
-    }
-
-    pub fn len(&self) -> usize {
-        self.metrics.len()
-    }
-}
-
-// REMOVED: MetricData Default implementation - using DynamicMetrics instead
-
-// REMOVED: MetricData implementation - using DynamicMetrics instead
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum AwsService {
-    Rds,
-    Sqs,
-}
-
-impl AwsService {
-    pub fn display_name(&self) -> &'static str {
-        match self {
-            AwsService::Rds => "RDS (Relational Database Service)",
-            AwsService::Sqs => "SQS (Simple Queue Service)",
-        }
-    }
-
-    pub fn short_name(&self) -> &'static str {
-        match self {
-            AwsService::Rds => "RDS",
-            AwsService::Sqs => "SQS",
-        }
-    }
-}
-
-// Generic instance container to hold different service instances
-// Currently supports RDS and SQS, easily extensible for future services
-#[derive(Debug, Clone)]
-pub enum ServiceInstance {
-    Rds(RdsInstance),
-    Sqs(SqsQueue),
-    // Future services will be added here when needed
-    // Ec2(Ec2Instance),
-}
-
-impl ServiceInstance {
-    pub fn as_aws_instance(&self) -> &dyn AwsInstance {
-        match self {
-            ServiceInstance::Rds(instance) => instance,
-            ServiceInstance::Sqs(queue) => queue,
-        }
-    }
-}
-
-// Generic instance trait that different AWS services can implement
-pub trait AwsInstance {
-    fn id(&self) -> &str;
-}
-
-#[derive(Debug, PartialEq)]
-pub enum AppState {
-    ServiceList,     // NEW: Show list of available AWS services
-    InstanceList,    // RENAMED: Show instances for selected service (was RdsList)
-    MetricsSummary,  // Show metrics summary for selected instance
-    InstanceDetails, // Show detailed metrics for selected instance
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum FocusedPanel {
-    Timezone,
-    Period,
-    TimeRanges,
-    SparklineGrid,
-}
-
-// TEMPORARY: Basic MetricType enum for backward compatibility during UI transition
-// Only keeping variants that are still used in the codebase
-#[derive(Debug, Clone, PartialEq)]
-pub enum MetricType {
-    // RDS Metrics
-    CpuUtilization,
-    DatabaseConnections,
-    FreeStorageSpace,
-    ReadIops,
-    WriteIops,
-    ReadLatency,
-    WriteLatency,
-    ReadThroughput,
-    WriteThroughput,
-    NetworkReceiveThroughput,
-    NetworkTransmitThroughput,
-    SwapUsage,
-    FreeableMemory,
-    QueueDepth,
-    BurstBalance,
-    CpuCreditUsage,
-    CpuCreditBalance,
-    CpuSurplusCreditBalance,
-    CpuSurplusCreditsCharged,
-    EbsByteBalance,
-    EbsIoBalance,
-    BinLogDiskUsage,
-    ReplicaLag,
-    MaximumUsedTransactionIds,
-    OldestReplicationSlotLag,
-    OldestLogicalReplicationSlotLag,
-    ReplicationSlotDiskUsage,
-    TransactionLogsDiskUsage,
-    TransactionLogsGeneration,
-    FailedSqlServerAgentJobsCount,
-    CheckpointLag,
-    ConnectionAttempts,
-    
-    // SQS Metrics
-    NumberOfMessagesSent,
-    NumberOfMessagesReceived,
-    NumberOfMessagesDeleted,
-    ApproximateNumberOfMessages,
-    ApproximateNumberOfMessagesVisible,
-    ApproximateNumberOfMessagesNotVisible,
-    ApproximateAgeOfOldestMessage,
-    NumberOfEmptyReceives,
-    ApproximateNumberOfMessagesDelayed,
-    SentMessageSize,
-    NumberOfMessagesInDlq,
-    ApproximateNumberOfGroupsWithInflightMessages,
-    NumberOfDeduplicatedSentMessages,
-}
-
-
-pub struct App {
-    // Service selection state (focused on RDS for now)
-    pub available_services: Vec<AwsService>,
-    pub service_list_state: ListState,
-    pub selected_service: Option<AwsService>,
-
-    // Instance list state (generic for all services, but RDS-focused)
-    pub instances: Vec<ServiceInstance>,
-    pub rds_instances: Vec<RdsInstance>, // Keep for backward compatibility during transition
-    pub sqs_queues: Vec<SqsQueue>,       // SQS queues for the selected service
-    pub list_state: ListState,
-    pub loading: bool,
-    pub state: AppState,
-    pub selected_instance: Option<usize>,
-    
-    // Dynamic metrics that work for any service (NEW)
-    pub dynamic_metrics: Option<DynamicMetrics>,
-    
-    // TEMPORARY: Legacy hardcoded metrics for backward compatibility during UI transition
-    pub metrics: MetricData,
-    pub sqs_metrics: SqsMetricData,
-    
-    pub metrics_loading: bool,
-    pub last_refresh: Option<Instant>,
-    pub auto_refresh_enabled: bool,
-    pub focused_panel: FocusedPanel, // Track which panel has focus (metrics or time ranges)
-    pub saved_focused_panel: FocusedPanel, // Save focused panel state when transitioning to details
-    pub time_range: TimeRange,
-
-    // Sparkline grid state
-    pub selected_metric_name: Option<String>, // Currently selected metric name in sparkline grid (dynamic)
-    pub sparkline_grid_selected_index: usize, // Track currently selected metric index in grid
-    pub saved_sparkline_grid_selected_index: usize, // Save selected metric index when transitioning to details
-    pub sparkline_grid_list_state: ListState,       // Built-in ratatui state for proper scrolling
-
-    // Built-in list states for all components (replacing manual scroll variables)
-    pub time_range_list_state: ListState, // Built-in state for time range selection
-    pub period_list_state: ListState,     // Built-in state for period selection
-    pub timezone_list_state: ListState,   // Built-in state for timezone selection
-
-    // Error handling
-    pub error_message: Option<String>, // Store user-friendly error messages
-
-    // Loading timeout management
-    pub loading_start_time: Option<Instant>, // Track when loading started
-
-    // Time range display mode
-    pub time_range_mode: TimeRangeMode, // Toggle between absolute and relative
-
-    // Timezone selection
-    pub timezone: Timezone, // Current timezone selection
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TimeRangeMode {
-    Absolute,
-    Relative,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Timezone {
-    Utc,
-    Local,
-}
-
-impl Timezone {
-    pub fn display_name(&self) -> &'static str {
-        match self {
-            Timezone::Utc => "UTC timezone",
-            Timezone::Local => "Local timezone",
-        }
-    }
-
-    pub fn get_timezone_options() -> Vec<Timezone> {
-        vec![Timezone::Local, Timezone::Utc]
     }
 }

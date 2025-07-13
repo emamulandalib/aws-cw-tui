@@ -1,6 +1,7 @@
 use crate::models::{App, RdsInstance, SqsQueue};
 use ratatui::{
-    prelude::*,
+    layout::{Constraint, Direction, Layout},
+    style::{Style, Stylize},
     text::{Line, Span},
     widgets::{
         Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,

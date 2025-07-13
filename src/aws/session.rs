@@ -160,13 +160,7 @@ impl AwsSessionManager {
             }
         }
     }
-
-
-
-
 }
-
-
 
 /// Comprehensive result of credential validation including status messages
 #[derive(Debug, Clone)]
@@ -176,5 +170,3 @@ pub struct CredentialValidationResult {
     pub error_message: Option<String>,
     pub error_guidance: Vec<String>,
 }
-
-
