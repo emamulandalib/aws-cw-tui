@@ -62,6 +62,8 @@ impl App {
         if let Some(&(_, value, unit, period_days)) = options.get(index) {
             self.time_range_list_state.select(Some(index));
             self.time_range = TimeRange::new(value, unit, period_days)?;
+            // Validate and adjust period selection for new time range
+            self.validate_period_selection();
             Ok(())
         } else {
             Ok(())
@@ -114,21 +116,48 @@ impl App {
         &self.time_range_mode
     }
 
-    /// Get all available period options
-    pub fn get_period_options() -> Vec<(&'static str, i32)> {
+    /// Get all available period options based on current time range (CloudWatch constraints)
+    pub fn get_period_options(&self) -> Vec<(&'static str, i32)> {
+        let time_range_duration = self.time_range.duration();
+        let hours = time_range_duration.as_secs() / 3600;
+        
+        match hours {
+            // Within 3 hours: High-resolution periods allowed
+            0..=3 => vec![
+                ("5 seconds", 5),
+                ("10 seconds", 10),
+                ("20 seconds", 20),
+                ("30 seconds", 30),
+                ("1 minute", 60),
+                ("5 minutes", 300),
+                ("15 minutes", 900),
+            ],
+            // 3 hours to 15 days: Standard periods only
+            4..=360 => vec![
+                ("1 minute", 60),
+                ("5 minutes", 300),
+                ("15 minutes", 900),
+                ("1 hour", 3600),
+            ],
+            // 15+ days: Coarse periods only
+            _ => vec![
+                ("1 hour", 3600),
+                ("6 hours", 21600),
+                ("1 day", 86400),
+            ],
+        }
+    }
+
+    /// Get a static method for compatibility (used by UI components)
+    pub fn get_period_options_static() -> Vec<(&'static str, i32)> {
+        // Default fallback when no app context is available
         vec![
-            ("5 seconds", 5),
-            ("10 seconds", 10),
-            ("20 seconds", 20),
-            ("30 seconds", 30),
             ("1 minute", 60),
             ("5 minutes", 300),
             ("15 minutes", 900),
             ("1 hour", 3600),
             ("6 hours", 21600),
             ("1 day", 86400),
-            ("7 days", 604800),
-            ("30 days", 2592000),
         ]
     }
 
@@ -139,10 +168,47 @@ impl App {
 
     /// Select a specific period by index
     pub fn select_period(&mut self, index: usize) {
-        let options = Self::get_period_options();
+        let options = self.get_period_options();
         if let Some(&(_, period_seconds)) = options.get(index) {
             self.period_list_state.select(Some(index));
             self.selected_period = Some(period_seconds);
+        }
+    }
+
+    /// Validate and auto-adjust period selection for current time range
+    pub fn validate_period_selection(&mut self) {
+        if let Some(current_period) = self.selected_period {
+            let valid_periods = self.get_period_options();
+            
+            // Check if current period is still valid
+            let is_valid = valid_periods.iter().any(|(_, period)| *period == current_period);
+            
+            if !is_valid {
+                // Find the closest valid period
+                let closest_period = valid_periods
+                    .iter()
+                    .min_by_key(|(_, period)| (*period as i32 - current_period).abs())
+                    .map(|(_, period)| *period);
+                    
+                if let Some(new_period) = closest_period {
+                    self.selected_period = Some(new_period);
+                    
+                    // Update the selection index to match
+                    if let Some(index) = valid_periods.iter().position(|(_, period)| *period == new_period) {
+                        self.period_list_state.select(Some(index));
+                    }
+                    
+                    log::info!(
+                        "Auto-adjusted period from {}s to {}s for current time range", 
+                        current_period, 
+                        new_period
+                    );
+                } else {
+                    // Clear selection if no valid period found
+                    self.selected_period = None;
+                    self.period_list_state.select(Some(0));
+                }
+            }
         }
     }
 
@@ -172,7 +238,7 @@ impl App {
 
     /// Navigate down in period selection
     pub fn period_scroll_down(&mut self) {
-        let options = Self::get_period_options();
+        let options = self.get_period_options();
         let current = self.period_list_state.selected().unwrap_or(0);
         if current < options.len() - 1 {
             let new_index = current + 1;

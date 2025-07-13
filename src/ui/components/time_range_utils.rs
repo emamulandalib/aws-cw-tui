@@ -12,7 +12,7 @@ use ratatui::{
 
 /// Render period selection panel (like AWS Console)
 pub fn render_period_selection_panel(f: &mut Frame, app: &mut App, area: Rect) {
-    let period_options = crate::models::App::get_period_options();
+    let period_options = app.get_period_options();
     let current_selection = app.get_current_period_index();
 
     let mut items = Vec::new();
