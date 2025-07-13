@@ -9,6 +9,9 @@ use super::dynamic_metric_discovery::{
     discover_rds_metrics, discover_sqs_metrics, fetch_discovered_metrics,
 };
 use super::time_range::calculate_period_seconds;
+use crate::aws::services::sqs::mapper::SqsMetricDefinitions;
+use crate::aws::metrics::statistics::determine_sqs_statistic;
+use crate::aws::metrics::discovery::MetricDefinition;
 
 // Re-export for backward compatibility
 pub use super::time_range::TimeRange;
@@ -33,7 +36,7 @@ pub async fn load_dynamic_metrics(
     );
 
     // Step 1: Discover available metrics for the service
-    let discovered_metrics = timed_operation!(
+    let mut discovered_metrics = timed_operation!(
         "discover_metrics",
         match service {
             AwsService::Rds => {
@@ -46,6 +49,23 @@ pub async fn load_dynamic_metrics(
             }
         }
     );
+
+    if discovered_metrics.is_empty() && matches!(service, AwsService::Sqs) {
+        info!("No metrics discovered for SQS, falling back to standard metrics");
+        let standard = SqsMetricDefinitions::standard_metrics();
+        let fifo = SqsMetricDefinitions::fifo_metrics();
+        let all_metrics = standard.into_iter().chain(fifo.into_iter());
+        for (metric_name, namespace) in all_metrics {
+            let unit = SqsMetricDefinitions::get_unit(metric_name).to_string();
+            let statistic = determine_sqs_statistic(metric_name).to_string();
+            discovered_metrics.push(MetricDefinition {
+                metric_name: metric_name.to_string(),
+                namespace: namespace.to_string(),
+                unit: Some(unit),
+                statistic,
+            });
+        }
+    }
 
     info!(
         discovered_count = discovered_metrics.len(),

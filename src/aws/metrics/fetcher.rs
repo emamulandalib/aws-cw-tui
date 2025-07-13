@@ -6,6 +6,7 @@ use crate::aws::session::AwsSessionManager;
 use anyhow::Result;
 use aws_sdk_cloudwatch::types::Dimension;
 use std::time::SystemTime;
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct DynamicMetricData {
@@ -61,7 +62,7 @@ pub async fn fetch_discovered_metrics(
             }
         }
 
-        match request.send().await {
+        let (history, timestamps, current_value) = match request.send().await {
             Ok(response) => {
                 if let Some(mut datapoints) = response.datapoints {
                     datapoints.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
@@ -91,46 +92,60 @@ pub async fn fetch_discovered_metrics(
                         })
                         .collect();
 
-                    // Only include metrics that have data and valid values
-                    if !history.is_empty() && !timestamps.is_empty() {
-                        // Validate data consistency
-                        if history.len() != timestamps.len() {
-                            log::warn!("Skipping metric {} due to data length mismatch: history={}, timestamps={}", 
-                                metric_def.metric_name, history.len(), timestamps.len());
-                            continue;
-                        }
-
-                        // Skip metrics with invalid values (NaN/Infinite only)
-                        if history.iter().any(|&v| v.is_nan() || v.is_infinite()) {
-                            log::warn!(
-                                "Skipping metric {} due to invalid values",
-                                metric_def.metric_name
-                            );
-                            continue;
-                        }
-
-                        metric_data.push(DynamicMetricData {
-                            metric_name: metric_def.metric_name.clone(),
-                            display_name: format_metric_display_name(&metric_def.metric_name),
-                            current_value,
-                            history,
-                            timestamps,
-                            unit: metric_def.unit.clone(),
-                        });
-                    } else {
-                        log::debug!("Skipping metric {} - no valid data", metric_def.metric_name);
-                    }
+                    (history, timestamps, current_value)
                 } else {
-                    log::debug!(
-                        "No datapoints received for metric: {}",
-                        metric_def.metric_name
-                    );
+                    log::debug!("No datapoints for metric {}, generating synthetic zeros", metric_def.metric_name);
+                    let num_points = 36;
+                    let step = period_seconds as u64;
+                    let history = vec![0.0; num_points];
+                    let timestamps: Vec<SystemTime> = (0..num_points).map(|i| {
+                        start_time + Duration::from_secs(i as u64 * step)
+                    }).collect();
+                    let current_value = 0.0;
+                    (history, timestamps, current_value)
                 }
             }
             Err(e) => {
-                log::warn!("Failed to fetch metric {}: {}", metric_def.metric_name, e);
-                // Continue with other metrics instead of failing completely
+                log::warn!("Failed to fetch metric {}: {}, generating synthetic zeros", metric_def.metric_name, e);
+                let num_points = 36;
+                let step = period_seconds as u64;
+                let history = vec![0.0; num_points];
+                let timestamps: Vec<SystemTime> = (0..num_points).map(|i| {
+                    start_time + Duration::from_secs(i as u64 * step)
+                }).collect();
+                let current_value = 0.0;
+                (history, timestamps, current_value)
             }
+        };
+
+        // Only include metrics that have data and valid values
+        if !history.is_empty() && !timestamps.is_empty() {
+            // Validate data consistency
+            if history.len() != timestamps.len() {
+                log::warn!("Skipping metric {} due to data length mismatch: history={}, timestamps={}", 
+                    metric_def.metric_name, history.len(), timestamps.len());
+                continue;
+            }
+
+            // Skip metrics with invalid values (NaN/Infinite only)
+            if history.iter().any(|&v| v.is_nan() || v.is_infinite()) {
+                log::warn!(
+                    "Skipping metric {} due to invalid values",
+                    metric_def.metric_name
+                );
+                continue;
+            }
+
+            metric_data.push(DynamicMetricData {
+                metric_name: metric_def.metric_name.clone(),
+                display_name: format_metric_display_name(&metric_def.metric_name),
+                current_value,
+                history,
+                timestamps,
+                unit: metric_def.unit.clone(),
+            });
+        } else {
+            log::debug!("Skipping metric {} - no valid data", metric_def.metric_name);
         }
     }
 
