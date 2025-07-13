@@ -103,6 +103,86 @@ impl App {
         }
     }
 
+    /// Handle scroll left based on current state and focused panel
+    pub fn scroll_left(&mut self) {
+        debug!(
+            "UI_STATE: scroll_left called in state: {:?}, panel: {:?}",
+            self.state, self.focused_panel
+        );
+
+        match self.state {
+            AppState::MetricsSummary => match self.focused_panel {
+                FocusedPanel::Timezone => {
+                    debug!("UI_STATE: Scrolling left in timezone panel");
+                    self.timezone_scroll_up(); // Use up for left in timezone
+                }
+                FocusedPanel::Period => {
+                    debug!("UI_STATE: Scrolling left in period panel");
+                    self.period_scroll_up(); // Use up for left in period
+                }
+                FocusedPanel::TimeRanges => {
+                    debug!("UI_STATE: Scrolling left in time ranges panel");
+                    self.time_range_scroll_left();
+                }
+                FocusedPanel::SparklineGrid => {
+                    debug!("UI_STATE: Scrolling left in sparkline grid");
+                    let old_index = self.sparkline_grid_selected_index;
+                    self.sparkline_grid_scroll_left();
+                    let new_index = self.sparkline_grid_selected_index;
+                    if old_index != new_index {
+                        self.log_metric_selection_change(old_index, new_index, "scroll left");
+                    }
+                }
+            },
+            _ => {
+                debug!(
+                    "UI_STATE: Scroll left - no action for state: {:?}",
+                    self.state
+                );
+            }
+        }
+    }
+
+    /// Handle scroll right based on current state and focused panel
+    pub fn scroll_right(&mut self) {
+        debug!(
+            "UI_STATE: scroll_right called in state: {:?}, panel: {:?}",
+            self.state, self.focused_panel
+        );
+
+        match self.state {
+            AppState::MetricsSummary => match self.focused_panel {
+                FocusedPanel::Timezone => {
+                    debug!("UI_STATE: Scrolling right in timezone panel");
+                    self.timezone_scroll_down(); // Use down for right in timezone
+                }
+                FocusedPanel::Period => {
+                    debug!("UI_STATE: Scrolling right in period panel");
+                    self.period_scroll_down(); // Use down for right in period
+                }
+                FocusedPanel::TimeRanges => {
+                    debug!("UI_STATE: Scrolling right in time ranges panel");
+                    self.time_range_scroll_right();
+                }
+                FocusedPanel::SparklineGrid => {
+                    debug!("UI_STATE: Scrolling right in sparkline grid");
+                    let old_index = self.sparkline_grid_selected_index;
+                    self.sparkline_grid_scroll_right();
+                    let new_index = self.sparkline_grid_selected_index;
+                    if old_index != new_index {
+                        self.log_metric_selection_change(old_index, new_index, "scroll right");
+                    }
+                }
+            },
+            _ => {
+                debug!(
+                    "UI_STATE: Scroll right - no action for state: {:?}",
+                    self.state
+                );
+            }
+        }
+    }
+
     /// Reset all scroll positions and UI state
     pub fn reset_scroll(&mut self) {
         info!("UI_STATE: Resetting all scroll positions and UI state");

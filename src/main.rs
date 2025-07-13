@@ -17,8 +17,12 @@ use std::io::Write;
 // Import enhanced logging
 use utils::logging::init_tracing_logger;
 
-// Import app to make App extension methods available
+// Import core modules for application initialization and management
 use config::DebugConfig;
+use core::app::state_management::*;
+use core::app::instance_access::*;
+use core::app::service_management::*;
+use core::app::metrics_management::*;
 
 use aws::session::AwsSessionManager;
 use event_handler::handle_event;
@@ -74,9 +78,9 @@ async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
             terminal.draw(|f| render_app(f, &mut app))?;
         });
 
-        // Check for loading timeout
+        // Check for loading timeout using core state management
         if app.loading {
-            app.check_loading_timeout();
+            app.check_loading_timeout(); // Using core state management
         }
 
         if let Ok(event) = event::read() {
@@ -93,11 +97,11 @@ async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
             }
         }
 
-        // Auto-refresh logic - refresh appropriate data based on current state
-        if app.needs_refresh() {
+        // Auto-refresh logic using core modules
+        if app.needs_refresh() { // Using core state management
             match app.state {
                 AppState::InstanceList => {
-                    // Refresh instance list
+                    // Refresh instance list using core service management
                     if let Some(service) = app.selected_service.clone() {
                         debug!(
                             "AUTO_REFRESH: Refreshing instance list for service: {:?}",
@@ -105,24 +109,28 @@ async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
                         );
                         if let Err(e) = app.load_service_instances(&service).await {
                             error!("AUTO_REFRESH: Failed to load service instances: {}", e);
+                            app.set_error(format!("Auto-refresh failed: {}", e)); // Using core state management
                         } else {
                             debug!("AUTO_REFRESH: Instance list refreshed successfully");
+                            app.mark_refreshed(); // Using core state management
                         }
                     } else {
                         warn!("AUTO_REFRESH: Cannot refresh instances - no service selected");
                     }
                 }
                 AppState::MetricsSummary | AppState::InstanceDetails => {
-                    // Refresh metrics data
-                    if let Some(instance_id) = app.get_selected_instance_id() {
+                    // Refresh metrics data using core metrics management
+                    if let Some(instance_id) = app.get_selected_instance_id() { // Using core instance access
                         debug!(
                             "AUTO_REFRESH: Refreshing metrics for instance: {} in state: {:?}",
                             instance_id, app.state
                         );
-                        if let Err(e) = app.load_metrics(&instance_id).await {
+                        if let Err(e) = app.load_metrics(&instance_id).await { // Using core metrics management
                             error!("AUTO_REFRESH: Failed to refresh metrics: {}", e);
+                            app.set_error(format!("Auto-refresh failed: {}", e)); // Using core state management
                         } else {
                             debug!("AUTO_REFRESH: Metrics refreshed successfully");
+                            app.mark_refreshed(); // Using core state management
                         }
                     } else {
                         warn!("AUTO_REFRESH: Cannot refresh metrics - no instance selected");
@@ -140,8 +148,9 @@ async fn run_app(mut terminal: TerminalManager, mut app: App) -> Result<()> {
     Ok(())
 }
 
+/// Initialize the logging system using core utilities
 fn init_logging() -> DebugConfig {
-    // Initialize tracing logger
+    // Initialize tracing logger using core utilities
     let tracing_logger = init_tracing_logger();
 
     // Create debug configuration from environment for backward compatibility
@@ -155,6 +164,25 @@ fn init_logging() -> DebugConfig {
     info!("Log file: {}", tracing_logger.log_file_path.display());
 
     debug_config
+}
+
+/// Initialize the application using core initialization module
+fn init_application() -> App {
+    info!("STARTUP: Initializing application using core modules");
+    
+    // Create app using core initialization - this automatically sets up:
+    // - Proper default states
+    // - List state initialization
+    // - Error handling
+    // - Time range configuration
+    let app = App::new(); // Using core initialization module
+    
+    info!("STARTUP: Application initialized successfully");
+    debug!("STARTUP: Initial state: {:?}", app.state);
+    debug!("STARTUP: Available services: {:?}", app.available_services);
+    debug!("STARTUP: Focused panel: {:?}", app.focused_panel);
+    
+    app
 }
 
 #[tokio::main]
@@ -205,9 +233,9 @@ async fn main() -> Result<()> {
     info!("STARTUP: Initializing terminal manager");
     let terminal = TerminalManager::new()?;
 
-    // Create app and run - starts with service selection
-    info!("STARTUP: Creating application instance");
-    let app = App::new();
+    // Create app using core initialization and run
+    info!("STARTUP: Creating application instance using core modules");
+    let app = init_application(); // Using core initialization
     let res = run_app(terminal, app).await;
 
     if let Err(err) = res {
