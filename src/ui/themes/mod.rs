@@ -145,8 +145,8 @@ impl UnifiedTheme {
             tertiary: warm_sunset_colors::PALE_CREAM,                    // Metadata text (pale cream)
             background: warm_sunset_colors::DARK_TEAL,                   // Dark teal background
             
-            // Interactive elements - Golden yellow highlights
-            accent: warm_sunset_colors::GOLDEN_YELLOW,                   // Headers and borders (golden yellow)
+            // Interactive elements - Warm cream for consistent borders
+            accent: warm_sunset_colors::WARM_CREAM,                      // Headers and borders (warm cream)
             focused: warm_sunset_colors::VIBRANT_ORANGE,                 // Focus indicators (vibrant orange)
             selected: warm_sunset_colors::GOLDEN_YELLOW,                 // Selection background (golden yellow)
             selected_text: warm_sunset_colors::DARK_TEAL,                // Selected text (dark on gold)
@@ -158,8 +158,8 @@ impl UnifiedTheme {
             info: warm_sunset_colors::INFO_BLUE,                         // Information status
             
             // Structural elements - Teal and cream tones
-            border: warm_sunset_colors::LIGHT_TEAL,                      // Default borders (light teal)
-            border_focused: warm_sunset_colors::GOLDEN_YELLOW,           // Focused borders (golden yellow)
+            border: warm_sunset_colors::WARM_CREAM,                      // Default borders (warm cream)
+            border_focused: warm_sunset_colors::VIBRANT_ORANGE,          // Focused borders (vibrant orange)
             separator: warm_sunset_colors::MUTED_TEAL,                   // Content separators
             muted: warm_sunset_colors::PALE_CREAM,                       // Disabled/muted elements
             
@@ -381,38 +381,38 @@ pub struct ComponentTheme {
 }
 
 impl ComponentTheme {
-    /// Service selection theme - cyan accent for service lists
+    /// Service selection theme - warm cream border for all panels
     pub fn service_list(base: UnifiedTheme) -> Self {
         Self {
-            component_accent: base.accent,      // Cyan for service lists
-            component_highlight: base.selected, // Cyan for selection
+            component_accent: base.border,      // Warm cream for service lists
+            component_highlight: base.selected, // Golden yellow for selection
             base,
         }
     }
     
-    /// Instance list theme - green for healthy instances
+    /// Instance list theme - warm cream border for all panels
     pub fn instance_list(base: UnifiedTheme) -> Self {
         Self {
-            component_accent: base.success,     // Green for instances
-            component_highlight: base.selected, // Cyan for selection
+            component_accent: base.border,      // Warm cream for instances
+            component_highlight: base.selected, // Golden yellow for selection
             base,
         }
     }
     
-    /// Time range selection theme - yellow accent for time controls
+    /// Time range selection theme - warm cream border for all panels
     pub fn time_range(base: UnifiedTheme) -> Self {
         Self {
-            component_accent: base.accent,      // Cyan for time controls
-            component_highlight: base.selected, // Cyan for selection
+            component_accent: base.border,      // Warm cream for time controls
+            component_highlight: base.selected, // Golden yellow for selection
             base,
         }
     }
     
-    /// Metrics and charts theme - cyan for data visualization
+    /// Metrics and charts theme - warm cream border for all panels
     pub fn metrics(base: UnifiedTheme) -> Self {
         Self {
-            component_accent: base.info,        // Cyan for metrics
-            component_highlight: base.selected, // Cyan for selection
+            component_accent: base.border,      // Warm cream for metrics
+            component_highlight: base.selected, // Golden yellow for selection
             base,
         }
     }

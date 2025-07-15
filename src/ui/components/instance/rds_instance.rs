@@ -1,9 +1,9 @@
-use crate::models::RdsInstance;
+use crate::models::aws_services::RdsInstance;
 use crate::ui::components::list_styling::{
     ListItemBuilder, StatusIndicator, TypeIndicator, LayoutStyle,
     themes::instance_list_colors_with_theme,
-    utilities::create_instance_item,
 };
+use crate::ui::components::universal_box::UniversalBox;
 use crate::ui::themes::UnifiedTheme;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -20,19 +20,11 @@ pub fn render_rds_instance_details(
     is_focused: bool,
     theme: &UnifiedTheme,
 ) {
-    let border_color = if is_focused {
-        theme.border_focused
-    } else {
-        theme.border
-    };
+    UniversalBox::header("RDS Instance Details", theme.clone()).focused(is_focused).render(f, area);
 
-    let block = Block::default()
+    let inner_area = Block::default()
         .borders(Borders::ALL)
-        .title("RDS Instance Details")
-        .border_style(Style::default().fg(border_color));
-
-    let inner_area = block.inner(area);
-    f.render_widget(block, area);
+        .inner(area);
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)

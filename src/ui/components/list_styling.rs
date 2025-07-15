@@ -24,6 +24,7 @@ pub struct ListColors {
     pub progress_fg: Color,
     pub highlight: Color,
     pub dim: Color,
+    pub border: Color,
 }
 
 impl ListColors {
@@ -51,6 +52,7 @@ impl ListColors {
             progress_fg: theme.progress_fg,
             highlight: theme.selected,         // Yellow background for selection
             dim: theme.tertiary,
+            border: theme.border,              // Add border color from theme
         }
     }
 }
@@ -621,6 +623,95 @@ impl ListItemBuilder {
     }
 }
 
+/// Enhanced border style factory utilities for theme-consistent styling
+pub mod border_factory {
+    use super::*;
+    use crate::ui::themes::UnifiedTheme;
+
+    /// Create theme-consistent border style based on focus state
+    /// This is the primary function for creating borders across all components
+    pub fn create_theme_border_style(theme: &UnifiedTheme, is_focused: bool) -> Style {
+        Style::default().fg(if is_focused {
+            theme.border_focused    // Use theme's focused border color
+        } else {
+            theme.border           // Use theme's default border color
+        })
+    }
+
+    /// Create theme-consistent border style with custom focus color override
+    /// Useful for components that need special focus highlighting
+    pub fn create_theme_border_style_with_focus_override(
+        theme: &UnifiedTheme, 
+        is_focused: bool, 
+        focus_color: Color
+    ) -> Style {
+        Style::default().fg(if is_focused {
+            focus_color            // Use custom focus color
+        } else {
+            theme.border           // Use theme's default border color
+        })
+    }
+
+    /// Validate border consistency during development
+    /// Returns true if the provided style uses theme-consistent colors
+    pub fn validate_border_consistency(
+        style: &Style, 
+        theme: &UnifiedTheme, 
+        is_focused: bool
+    ) -> bool {
+        let expected_color = if is_focused {
+            theme.border_focused
+        } else {
+            theme.border
+        };
+        
+        // Check if the style's foreground color matches expected theme color
+        match style.fg {
+            Some(color) => color == expected_color,
+            None => false, // No color set means not using theme colors
+        }
+    }
+
+    /// Get the appropriate border color from theme based on focus state
+    /// Utility function for components that need direct color access
+    pub fn get_theme_border_color(theme: &UnifiedTheme, is_focused: bool) -> Color {
+        if is_focused {
+            theme.border_focused
+        } else {
+            theme.border
+        }
+    }
+
+    /// Create theme-consistent border style for status-specific borders
+    /// Used for error displays, warnings, etc.
+    pub fn create_theme_status_border_style(
+        theme: &UnifiedTheme, 
+        status: BorderStatus
+    ) -> Style {
+        let color = match status {
+            BorderStatus::Normal => theme.border,
+            BorderStatus::Focused => theme.border_focused,
+            BorderStatus::Success => theme.success,
+            BorderStatus::Warning => theme.warning,
+            BorderStatus::Error => theme.error,
+            BorderStatus::Info => theme.info,
+        };
+        
+        Style::default().fg(color)
+    }
+
+    /// Border status types for status-specific styling
+    #[derive(Clone, Copy, Debug)]
+    pub enum BorderStatus {
+        Normal,
+        Focused,
+        Success,
+        Warning,
+        Error,
+        Info,
+    }
+}
+
 /// Utility functions for consistent list styling
 pub mod utilities {
     use super::*;
@@ -646,12 +737,13 @@ pub mod utilities {
             .add_modifier(Modifier::BOLD)
     }
 
-    /// Create border (focus color for focused panels, accent color for normal panels)
+    /// Create border (focus color for focused panels, border color for normal panels)
+    /// DEPRECATED: Use border_factory::create_theme_border_style instead
     pub fn create_border_style(is_focused: bool, colors: &ListColors) -> Style {
         Style::default().fg(if is_focused {
             colors.focused      // Focus color for focused panels
         } else {
-            colors.accent       // Accent color for normal panels
+            colors.border       // Use border color for normal panels
         })
     }
 
@@ -814,13 +906,14 @@ pub mod themes {
     }
 
     pub fn service_list_colors_with_theme(theme: &UnifiedTheme) -> ListColors {
-        let component_theme = ComponentTheme::service_list(theme.clone());
-        
-        let mut colors = ListColors::from_theme(&component_theme.base);
-        colors.accent = component_theme.component_accent;
-        colors.highlight = component_theme.component_highlight;
-        colors
-    }
+    let component_theme = ComponentTheme::service_list(theme.clone());
+    
+    let mut colors = ListColors::from_theme(&component_theme.base);
+    colors.accent = component_theme.component_accent;
+    colors.highlight = component_theme.component_highlight;
+    
+    colors
+}
 
     pub fn instance_list_colors() -> ListColors {
         let base_theme = UnifiedTheme::default();
@@ -833,13 +926,14 @@ pub mod themes {
     }
 
     pub fn instance_list_colors_with_theme(theme: &UnifiedTheme) -> ListColors {
-        let component_theme = ComponentTheme::instance_list(theme.clone());
-        
-        let mut colors = ListColors::from_theme(&component_theme.base);
-        colors.accent = component_theme.component_accent;
-        colors.highlight = component_theme.component_highlight;
-        colors
-    }
+    let component_theme = ComponentTheme::instance_list(theme.clone());
+    
+    let mut colors = ListColors::from_theme(&component_theme.base);
+    colors.accent = component_theme.component_accent;
+    colors.highlight = component_theme.component_highlight;
+    
+    colors
+}
 
     pub fn time_range_colors() -> ListColors {
         let base_theme = UnifiedTheme::default();

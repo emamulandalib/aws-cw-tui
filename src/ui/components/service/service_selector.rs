@@ -2,12 +2,12 @@ use crate::models::AwsService;
 use crate::ui::components::list_styling::{
     ListItemBuilder, StatusIndicator, TypeIndicator, LayoutStyle,
     themes::service_list_colors_with_theme,
-    utilities::{create_border_style, create_highlight_style},
+    utilities::create_highlight_style,
+    border_factory::create_theme_border_style,
 };
 use crate::ui::themes::UnifiedTheme;
 use ratatui::{
     layout::{Rect},
-    style::{Style},
     widgets::{Block, Borders, List, ListItem, ListState},
     Frame,
 };
@@ -29,15 +29,20 @@ pub fn render_service_selection_list(
         .enumerate()
         .map(|(index, service)| {
             let is_selected = index == selected_index;
-            
-            let text = format!("{}", service.display_name());
-            
-            ListItem::new(text)
-                .style(if is_selected {
-                    create_highlight_style(&colors)
-                } else {
-                    Style::default().fg(colors.primary)
-                })
+            let builder = ListItemBuilder::new()
+                .with_colors(colors.clone())
+                .selected(is_selected)
+                .focused(is_focused)
+                .add_status_indicator(StatusIndicator::Available)
+                .add_type_indicator(TypeIndicator::Service)
+                .add_primary_text(service.display_name().to_string())
+                .with_layout_style(LayoutStyle::Standard);
+
+            match service {
+                AwsService::Rds => builder.add_secondary_text("Relational Database Service".to_string()),
+                AwsService::Sqs => builder.add_secondary_text("Simple Queue Service".to_string()),
+            }
+            .build()
         })
         .collect();
 
@@ -46,9 +51,8 @@ pub fn render_service_selection_list(
             Block::default()
                 .borders(Borders::ALL)
                 .title("AWS Services")
-                .border_style(create_border_style(is_focused, &colors)),
+                .border_style(create_theme_border_style(theme, false)), // Always use unfocused border for service list
         )
-        .style(Style::default().fg(colors.primary))
         .highlight_style(create_highlight_style(&colors));
 
     f.render_stateful_widget(list, area, list_state);
@@ -57,16 +61,18 @@ pub fn render_service_selection_list(
 pub fn render_service_details(f: &mut Frame, area: Rect, service: &AwsService, is_focused: bool, theme: &UnifiedTheme) {
     let colors = service_list_colors_with_theme(theme);
     
-    let type_indicator = match service {
-        AwsService::Rds => TypeIndicator::Database,
-        AwsService::Sqs => TypeIndicator::Queue,
-    };
-    
     let items = vec![
         ListItemBuilder::new()
-            .add_type_indicator(type_indicator)
-            .add_primary_text(service.display_name().to_string())
-            .add_secondary_text(format!(" - {}", service.short_name()))
+            .with_colors(colors.clone())
+            .add_primary_text(format!("Service: {}", service.display_name()))
+            .build(),
+        ListItemBuilder::new()
+            .with_colors(colors.clone())
+            .add_primary_text(format!("Type: {}", service.short_name()))
+            .build(),
+        ListItemBuilder::new()
+            .with_colors(colors.clone())
+            .add_primary_text("Description: AWS Cloud Service".to_string())
             .build(),
     ];
 
@@ -75,9 +81,8 @@ pub fn render_service_details(f: &mut Frame, area: Rect, service: &AwsService, i
             Block::default()
                 .borders(Borders::ALL)
                 .title("Service Details")
-                .border_style(create_border_style(is_focused, &colors)),
-        )
-        .style(Style::default().fg(colors.primary));
+                .border_style(create_theme_border_style(theme, false)), // Always use unfocused border for service details
+        );
 
     f.render_widget(list, area);
 }

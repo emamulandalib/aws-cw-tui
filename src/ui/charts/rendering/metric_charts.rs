@@ -8,7 +8,6 @@ use crate::ui::components::metric_definitions::MetricRegistry;
 use crate::ui::themes::UnifiedTheme;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::Color,
     Frame,
 };
 
@@ -31,11 +30,6 @@ pub fn render_metric_chart(
 
     // Get health color based on current value
     let health_color = definition.get_health_color(chart_data.current_value);
-    let border_color = if is_focused {
-        theme.focused
-    } else {
-        theme.border
-    };
 
     // Calculate layout for title and chart
     let chunks = Layout::default()
@@ -53,7 +47,7 @@ pub fn render_metric_chart(
         &definition,
         chart_data,
         health_color,
-        border_color,
+        is_focused,
     );
 
     // Render chart if we have enough space and data
@@ -64,7 +58,7 @@ pub fn render_metric_chart(
             chart_data,
             &definition,
             health_color,
-            border_color,
+            is_focused,
         );
     } else {
         render_simple_metric(
@@ -73,7 +67,7 @@ pub fn render_metric_chart(
             chart_data,
             &definition,
             health_color,
-            border_color,
+            is_focused,
         );
     }
 }

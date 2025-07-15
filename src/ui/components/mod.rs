@@ -11,6 +11,8 @@ pub mod metric_utils;
 pub mod service_list;
 pub mod style_guide;
 pub mod time_range_utils;
+pub mod universal_box;
+
 
 // New modular components
 pub mod instance;
@@ -27,3 +29,6 @@ pub use service_list::render_service_list;
 pub use instance::rds_instance::{render_rds_instance_details, render_rds_instance_list_item};
 pub use instance::sqs_queue::{render_sqs_queue_details, render_sqs_queue_list_item};
 pub use service::service_selector::render_service_selection_list;
+
+// Export universal box component
+pub use universal_box::{UniversalBox, BoxContent, TextParagraph};

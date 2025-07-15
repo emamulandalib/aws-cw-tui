@@ -1,18 +1,19 @@
-use crate::models::SqsQueue;
+use crate::models::aws_services::SqsQueue;
 use crate::ui::components::list_styling::{
     ListItemBuilder, StatusIndicator, TypeIndicator, LayoutStyle,
     themes::instance_list_colors_with_theme,
-    utilities::create_instance_item,
 };
+use crate::ui::components::universal_box::UniversalBox;
 use crate::ui::themes::UnifiedTheme;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, ListItem, Paragraph},
+    text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
     Frame,
 };
 
-/// Render SQS queue details
+/// Render SQS queue details with enhanced styling
 pub fn render_sqs_queue_details(
     f: &mut Frame,
     area: Rect,
@@ -20,23 +21,18 @@ pub fn render_sqs_queue_details(
     is_focused: bool,
     theme: &UnifiedTheme,
 ) {
-    let border_color = if is_focused {
-        theme.border_focused
-    } else {
-        theme.border
-    };
-
-    let block = Block::default()
+    UniversalBox::header("SQS Queue Details", theme.clone()).focused(is_focused).render(f, area);
+    
+    let inner_area = Block::default()
         .borders(Borders::ALL)
-        .title("SQS Queue Details")
-        .border_style(Style::default().fg(border_color));
-
-    let inner_area = block.inner(area);
-    f.render_widget(block, area);
+        .inner(area);
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
             Constraint::Length(3),
             Constraint::Length(3),
             Constraint::Length(3),

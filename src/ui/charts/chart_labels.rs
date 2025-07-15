@@ -1,5 +1,6 @@
 use crate::aws::dynamic_metric_discovery::DynamicMetricData;
 use crate::ui::components::metric_definitions::MetricDefinition;
+use crate::ui::themes::UnifiedTheme;
 use ratatui::{
     style::{Color, Style},
     text::{Line, Span},
@@ -7,7 +8,7 @@ use ratatui::{
 use std::time::SystemTime;
 
 /// Create time labels for X axis
-pub fn create_time_labels(timestamps: &[SystemTime]) -> Vec<Line<'_>> {
+pub fn create_time_labels<'a>(timestamps: &[SystemTime], theme: &'a UnifiedTheme) -> Vec<Line<'a>> {
     use chrono::{DateTime, Utc};
 
     if timestamps.is_empty() {
@@ -30,14 +31,14 @@ pub fn create_time_labels(timestamps: &[SystemTime]) -> Vec<Line<'_>> {
 
             Line::from(Span::styled(
                 format!("{}", local_time.format("%H:%M")),
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(theme.muted),
             ))
         })
         .collect()
 }
 
 /// Create value labels for Y axis
-pub fn create_value_labels(y_bounds: [f64; 2], definition: &MetricDefinition) -> Vec<Line<'_>> {
+pub fn create_value_labels<'a>(y_bounds: [f64; 2], definition: &MetricDefinition, theme: &'a UnifiedTheme) -> Vec<Line<'a>> {
     let num_labels = 5;
     let range = y_bounds[1] - y_bounds[0];
 
@@ -48,17 +49,18 @@ pub fn create_value_labels(y_bounds: [f64; 2], definition: &MetricDefinition) ->
 
             Line::from(Span::styled(
                 definition.format_value(value),
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(theme.muted),
             ))
         })
         .collect()
 }
 
 /// Create dynamic value labels for Y axis
-pub fn create_dynamic_value_labels(
+pub fn create_dynamic_value_labels<'a>(
     y_bounds: [f64; 2],
     _metric_data: &DynamicMetricData,
-) -> Vec<Line<'_>> {
+    theme: &'a UnifiedTheme,
+) -> Vec<Line<'a>> {
     let num_labels = 5;
     let range = y_bounds[1] - y_bounds[0];
 
@@ -69,7 +71,7 @@ pub fn create_dynamic_value_labels(
 
             Line::from(Span::styled(
                 format!("{:.2}", value),
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(theme.muted),
             ))
         })
         .collect()

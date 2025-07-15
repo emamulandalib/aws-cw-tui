@@ -1,5 +1,7 @@
 use crate::aws::dynamic_metric_discovery::DynamicMetricData;
 use crate::ui::charts::chart_data::MetricChartData;
+use crate::ui::components::list_styling::border_factory;
+use crate::ui::themes::UnifiedTheme;
 use ratatui::{
     layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
@@ -14,8 +16,11 @@ pub fn render_metric_title(
     definition: &crate::ui::components::metric_definitions::MetricDefinition,
     chart_data: &MetricChartData,
     health_color: Color,
-    border_color: Color,
+    is_focused: bool,
 ) {
+    let theme = UnifiedTheme::default();
+    let border_style = border_factory::create_theme_border_style(&theme, is_focused);
+    
     let title_text = format!(
         "{}: {}",
         definition.name,
@@ -32,7 +37,7 @@ pub fn render_metric_title(
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(border_color)),
+                .border_style(border_style),
         );
 
     f.render_widget(title_widget, area);
@@ -43,8 +48,11 @@ pub fn render_dynamic_metric_title(
     f: &mut Frame,
     area: Rect,
     metric_data: &DynamicMetricData,
-    border_color: Color,
+    is_focused: bool,
 ) {
+    let theme = UnifiedTheme::default();
+    let border_style = border_factory::create_theme_border_style(&theme, is_focused);
+    
     let formatted_value = format_dynamic_metric_value(
         metric_data.current_value,
         metric_data.unit.as_deref().unwrap_or(""),
@@ -55,14 +63,14 @@ pub fn render_dynamic_metric_title(
     let title_widget = Paragraph::new(title_text)
         .style(
             Style::default()
-                .fg(Color::Green) // Default to green for dynamic metrics
+                .fg(theme.success) // Use theme success color instead of hardcoded green
                 .add_modifier(Modifier::BOLD),
         )
         .alignment(Alignment::Center)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(border_color)),
+                .border_style(border_style),
         );
 
     f.render_widget(title_widget, area);

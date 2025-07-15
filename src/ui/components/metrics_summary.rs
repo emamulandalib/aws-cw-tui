@@ -6,7 +6,9 @@ use super::{
         render_timezone_selection_panel,
     },
 };
-use crate::models::{App, TimeRangeMode};
+use crate::models::app_state::App;
+use crate::models::TimeRangeMode;
+use crate::ui::components::universal_box::UniversalBox;
 use crate::ui::components::{render_rds_instance_details, render_sqs_queue_details};
 use crate::ui::themes::UnifiedTheme;
 use crate::log_ui_render;
@@ -69,13 +71,13 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App, theme: &UnifiedTheme
             .split(content_chunks[0]);
 
         // Render time range panel (now at top)
-        render_aws_console_time_range_panel(f, app, time_panel_chunks[0]);
+        render_aws_console_time_range_panel(f, app, time_panel_chunks[0], theme);
 
         // Render period selection panel (now in middle)
-        render_period_selection_panel(f, app, time_panel_chunks[1]);
+        render_period_selection_panel(f, app, time_panel_chunks[1], theme);
 
         // Render timezone selection panel (now at bottom)
-        render_timezone_selection_panel(f, app, time_panel_chunks[2]);
+        render_timezone_selection_panel(f, app, time_panel_chunks[2], theme);
 
         // Metrics Panel - AWS Console Style Grid (direct rendering)
         super::aws_chart::AwsMetricsGrid::render(f, app, content_chunks[1], theme);
@@ -90,15 +92,9 @@ pub fn render_metrics_summary(f: &mut Frame, app: &mut App, theme: &UnifiedTheme
 // Removed duplicate render_sqs_instance_info function - now using pure service-specific component
 
 fn render_default_header(f: &mut Frame, area: ratatui::layout::Rect, theme: &UnifiedTheme) {
-    let header_block = Paragraph::new("Metrics Summary")
-        .style(Style::default().fg(theme.primary))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("AWS CloudWatch TUI")
-                .border_style(Style::default().fg(theme.accent)),
-        );
-    f.render_widget(header_block, area);
+    UniversalBox::header("AWS CloudWatch TUI", theme.clone())
+        .text_aligned("Metrics Summary", Alignment::Center)
+        .render(f, area);
 }
 
 fn render_controls(f: &mut Frame, area: ratatui::layout::Rect, app: &App, theme: &UnifiedTheme) {
@@ -117,15 +113,5 @@ fn render_controls(f: &mut Frame, area: ratatui::layout::Rect, app: &App, theme:
 
 /// Render error message with helpful suggestions
 fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, error_msg: &str, theme: &UnifiedTheme) {
-    let error_widget = Paragraph::new(error_msg)
-        .style(Style::default().fg(theme.error))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Error")
-                .border_style(Style::default().fg(theme.error)),
-        )
-        .wrap(Wrap { trim: false })
-        .alignment(Alignment::Center);
-    f.render_widget(error_widget, area);
+    UniversalBox::error_box("Error", error_msg, theme.clone()).render(f, area);
 }

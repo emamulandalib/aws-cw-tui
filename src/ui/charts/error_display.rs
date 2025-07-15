@@ -4,6 +4,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
+use crate::ui::components::list_styling::border_factory::{create_theme_status_border_style, BorderStatus};
 
 /// Render a general error message in the chart area
 pub fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, message: &str) {
@@ -16,7 +17,7 @@ pub fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, message:
             Block::default()
                 .borders(Borders::ALL)
                 .title("Error")
-                .border_style(Style::default().fg(theme.error)),
+                .border_style(create_theme_status_border_style(&theme, BorderStatus::Error)),
         );
 
     f.render_widget(error_paragraph, area);
@@ -28,7 +29,7 @@ pub fn render_error_chart(f: &mut Frame, area: ratatui::layout::Rect, error_msg:
     let error_block = Block::default()
         .borders(Borders::ALL)
         .title("Chart Error")
-        .border_style(Style::default().fg(theme.error));
+        .border_style(create_theme_status_border_style(&theme, BorderStatus::Error));
 
     let error_paragraph = Paragraph::new(error_msg)
         .style(Style::default().fg(theme.error))
@@ -46,6 +47,7 @@ pub fn render_data_validation_error(
     metric_name: &str,
     error_details: &str,
 ) {
+    let theme = crate::ui::themes::UnifiedTheme::default();
     let title = format!("Data Validation Error: {}", metric_name);
     let message = format!(
         "Failed to validate metric data:\n\n{}\n\nPlease check your data source and try refreshing.",
@@ -55,10 +57,10 @@ pub fn render_data_validation_error(
     let error_block = Block::default()
         .borders(Borders::ALL)
         .title(title)
-        .border_style(Style::default().fg(Color::Red));
+        .border_style(create_theme_status_border_style(&theme, BorderStatus::Error));
 
     let error_paragraph = Paragraph::new(message)
-        .style(Style::default().fg(Color::Red))
+        .style(Style::default().fg(theme.error))
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: true })
         .block(error_block);
@@ -74,7 +76,7 @@ pub fn render_no_data_message(f: &mut Frame, area: ratatui::layout::Rect, metric
     let no_data_block = Block::default()
         .borders(Borders::ALL)
         .title("No Data")
-        .border_style(Style::default().fg(theme.warning));
+        .border_style(create_theme_status_border_style(&theme, BorderStatus::Warning));
 
     let no_data_paragraph = Paragraph::new(message)
         .style(Style::default().fg(theme.warning))
@@ -87,13 +89,14 @@ pub fn render_no_data_message(f: &mut Frame, area: ratatui::layout::Rect, metric
 
 /// Render a loading message while data is being fetched
 pub fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect) {
+    let theme = crate::ui::themes::UnifiedTheme::default();
     let loading_block = Block::default()
         .borders(Borders::ALL)
         .title("Loading")
-        .border_style(Style::default().fg(Color::Blue));
+        .border_style(create_theme_status_border_style(&theme, BorderStatus::Info));
 
     let loading_paragraph = Paragraph::new("Loading metric data...")
-        .style(Style::default().fg(Color::Blue))
+        .style(Style::default().fg(theme.info))
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true })
         .block(loading_block);
@@ -103,6 +106,7 @@ pub fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect) {
 
 /// Render a timeout error message
 pub fn render_timeout_error(f: &mut Frame, area: ratatui::layout::Rect, service: &str) {
+    let theme = crate::ui::themes::UnifiedTheme::default();
     let message = format!(
         "Timeout loading {} metrics.\n\nThis may be due to:\n• Network connectivity issues\n• AWS service availability\n• Large time range selected\n\nTry reducing the time range or checking your connection.",
         service
@@ -111,10 +115,10 @@ pub fn render_timeout_error(f: &mut Frame, area: ratatui::layout::Rect, service:
     let timeout_block = Block::default()
         .borders(Borders::ALL)
         .title("Timeout Error")
-        .border_style(Style::default().fg(Color::Red));
+        .border_style(create_theme_status_border_style(&theme, BorderStatus::Error));
 
     let timeout_paragraph = Paragraph::new(message)
-        .style(Style::default().fg(Color::Red))
+        .style(Style::default().fg(theme.error))
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: true })
         .block(timeout_block);
@@ -124,15 +128,16 @@ pub fn render_timeout_error(f: &mut Frame, area: ratatui::layout::Rect, service:
 
 /// Render an AWS authentication error
 pub fn render_auth_error(f: &mut Frame, area: ratatui::layout::Rect) {
+    let theme = crate::ui::themes::UnifiedTheme::default();
     let message = "AWS Authentication Error\n\nPlease check:\n• AWS credentials are configured\n• AWS profile is valid\n• Required permissions are granted\n\nRun 'aws configure' or set AWS_PROFILE environment variable.";
 
     let auth_block = Block::default()
         .borders(Borders::ALL)
         .title("Authentication Error")
-        .border_style(Style::default().fg(Color::Red));
+        .border_style(create_theme_status_border_style(&theme, BorderStatus::Error));
 
     let auth_paragraph = Paragraph::new(message)
-        .style(Style::default().fg(Color::Red))
+        .style(Style::default().fg(theme.error))
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: true })
         .block(auth_block);
@@ -142,6 +147,7 @@ pub fn render_auth_error(f: &mut Frame, area: ratatui::layout::Rect) {
 
 /// Render a popup overlay error message
 pub fn render_error_popup(f: &mut Frame, area: ratatui::layout::Rect, title: &str, message: &str) {
+    let theme = crate::ui::themes::UnifiedTheme::default();
     // Calculate popup size (60% of the area)
     let popup_area = centered_rect(60, 40, area);
 
@@ -152,10 +158,10 @@ pub fn render_error_popup(f: &mut Frame, area: ratatui::layout::Rect, title: &st
     let error_block = Block::default()
         .borders(Borders::ALL)
         .title(title)
-        .border_style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD));
+        .border_style(create_theme_status_border_style(&theme, BorderStatus::Error).add_modifier(Modifier::BOLD));
 
     let error_paragraph = Paragraph::new(message)
-        .style(Style::default().fg(Color::Red))
+        .style(Style::default().fg(theme.error))
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true })
         .block(error_block);

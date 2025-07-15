@@ -1,5 +1,7 @@
 use crate::aws::dynamic_metric_discovery::DynamicMetricData;
 use crate::ui::charts::chart_data::MetricChartData;
+use crate::ui::components::list_styling::border_factory;
+use crate::ui::themes::UnifiedTheme;
 use ratatui::{
     layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
@@ -14,8 +16,11 @@ pub fn render_simple_metric(
     chart_data: &MetricChartData,
     definition: &crate::ui::components::metric_definitions::MetricDefinition,
     health_color: Color,
-    border_color: Color,
+    is_focused: bool,
 ) {
+    let theme = UnifiedTheme::default();
+    let border_style = border_factory::create_theme_border_style(&theme, is_focused);
+    
     let trend_indicator = calculate_trend_indicator(&chart_data.history, chart_data.current_value);
     let content = format!("{}{}", definition.description, trend_indicator);
 
@@ -26,7 +31,7 @@ pub fn render_simple_metric(
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(border_color)),
+                .border_style(border_style),
         );
 
     f.render_widget(simple_widget, area);
@@ -37,8 +42,11 @@ pub fn render_dynamic_simple_metric(
     f: &mut Frame,
     area: Rect,
     metric_data: &DynamicMetricData,
-    border_color: Color,
+    is_focused: bool,
 ) {
+    let theme = UnifiedTheme::default();
+    let border_style = border_factory::create_theme_border_style(&theme, is_focused);
+    
     let formatted_value = format_simple_metric_value(
         metric_data.current_value,
         metric_data.unit.as_deref().unwrap_or(""),
@@ -47,29 +55,32 @@ pub fn render_dynamic_simple_metric(
     let simple_widget = Paragraph::new(formatted_value)
         .style(
             Style::default()
-                .fg(Color::Green)
+                .fg(theme.success)
                 .add_modifier(Modifier::BOLD),
         )
         .alignment(Alignment::Center)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(border_color)),
+                .border_style(border_style),
         );
 
     f.render_widget(simple_widget, area);
 }
 
 /// Render error chart
-pub fn render_error_chart(f: &mut Frame, area: Rect, error_msg: &str, border_color: Color) {
+pub fn render_error_chart(f: &mut Frame, area: Rect, error_msg: &str, is_focused: bool) {
+    let theme = UnifiedTheme::default();
+    let border_style = border_factory::create_theme_status_border_style(&theme, border_factory::BorderStatus::Error);
+    
     let error_widget = Paragraph::new(format!("Error: {}", error_msg))
-        .style(Style::default().fg(Color::Red))
+        .style(Style::default().fg(theme.error))
         .alignment(Alignment::Center)
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Chart Error")
-                .border_style(Style::default().fg(border_color)),
+                .border_style(border_style),
         );
 
     f.render_widget(error_widget, area);

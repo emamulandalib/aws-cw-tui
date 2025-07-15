@@ -1,13 +1,14 @@
 use crate::models::App;
-use crate::ui::components::{render_rds_instance_list_item, render_sqs_queue_list_item};
+use crate::ui::components::{render_rds_instance_list_item, render_sqs_queue_list_item, UniversalBox};
 use crate::ui::components::list_styling::{
     themes::instance_list_colors_with_theme,
-    utilities::{create_border_style, create_highlight_style},
+    utilities::create_highlight_style,
+    border_factory::create_theme_border_style,
 };
 use crate::ui::themes::UnifiedTheme;
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    layout::{Constraint, Direction, Layout},
+    style::Style,
     widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
     Frame,
 };
@@ -57,7 +58,7 @@ fn render_header(f: &mut Frame, area: ratatui::layout::Rect, app: &App, theme: &
             Block::default()
                 .borders(Borders::ALL)
                 .title(border_title)
-                .border_style(Style::default().fg(theme.accent)),
+                .border_style(create_theme_border_style(theme, false)), // Always use unfocused border for instance list header
         );
     f.render_widget(header, area);
 }
@@ -70,35 +71,15 @@ fn render_loading_message(f: &mut Frame, area: ratatui::layout::Rect, app: &App,
         .unwrap_or("Service");
     let title = format!("{} Instances", service_name);
 
-    let loading_text = vec![
-        "Loading instances...",
-        "",
-        "This may take a few moments.",
-    ];
+    let loading_text = "Loading instances...\n\nThis may take a few moments.";
 
-    let loading_msg = Paragraph::new(loading_text.join("\n"))
-        .style(Style::default().fg(theme.info))
-        .alignment(ratatui::layout::Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(title)
-                .border_style(Style::default().fg(theme.border)),
-        );
-    f.render_widget(loading_msg, area);
+    UniversalBox::loading_box(title, loading_text, theme.clone())
+        .render(f, area);
 }
 
 fn render_error_message(f: &mut Frame, area: ratatui::layout::Rect, error_msg: &str, theme: &UnifiedTheme) {
-    let error_paragraph = Paragraph::new(error_msg)
-        .style(Style::default().fg(theme.error))
-        .alignment(ratatui::layout::Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Error")
-                .border_style(Style::default().fg(theme.error)),
-        );
-    f.render_widget(error_paragraph, area);
+    UniversalBox::error_box("Error", error_msg, theme.clone())
+        .render(f, area);
 }
 
 fn render_no_instances_message(f: &mut Frame, area: ratatui::layout::Rect, app: &App, theme: &UnifiedTheme) {
@@ -109,27 +90,17 @@ fn render_no_instances_message(f: &mut Frame, area: ratatui::layout::Rect, app: 
         .unwrap_or("Service");
     let title = format!("{} Instances", service_name);
 
-    let no_instances_text = vec![
-        format!("No {} instances found.", service_name),
-        "".to_string(),
-        "Check your AWS credentials and try again.".to_string(),
-    ];
+    let no_instances_text = format!("No {} instances found.", service_name);
+    let suggestion = "Check your AWS credentials and try again.";
 
-    let no_instances_msg = Paragraph::new(no_instances_text.join("\n"))
-        .style(Style::default().fg(theme.warning))
-        .alignment(ratatui::layout::Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(title)
-                .border_style(Style::default().fg(theme.border)),
-        );
-    f.render_widget(no_instances_msg, area);
+    UniversalBox::new(theme.clone())
+        .title(title)
+        .empty_with_suggestion(no_instances_text, suggestion)
+        .render(f, area);
 }
 
 fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut App, theme: &UnifiedTheme) {
     let colors = instance_list_colors_with_theme(theme);
-    let is_focused = true; // Assuming focused in this context
     
     // Get dynamic title based on selected service
     let title = if let Some(service) = &app.selected_service {
@@ -161,7 +132,7 @@ fn render_instances_list(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .border_style(create_border_style(is_focused, &colors)),
+                .border_style(create_theme_border_style(theme, false)), // Always use unfocused border for instance list
         )
         .style(Style::default().fg(colors.primary))
         .highlight_style(create_highlight_style(&colors));

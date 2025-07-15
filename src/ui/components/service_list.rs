@@ -1,5 +1,5 @@
 use crate::models::App;
-use crate::ui::components::render_service_selection_list;
+use crate::ui::components::{render_service_selection_list, UniversalBox};
 use crate::ui::themes::UnifiedTheme;
 use ratatui::{
     prelude::*,
@@ -23,14 +23,8 @@ pub fn render_service_list(f: &mut Frame, app: &mut App, theme: &UnifiedTheme) {
 }
 
 fn render_header(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
-    let header = Paragraph::new("AWS CloudWatch TUI - Service Selection")
-        .style(Style::default().fg(theme.primary))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.accent)),
-        );
-    f.render_widget(header, area);
+    UniversalBox::header("AWS CloudWatch TUI - Service Selection", theme.clone())
+        .render(f, area);
 }
 
 fn render_services(f: &mut Frame, area: Rect, app: &mut App, theme: &UnifiedTheme) {
@@ -46,7 +40,11 @@ fn render_services(f: &mut Frame, area: Rect, app: &mut App, theme: &UnifiedThem
 }
 
 fn render_controls(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
-    let controls = Paragraph::new("Up/Down: Navigate • Enter: Select Service • t: Change Theme • q: Quit")
-        .style(Style::default().fg(theme.secondary));
-    f.render_widget(controls, area);
+    UniversalBox::new(theme.clone())
+        .text_styled(
+            "Up/Down: Navigate • Enter: Select Service • t: Change Theme • q: Quit",
+            Style::default().fg(theme.secondary)
+        )
+        .borders(Borders::NONE)
+        .render(f, area);
 }

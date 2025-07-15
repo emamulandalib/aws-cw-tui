@@ -8,6 +8,7 @@ use crate::ui::components::metric::{MetricDefinition, MetricRegistry};
 use crate::ui::components::metric::display_format::DisplayFormat;
 use crate::ui::themes::UnifiedTheme;
 use crate::models::MetricType;
+use crate::ui::components::universal_box::UniversalBox;
 use log::{debug, info, warn};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -344,31 +345,17 @@ impl AwsMetricsGrid {
 
     /// Render no metrics available state
     fn render_no_metrics(f: &mut Frame, area: Rect, service: &crate::models::AwsService, theme: &UnifiedTheme) {
-        debug!("METRICS_GRID: Rendering no-metrics state for service: {:?}", service);
-        
         let service_name = service.short_name();
-        let message = match service {
-            crate::models::AwsService::Sqs => {
-                "No metrics found. Press 'r' to refresh or check AWS permissions."
-            }
-            _ => "No metrics available for this service"
+        let (message, color) = if service_name == "RDS" {
+            ("No RDS instances found.\nEnsure you have RDS instances running in your AWS account.", theme.info)
+        } else {
+            ("No metrics available for this service.", theme.warning)
         };
 
-        let color = match service {
-            crate::models::AwsService::Sqs => theme.accent, // Use cyan for SQS
-            _ => theme.muted,                               // Use muted for other services
-        };
-
-        let no_metrics_widget = Paragraph::new(message)
-            .style(Style::default().fg(color))
-            .alignment(Alignment::Center)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(format!("{} Metrics", service_name))
-                    .border_style(Style::default().fg(color)),
-            );
-
-        f.render_widget(no_metrics_widget, area);
+        UniversalBox::info(
+            format!("{} Metrics", service_name),
+            message,
+            theme.clone(),
+        ).render(f, area);
     }
 }

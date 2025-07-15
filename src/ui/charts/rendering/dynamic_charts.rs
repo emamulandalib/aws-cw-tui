@@ -7,7 +7,6 @@ use crate::ui::charts::error_display::render_error_message;
 use crate::ui::themes::UnifiedTheme;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::Color,
     Frame,
 };
 
@@ -26,12 +25,6 @@ pub fn render_dynamic_metric_chart(
         return;
     }
 
-    let border_color = if is_focused {
-        theme.focused
-    } else {
-        theme.border
-    };
-
     // Calculate layout for title and chart
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -42,13 +35,13 @@ pub fn render_dynamic_metric_chart(
         .split(area);
 
     // Render title with current value
-    render_dynamic_metric_title(f, chunks[0], metric_data, border_color);
+    render_dynamic_metric_title(f, chunks[0], metric_data, is_focused);
 
     // Render chart if we have enough space and data
     if chunks[1].height >= 8 && !metric_data.history.is_empty() {
-        render_dynamic_time_series_chart(f, chunks[1], metric_data, border_color);
+        render_dynamic_time_series_chart(f, chunks[1], metric_data, is_focused);
     } else {
-        render_dynamic_simple_metric(f, chunks[1], metric_data, border_color);
+        render_dynamic_simple_metric(f, chunks[1], metric_data, is_focused);
     }
 }
 

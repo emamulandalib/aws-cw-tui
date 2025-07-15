@@ -47,7 +47,7 @@ impl UiConfig {
     /// Create a warm sunset theme configuration
     pub fn warm_sunset_theme() -> Self {
         Self {
-            default_border_color: warm_sunset_colors::LIGHT_TEAL,
+            default_border_color: warm_sunset_colors::WARM_CREAM,
             focused_border_color: warm_sunset_colors::GOLDEN_YELLOW,
             error_color: warm_sunset_colors::CORAL_RED,
             success_color: warm_sunset_colors::SUCCESS_GREEN,

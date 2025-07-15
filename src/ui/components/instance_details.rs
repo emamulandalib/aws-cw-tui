@@ -6,6 +6,7 @@ use crate::ui::charts::rendering::metric_charts::render_metric_chart;
 use crate::ui::charts::rendering::dynamic_charts::render_dynamic_metric_chart;
 use crate::ui::charts::error_display::render_error_message;
 use crate::ui::components::{render_rds_instance_details, render_sqs_queue_details};
+use crate::ui::components::universal_box::UniversalBox;
 use crate::ui::themes::UnifiedTheme;
 use log::{debug, info, warn};
 use ratatui::{
@@ -46,15 +47,9 @@ pub fn render_instance_details(f: &mut Frame, app: &mut App, theme: &UnifiedThem
         }
     } else {
         // Generic header if no instance selected
-        let header_block = Paragraph::new("Instance Details")
-            .style(Style::default().fg(theme.primary))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("AWS CloudWatch TUI")
-                    .border_style(Style::default().fg(theme.accent)),
-            );
-        f.render_widget(header_block, chunks[0]);
+        UniversalBox::header("AWS CloudWatch TUI", theme.clone())
+            .text("Instance Details")
+            .render(f, chunks[0]);
     }
 
     if app.metrics_loading {
@@ -105,18 +100,7 @@ fn render_detailed_metric_view(f: &mut Frame, area: ratatui::layout::Rect, app: 
 pub fn render_metrics_loading(f: &mut Frame, area: ratatui::layout::Rect, theme: &UnifiedTheme) {
     debug!("LOADING: Rendering metrics loading indicator");
 
-    let loading_text = "Loading metrics data...";
-    let loading_block = Paragraph::new(loading_text)
-        .style(Style::default().fg(theme.info))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Loading")
-                .border_style(Style::default().fg(theme.border)),
-        )
-        .alignment(ratatui::layout::Alignment::Center);
-
-    f.render_widget(loading_block, area);
+    UniversalBox::loading_box("Loading", "Loading metrics data...", theme.clone()).render(f, area);
 }
 
 /// Get legacy metric data for backward compatibility

@@ -1,12 +1,14 @@
 use super::display_utils::get_selected_time_range_display;
 use crate::models::{App, FocusedPanel, TimeRangeMode};
 use crate::ui::components::list_styling::{
-    themes::time_range_colors,
-    utilities::{create_border_style, create_highlight_style, create_simple_list_item},
+    border_factory::create_theme_border_style,
+    themes::time_range_colors_with_theme,
+    utilities::{create_highlight_style, create_simple_list_item},
 };
+use crate::ui::themes::UnifiedTheme;
 use ratatui::{
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
     widgets::{
         Block, Borders, List, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
     },
@@ -14,10 +16,10 @@ use ratatui::{
 };
 
 /// Render period selection panel with enhanced styling
-pub fn render_period_selection_panel(f: &mut Frame, app: &mut App, area: Rect) {
+pub fn render_period_selection_panel(f: &mut Frame, app: &mut App, area: Rect, theme: &UnifiedTheme) {
     let period_options = app.get_period_options();
     let current_selection = app.get_current_period_index();
-    let colors = time_range_colors();
+    let colors = time_range_colors_with_theme(theme);
 
     let mut items = Vec::new();
 
@@ -51,7 +53,7 @@ pub fn render_period_selection_panel(f: &mut Frame, app: &mut App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .border_style(create_border_style(is_focused, &colors)),
+                .border_style(create_theme_border_style(theme, is_focused)),
         )
         .highlight_style(create_highlight_style(&colors));
 
@@ -71,28 +73,28 @@ pub fn render_period_selection_panel(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 /// Create time range panel with compact absolute/relative toggle
-pub fn render_aws_console_time_range_panel(f: &mut Frame, app: &mut App, area: Rect) {
+pub fn render_aws_console_time_range_panel(f: &mut Frame, app: &mut App, area: Rect, theme: &UnifiedTheme) {
     // Render time range content directly (removed mode indicator)
-    render_time_range_content(f, app, area);
+    render_time_range_content(f, app, area, theme);
 }
 
 /// Render the time range content based on current mode
-fn render_time_range_content(f: &mut Frame, app: &mut App, area: Rect) {
+fn render_time_range_content(f: &mut Frame, app: &mut App, area: Rect, theme: &UnifiedTheme) {
     match app.get_time_range_mode() {
         TimeRangeMode::Relative => {
-            render_relative_time_ranges(f, app, area);
+            render_relative_time_ranges(f, app, area, theme);
         }
         TimeRangeMode::Absolute => {
-            render_absolute_time_picker(f, app, area);
+            render_absolute_time_picker(f, app, area, theme);
         }
     }
 }
 
 /// Render relative time ranges with enhanced styling
-fn render_relative_time_ranges(f: &mut Frame, app: &mut App, area: Rect) {
+fn render_relative_time_ranges(f: &mut Frame, app: &mut App, area: Rect, theme: &UnifiedTheme) {
     let time_ranges = crate::models::App::get_time_range_options();
     let current_selection = app.get_current_time_range_index();
-    let colors = time_range_colors();
+    let colors = time_range_colors_with_theme(theme);
 
     let mut items = Vec::new();
 
@@ -132,7 +134,7 @@ fn render_relative_time_ranges(f: &mut Frame, app: &mut App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .border_style(create_border_style(is_focused, &colors)),
+                .border_style(create_theme_border_style(theme, is_focused)),
         )
         .highlight_style(create_highlight_style(&colors));
 
@@ -152,17 +154,11 @@ fn render_relative_time_ranges(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 /// Render absolute time picker (placeholder for now)
-fn render_absolute_time_picker(f: &mut Frame, app: &mut App, area: Rect) {
+fn render_absolute_time_picker(f: &mut Frame, app: &mut App, area: Rect, theme: &UnifiedTheme) {
     let is_focused = matches!(
         app.get_focused_panel(),
         crate::models::FocusedPanel::TimeRanges
     );
-
-    let border_color = if is_focused {
-        Color::Green
-    } else {
-        Color::White
-    };
 
     let title = "Absolute Time Range";
 
@@ -173,19 +169,19 @@ fn render_absolute_time_picker(f: &mut Frame, app: &mut App, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .border_style(Style::default().fg(border_color)),
+                .border_style(create_theme_border_style(theme, is_focused)),
         )
-        .style(Style::default().fg(crate::ui::themes::terminal_colors::TEXT_SECONDARY))
+        .style(Style::default().fg(theme.secondary))
         .alignment(ratatui::layout::Alignment::Center);
 
     f.render_widget(placeholder, area);
 }
 
 /// Render timezone selection panel
-pub fn render_timezone_selection_panel(f: &mut Frame, app: &mut App, area: Rect) {
+pub fn render_timezone_selection_panel(f: &mut Frame, app: &mut App, area: Rect, theme: &UnifiedTheme) {
     let timezone_options = App::get_timezone_options();
     let current_selection = app.get_current_timezone_index();
-    let colors = time_range_colors();
+    let colors = time_range_colors_with_theme(theme);
 
     let mut items = Vec::new();
 
@@ -216,7 +212,7 @@ pub fn render_timezone_selection_panel(f: &mut Frame, app: &mut App, area: Rect)
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .border_style(create_border_style(is_focused, &colors)),
+                .border_style(create_theme_border_style(theme, is_focused)),
         )
         .highlight_style(create_highlight_style(&colors));
 

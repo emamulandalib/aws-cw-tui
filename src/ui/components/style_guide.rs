@@ -1,7 +1,7 @@
-use crate::ui::themes::{UnifiedTheme, ComponentTheme, ThemeVariant};
+use crate::ui::themes::{UnifiedTheme, ThemeVariant};
 use crate::ui::components::list_styling::{
     ListItemBuilder, StatusIndicator, TypeIndicator, LayoutStyle, BadgeType,
-    utilities::{create_border_style, create_highlight_style},
+    border_factory,
 };
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -34,7 +34,7 @@ fn render_style_guide_header(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
             Block::default()
                 .borders(Borders::ALL)
                 .title("Warm Sunset Vibrant Interface")
-                .border_style(Style::default().fg(theme.accent)),
+                .border_style(border_factory::create_theme_border_style(theme, false)),
         );
     f.render_widget(header, area);
 }
@@ -117,7 +117,7 @@ fn render_color_palette(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
             Block::default()
                 .borders(Borders::ALL)
                 .title("Warm Sunset Color Palette")
-                .border_style(Style::default().fg(theme.border)),
+                .border_style(border_factory::create_theme_border_style(theme, false)),
         );
 
     f.render_widget(list, area);
@@ -177,7 +177,7 @@ fn render_component_demos(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
             Block::default()
                 .borders(Borders::ALL)
                 .title("Component Examples")
-                .border_style(Style::default().fg(theme.border)),
+                .border_style(border_factory::create_theme_border_style(theme, false)),
         );
 
     f.render_widget(list, area);
@@ -208,7 +208,7 @@ fn render_layout_examples(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
             Block::default()
                 .borders(Borders::ALL)
                 .title("Standard")
-                .border_style(Style::default().fg(theme.border)),
+                .border_style(border_factory::create_theme_border_style(theme, false)),
         );
     f.render_widget(standard_list, layout_chunks[0]);
 
@@ -226,7 +226,7 @@ fn render_layout_examples(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
             Block::default()
                 .borders(Borders::ALL)
                 .title("Enhanced")
-                .border_style(Style::default().fg(theme.border)),
+                .border_style(border_factory::create_theme_border_style(theme, false)),
         );
     f.render_widget(enhanced_list, layout_chunks[1]);
 
@@ -244,7 +244,7 @@ fn render_layout_examples(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
             Block::default()
                 .borders(Borders::ALL)
                 .title("Compact")
-                .border_style(Style::default().fg(theme.border)),
+                .border_style(border_factory::create_theme_border_style(theme, false)),
         );
     f.render_widget(compact_list, layout_chunks[2]);
 
@@ -263,7 +263,7 @@ fn render_layout_examples(f: &mut Frame, area: Rect, theme: &UnifiedTheme) {
             Block::default()
                 .borders(Borders::ALL)
                 .title("Card")
-                .border_style(Style::default().fg(theme.border)),
+                .border_style(border_factory::create_theme_border_style(theme, false)),
         );
     f.render_widget(card_list, layout_chunks[3]);
 }
