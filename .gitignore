@@ -52,3 +52,6 @@ dev-debug.log
 # Task files
 tasks.json
 tasks/ 
+
+# Kiro directory (should never be committed)
+.kiro/ 
