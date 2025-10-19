@@ -1,6 +1,7 @@
 use aws_config::{BehaviorVersion, SdkConfig};
 use aws_sdk_cloudwatch::Client as CloudWatchClient;
 use aws_sdk_rds::Client as RdsClient;
+use aws_sdk_sqs::Client as SqsClient;
 use aws_sdk_sts::Client as StsClient;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -53,6 +54,12 @@ impl AwsSessionManager {
     pub async fn rds_client() -> RdsClient {
         let config = Self::get_config().await;
         RdsClient::new(&config)
+    }
+
+    /// Create a new SQS client using the shared config
+    pub async fn sqs_client() -> SqsClient {
+        let config = Self::get_config().await;
+        SqsClient::new(&config)
     }
 
     /// Create a new CloudWatch client using the shared config
@@ -108,17 +115,8 @@ impl AwsSessionManager {
                 status_messages.push(format!("   User/Role: {user_id}"));
                 status_messages.push(format!("   ARN: {arn}"));
 
-                let credential_info = CredentialInfo {
-                    profile,
-                    region: region.to_string(),
-                    account_id: account_id.to_string(),
-                    user_id: user_id.to_string(),
-                    arn: arn.to_string(),
-                };
-
                 Ok(CredentialValidationResult {
                     success: true,
-                    credential_info: Some(credential_info),
                     status_messages,
                     error_message: None,
                     error_guidance: Vec::new(),
@@ -155,7 +153,6 @@ impl AwsSessionManager {
 
                 Ok(CredentialValidationResult {
                     success: false,
-                    credential_info: None,
                     status_messages,
                     error_message: Some(error_msg),
                     error_guidance,
@@ -163,56 +160,13 @@ impl AwsSessionManager {
             }
         }
     }
-
-    /// Get region information from the current config
-    pub async fn get_region() -> String {
-        let config = Self::get_config().await;
-        config
-            .region()
-            .map(|r| r.as_ref())
-            .unwrap_or("us-east-1")
-            .to_string()
-    }
-
-    /// Force reload the AWS configuration (useful for credential rotation)
-    ///
-    /// Note: This is generally not needed as AWS SDK handles credential refresh automatically
-    pub async fn reload_config() -> Arc<SdkConfig> {
-        // Force reload by creating new config
-        let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
-        let new_config = Arc::new(config);
-
-        // Update the global config
-        let mut write_guard = AWS_CONFIG.write().await;
-        *write_guard = Some(new_config.clone());
-
-        new_config
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct CredentialInfo {
-    pub profile: String,
-    pub region: String,
-    pub account_id: String,
-    pub user_id: String,
-    pub arn: String,
 }
 
 /// Comprehensive result of credential validation including status messages
 #[derive(Debug, Clone)]
 pub struct CredentialValidationResult {
     pub success: bool,
-    pub credential_info: Option<CredentialInfo>,
     pub status_messages: Vec<String>,
     pub error_message: Option<String>,
     pub error_guidance: Vec<String>,
-}
-
-/// Collection of AWS service clients
-#[derive(Debug)]
-pub struct AwsClients {
-    pub rds: RdsClient,
-    pub cloudwatch: CloudWatchClient,
-    pub sts: StsClient,
 }
