@@ -124,7 +124,7 @@ fn render_instructions(f: &mut Frame, area: ratatui::layout::Rect, available_cou
         scroll_offset + 1,
         available_count))
         .style(Style::default().fg(Color::Gray))
-        .block(Block::default().borders(Borders::ALL).title("Controls"));
+        .block(Block::default().borders(Borders::ALL).title("Controls").border_style(Style::default().fg(Color::White)));
     f.render_widget(instructions, area);
 }
 
@@ -139,7 +139,7 @@ fn render_large_metric_chart(
     if area.width < 20 || area.height < 6 {
         let simple_widget = Paragraph::new(format!("{}: {}", name, value))
             .style(Style::default().fg(color))
-            .block(Block::default().borders(Borders::ALL));
+            .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::White)));
         f.render_widget(simple_widget, area);
         return;
     }
@@ -178,7 +178,7 @@ fn render_large_metric_chart(
         let status_widget = Paragraph::new(status_msg)
             .style(Style::default().fg(status_color))
             .alignment(ratatui::layout::Alignment::Center)
-            .block(Block::default().borders(Borders::ALL).title("3hr"));
+            .block(Block::default().borders(Borders::ALL).title("3hr").border_style(Style::default().fg(Color::White)));
         f.render_widget(status_widget, widget_chunks[1]);
     }
 }
@@ -195,7 +195,7 @@ fn render_high_resolution_chart(
     
     if history.is_empty() || timestamps.is_empty() {
         let no_data_chart = Chart::new(vec![])
-            .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::Gray)))
+            .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::White)))
             .x_axis(Axis::default().style(Style::default().fg(Color::Gray)).bounds([0.0, 180.0]))
             .y_axis(Axis::default().style(Style::default().fg(Color::Gray)).bounds([0.0, 1.0]));
         f.render_widget(no_data_chart, area);
@@ -239,7 +239,7 @@ fn render_high_resolution_chart(
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Gray))
+                .border_style(Style::default().fg(Color::White))
         )
         .x_axis(
             Axis::default()

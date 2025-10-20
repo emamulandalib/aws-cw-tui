@@ -18,6 +18,7 @@ impl App {
             auto_refresh_enabled: true,
             scroll_offset: 0,
             metrics_per_screen: 1, // Show 1 metric per screen for maximum chart size
+            metrics_summary_scroll: 0, // Initialize metrics summary scroll position
         };
         app.list_state.select(Some(0));
         app
@@ -111,34 +112,127 @@ impl App {
         }
     }
 
+    pub fn enter_metrics_summary(&mut self) {
+        if let Some(i) = self.list_state.selected() {
+            self.selected_instance = Some(i);
+            self.state = AppState::MetricsSummary;
+            // Initialize scroll positions for metrics summary
+            self.metrics_summary_scroll = 0;
+            self.scroll_offset = 0;
+        }
+    }
+
+    pub fn back_to_metrics_summary(&mut self) {
+        self.state = AppState::MetricsSummary;
+        // Restore the metrics summary scroll position
+        self.scroll_offset = self.metrics_summary_scroll;
+    }
+
     pub fn enter_instance_details(&mut self) {
         if let Some(i) = self.list_state.selected() {
             self.selected_instance = Some(i);
             self.state = AppState::InstanceDetails;
+            // Save current metrics summary scroll position before transitioning
+            self.metrics_summary_scroll = self.scroll_offset;
+            // Set scroll_offset to the same position for instance details view
+            // This ensures the same metric is shown that was selected in summary
+            self.scroll_offset = self.metrics_summary_scroll;
         }
     }
 
     pub fn back_to_list(&mut self) {
         self.state = AppState::RdsList;
         self.selected_instance = None;
+        // Reset all scroll positions when going back to the main list
+        self.scroll_offset = 0;
+        self.metrics_summary_scroll = 0;
     }
 
     pub fn scroll_up(&mut self) {
-        if self.scroll_offset > 0 {
-            self.scroll_offset -= 1;
+        match self.state {
+            AppState::MetricsSummary => {
+                if self.metrics_summary_scroll > 0 {
+                    self.metrics_summary_scroll -= 1;
+                    // Keep scroll_offset in sync for UI consistency
+                    self.scroll_offset = self.metrics_summary_scroll;
+                }
+            }
+            _ => {
+                if self.scroll_offset > 0 {
+                    self.scroll_offset -= 1;
+                }
+            }
         }
     }
 
     pub fn scroll_down(&mut self) {
-        let total_individual_metrics = self.metrics.count_available_metrics();
-        // Always allow scrolling through all metrics, one at a time
-        let max_offset = total_individual_metrics.saturating_sub(1);
-        if self.scroll_offset < max_offset {
-            self.scroll_offset += 1;
+        match self.state {
+            AppState::MetricsSummary => {
+                // For metrics summary, limit to available metrics count
+                let available_metrics_count = self.get_available_metrics_count();
+                let max_offset = available_metrics_count.saturating_sub(1);
+                if self.metrics_summary_scroll < max_offset {
+                    self.metrics_summary_scroll += 1;
+                    // Keep scroll_offset in sync for UI consistency
+                    self.scroll_offset = self.metrics_summary_scroll;
+                }
+            }
+            AppState::InstanceDetails => {
+                // For instance details, use the original logic
+                let total_individual_metrics = self.metrics.count_available_metrics();
+                let max_offset = total_individual_metrics.saturating_sub(1);
+                if self.scroll_offset < max_offset {
+                    self.scroll_offset += 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn get_available_metrics_count(&self) -> usize {
+        let mut count = 0;
+        
+        // Core metrics
+        if !self.metrics.cpu_history.is_empty() { count += 1; }
+        if !self.metrics.connections_history.is_empty() { count += 1; }
+        if !self.metrics.read_iops_history.is_empty() { count += 1; }
+        if !self.metrics.write_iops_history.is_empty() { count += 1; }
+        if !self.metrics.read_latency_history.is_empty() { count += 1; }
+        if !self.metrics.write_latency_history.is_empty() { count += 1; }
+        if !self.metrics.free_storage_space_history.is_empty() { count += 1; }
+        if !self.metrics.read_throughput_history.is_empty() { count += 1; }
+        if !self.metrics.write_throughput_history.is_empty() { count += 1; }
+        if !self.metrics.network_receive_history.is_empty() { count += 1; }
+        if !self.metrics.network_transmit_history.is_empty() { count += 1; }
+        if !self.metrics.freeable_memory_history.is_empty() { count += 1; }
+        if !self.metrics.swap_usage_history.is_empty() { count += 1; }
+        if !self.metrics.queue_depth_history.is_empty() { count += 1; }
+
+        // Advanced metrics
+        if !self.metrics.burst_balance_history.is_empty() { count += 1; }
+        if !self.metrics.cpu_credit_usage_history.is_empty() { count += 1; }
+        if !self.metrics.cpu_credit_balance_history.is_empty() { count += 1; }
+        if !self.metrics.replica_lag_history.is_empty() { count += 1; }
+        
+        count
+    }
+
+    pub fn get_current_scroll_position(&self) -> usize {
+        match self.state {
+            AppState::MetricsSummary => self.metrics_summary_scroll,
+            _ => self.scroll_offset,
         }
     }
 
     pub fn reset_scroll(&mut self) {
-        self.scroll_offset = 0;
+        match self.state {
+            AppState::MetricsSummary => {
+                self.metrics_summary_scroll = 0;
+                self.scroll_offset = 0;
+            }
+            _ => {
+                self.scroll_offset = 0;
+            }
+        }
     }
 }

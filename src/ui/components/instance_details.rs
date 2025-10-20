@@ -11,10 +11,9 @@ use super::super::charts::metrics_chart::render_metrics;
 pub fn render_instance_details(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .margin(1)
         .constraints([
-            Constraint::Length(5),
-            Constraint::Min(0),
+            Constraint::Length(4), // Header - increased height to show the endpoint
+            Constraint::Min(0),    // Content (metrics chart will handle its own controls)
         ])
         .split(f.area());
 
@@ -24,10 +23,9 @@ pub fn render_instance_details(f: &mut Frame, app: &mut App) {
 
     if app.metrics_loading {
         render_metrics_loading(f, chunks[1]);
-        return;
+    } else {
+        render_metrics(f, chunks[1], &app.metrics, app.scroll_offset, app.metrics_per_screen);
     }
-
-    render_metrics(f, chunks[1], &app.metrics, app.scroll_offset, app.metrics_per_screen);
 }
 
 fn render_instance_info(f: &mut Frame, area: ratatui::layout::Rect, instance: &crate::models::RdsInstance) {
@@ -35,40 +33,38 @@ fn render_instance_info(f: &mut Frame, area: ratatui::layout::Rect, instance: &c
     let info_text = vec![
         Line::from(vec![
             Span::styled("Engine: ", Style::default().fg(Color::White)),
-            Span::styled(&instance.engine, Style::default().fg(Color::Green)),
+            Span::styled(&instance.engine, Style::default().fg(Color::White)),
             Span::raw("  "),
             Span::styled("Status: ", Style::default().fg(Color::White)),
-            Span::styled(&instance.status, get_status_style(&instance.status)),
+            Span::styled(&instance.status, Style::default().fg(Color::White)),
             Span::raw("  "),
             Span::styled("Class: ", Style::default().fg(Color::White)),
-            Span::styled(&instance.instance_class, Style::default().fg(Color::Cyan)),
+            Span::styled(&instance.instance_class, Style::default().fg(Color::White)),
         ]),
         Line::from(vec![
             Span::styled("Endpoint: ", Style::default().fg(Color::White)),
             Span::styled(
                 instance.endpoint.as_ref().unwrap_or(&na_string),
-                Style::default().fg(Color::Gray),
+                Style::default().fg(Color::Cyan),
             ),
         ]),
     ];
 
     let info = Paragraph::new(info_text)
-        .block(Block::default().borders(Borders::ALL).title("Instance Information"))
-        .wrap(ratatui::widgets::Wrap { trim: true });
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Instance Information")
+            .border_style(Style::default().fg(Color::Cyan)))
+        .wrap(ratatui::widgets::Wrap { trim: false });
     f.render_widget(info, area);
 }
 
 fn render_metrics_loading(f: &mut Frame, area: ratatui::layout::Rect) {
     let loading_msg = Paragraph::new("Loading metrics...")
         .style(Style::default().fg(Color::Yellow))
-        .block(Block::default().borders(Borders::ALL).title("CloudWatch Metrics"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("CloudWatch Metrics")
+            .border_style(Style::default().fg(Color::White)));
     f.render_widget(loading_msg, area);
-}
-
-fn get_status_style(status: &str) -> Style {
-    match status {
-        "available" => Style::default().fg(Color::Green),
-        "stopped" => Style::default().fg(Color::Red),
-        _ => Style::default().fg(Color::Yellow),
-    }
 }
