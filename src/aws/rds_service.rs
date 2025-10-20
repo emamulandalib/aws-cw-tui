@@ -59,7 +59,10 @@ pub async fn load_rds_instances() -> Result<Vec<RdsInstance>> {
                 storage_encrypted: instance.storage_encrypted,
                 performance_insights_enabled: instance.performance_insights_enabled,
                 deletion_protection: instance.deletion_protection,
-                creation_time: instance.instance_create_time.map(|t| std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(t.secs() as u64)),
+                creation_time: instance.instance_create_time.map(|t| {
+                    std::time::SystemTime::UNIX_EPOCH
+                        + std::time::Duration::from_secs(t.secs() as u64)
+                }),
             };
             debug!("Created RDS instance: {:?}", rds_instance);
             instances.push(rds_instance);

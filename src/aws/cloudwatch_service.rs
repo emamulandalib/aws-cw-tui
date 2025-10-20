@@ -2,16 +2,16 @@ use crate::models::{AwsService, DynamicMetrics};
 use crate::{log_aws_operation, timed_operation};
 use anyhow::Result;
 use std::time::SystemTime;
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 // Import our dynamic modules
 use super::dynamic_metric_discovery::{
     discover_rds_metrics, discover_sqs_metrics, fetch_discovered_metrics,
 };
 use super::time_range::calculate_period_seconds;
-use crate::aws::services::sqs::mapper::SqsMetricDefinitions;
-use crate::aws::metrics::statistics::determine_sqs_statistic;
 use crate::aws::metrics::discovery::MetricDefinition;
+use crate::aws::metrics::statistics::determine_sqs_statistic;
+use crate::aws::services::sqs::mapper::SqsMetricDefinitions;
 
 // Re-export for backward compatibility
 pub use super::time_range::TimeRange;
@@ -102,7 +102,11 @@ pub async fn load_dynamic_metrics(
             "load_dynamic_metrics",
             format!("{:?}", service),
             duration,
-            format!("Instance: {}, Metrics: {}", instance_id, dynamic_metrics.len())
+            format!(
+                "Instance: {}, Metrics: {}",
+                instance_id,
+                dynamic_metrics.len()
+            )
         );
     }
 

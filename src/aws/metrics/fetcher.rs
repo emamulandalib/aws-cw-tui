@@ -4,8 +4,8 @@ use crate::aws::metrics::units::parse_cloudwatch_unit;
 use crate::aws::session::AwsSessionManager;
 use anyhow::Result;
 use aws_sdk_cloudwatch::types::Dimension;
-use std::time::SystemTime;
 use std::time::Duration;
+use std::time::SystemTime;
 
 #[derive(Debug, Clone)]
 pub struct DynamicMetricData {
@@ -94,10 +94,15 @@ pub async fn fetch_discovered_metrics(
                     (history, timestamps, current_value)
                 } else {
                     // Log specific information about the time range for debugging
-                    let time_range_hours = end_time.duration_since(start_time).unwrap_or_default().as_secs() / 3600;
+                    let time_range_hours = end_time
+                        .duration_since(start_time)
+                        .unwrap_or_default()
+                        .as_secs()
+                        / 3600;
                     let period_hours = period_seconds / 3600;
-                    
-                    if time_range_hours >= 24 * 7 { // 1 week or more
+
+                    if time_range_hours >= 24 * 7 {
+                        // 1 week or more
                         log::info!(
                             "No CloudWatch data returned for metric {} over {} hours with {}-hour periods. This may be normal for longer time ranges with no activity, or the data may not be retained.",
                             metric_def.metric_name,
@@ -105,9 +110,12 @@ pub async fn fetch_discovered_metrics(
                             period_hours
                         );
                     } else {
-                        log::debug!("No datapoints for metric {}, generating synthetic zeros", metric_def.metric_name);
+                        log::debug!(
+                            "No datapoints for metric {}, generating synthetic zeros",
+                            metric_def.metric_name
+                        );
                     }
-                    
+
                     // For longer time ranges, don't generate synthetic data as it's misleading
                     if time_range_hours >= 24 * 7 && period_seconds >= 3600 {
                         // Return empty data for display rather than synthetic zeros
@@ -117,17 +125,21 @@ pub async fn fetch_discovered_metrics(
                         let num_points = 36;
                         let step = period_seconds as u64;
                         let history = vec![0.0; num_points];
-                        let timestamps: Vec<SystemTime> = (0..num_points).map(|i| {
-                            start_time + Duration::from_secs(i as u64 * step)
-                        }).collect();
+                        let timestamps: Vec<SystemTime> = (0..num_points)
+                            .map(|i| start_time + Duration::from_secs(i as u64 * step))
+                            .collect();
                         let current_value = 0.0;
                         (history, timestamps, current_value)
                     }
                 }
             }
             Err(e) => {
-                log::warn!("CloudWatch API error for metric {}: {}", metric_def.metric_name, e);
-                
+                log::warn!(
+                    "CloudWatch API error for metric {}: {}",
+                    metric_def.metric_name,
+                    e
+                );
+
                 // Don't generate synthetic data for API errors - return empty data
                 (vec![], vec![], 0.0)
             }
@@ -137,14 +149,21 @@ pub async fn fetch_discovered_metrics(
         if !history.is_empty() && !timestamps.is_empty() {
             // Validate data consistency
             if history.len() != timestamps.len() {
-                log::warn!("Skipping metric {} due to data length mismatch: history={}, timestamps={}", 
-                    metric_def.metric_name, history.len(), timestamps.len());
+                log::warn!(
+                    "Skipping metric {} due to data length mismatch: history={}, timestamps={}",
+                    metric_def.metric_name,
+                    history.len(),
+                    timestamps.len()
+                );
                 continue;
             }
 
             // Skip metrics with invalid values (NaN/Infinite only)
             if history.iter().any(|&v| v.is_nan() || v.is_infinite()) {
-                log::warn!("Skipping metric {} due to invalid values (NaN/Infinite)", metric_def.metric_name);
+                log::warn!(
+                    "Skipping metric {} due to invalid values (NaN/Infinite)",
+                    metric_def.metric_name
+                );
                 continue;
             }
 

@@ -26,9 +26,7 @@ pub use crate::aws::metrics::{
 mod tests {
     use super::*;
     // Import functions directly for testing
-    use crate::aws::metrics::statistics::{
-        determine_best_statistic, determine_sqs_statistic,
-    };
+    use crate::aws::metrics::statistics::{determine_best_statistic, determine_sqs_statistic};
 
     #[test]
     fn test_backward_compatibility() {
