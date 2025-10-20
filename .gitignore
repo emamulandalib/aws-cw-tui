@@ -30,3 +30,31 @@ Cargo.lock
 node_modules/
 package-lock.json
 npm-debug.log
+
+logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+# Dependency directories
+# Environment variables
+.env
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# OS specific
+
+# Task files
+tasks.json
+tasks/ 
+
+# Kiro directory (should never be committed)
+.kiro/
+
+# Agent documentation files
+Agent.md 

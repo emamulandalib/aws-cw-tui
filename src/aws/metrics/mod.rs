@@ -1,13 +1,20 @@
-//! Modular CloudWatch metrics system
+//! AWS Metrics module with focused responsibilities
 //!
-//! This module provides a trait-based architecture for fetching CloudWatch metrics
-//! from different AWS services. It supports extensible service providers while
-//! maintaining backward compatibility with existing RDS functionality.
+//! This module provides a clean, maintainable structure for AWS CloudWatch metrics:
+//! - `discovery`: Metric discovery and listing from CloudWatch
+//! - `units`: Unit determination and formatting for different metric types
+//! - `statistics`: Statistic type determination for optimal data collection
+//! - `fetcher`: Core metric data fetching and processing logic
+//! - `formatter`: Display name and value formatting utilities
 
-pub mod factory;
+pub mod discovery;
 pub mod fetcher;
-pub mod providers;
-pub mod types;
+pub mod formatter;
+pub mod statistics;
+pub mod units;
 
-// Re-export commonly used types
-// Types are imported directly where needed
+// Re-export main types and functions for easy access
+pub use discovery::{discover_rds_metrics, discover_sqs_metrics};
+pub use fetcher::{fetch_discovered_metrics, DynamicMetricData};
+
+// Note: Backward compatibility aliases removed as they were unused

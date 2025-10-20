@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::time::Duration;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TimeUnit {
     Minutes,
     Hours,
