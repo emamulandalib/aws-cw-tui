@@ -81,6 +81,52 @@ else
     FAILED=1
 fi
 
+# 5. Check Markdown files
+print_header "Checking Markdown files"
+MD_FILES=$(find . -name "*.md" -not -path "./.git/*" -not -path "./target/*" 2>/dev/null)
+
+if [ -n "$MD_FILES" ]; then
+    MD_ISSUES=0
+
+    # Check if markdownlint-cli is available
+    if command -v markdownlint &> /dev/null; then
+        if ! markdownlint $MD_FILES 2>/dev/null; then
+            MD_ISSUES=1
+        fi
+    else
+        # Fallback: basic checks for common issues
+        for file in $MD_FILES; do
+            # Check for trailing whitespace (except in code blocks)
+            if grep -n '[[:space:]]$' "$file" > /dev/null 2>&1; then
+                echo "  Trailing whitespace in: $file"
+                MD_ISSUES=1
+            fi
+
+            # Check for missing final newline
+            if [ -n "$(tail -c 1 "$file")" ]; then
+                echo "  Missing final newline in: $file"
+                MD_ISSUES=1
+            fi
+
+            # Check for multiple consecutive blank lines
+            if awk '/^$/{blank++; if(blank>1){exit 1}} /^./{blank=0}' "$file"; then
+                :
+            else
+                echo "  Multiple consecutive blank lines in: $file"
+                MD_ISSUES=1
+            fi
+        done
+    fi
+
+    if [ $MD_ISSUES -eq 0 ]; then
+        print_status "Markdown files OK"
+    else
+        print_warning "Markdown issues found (non-blocking). Consider installing markdownlint-cli for detailed checks."
+    fi
+else
+    print_status "No Markdown files to check"
+fi
+
 echo ""
 
 if [ $FAILED -ne 0 ]; then
